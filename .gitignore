@@ -4,6 +4,11 @@
 *.pyc
 *.swp
 .DS_Store
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.local.example
 .atom/
 .build/
 .buildlog/
@@ -11,6 +16,12 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+
+# Local machine and Codex scratch files
+.codex/
+.agents/
+*.tmp
+*.temp
 
 # IntelliJ related
 *.iml
@@ -27,11 +38,13 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 /build/
 /coverage/
+.packages
 
 # Symbolication related
 app.*.symbols
@@ -43,3 +56,20 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android local build files
+local.properties
+**/GeneratedPluginRegistrant.java
+**/google-services.json
+
+# iOS/macOS local build files
+**/Pods/
+**/.symlinks/
+**/Flutter/ephemeral/
+**/Flutter/Flutter.framework
+**/Flutter/Flutter.podspec
+**/xcuserdata/
+**/*.xcuserstate
+
+# Windows/Linux generated build folders
+**/flutter/ephemeral/
