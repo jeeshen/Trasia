@@ -15,6 +15,8 @@ enum UserRole { user, admin }
 
 enum RideStage { idle, matching, tracking, onboard, completed, cancelled }
 
+enum PriceTier { budget, midRange, luxury }
+
 class TrasiaApp extends StatelessWidget {
   const TrasiaApp({super.key});
 
@@ -225,11 +227,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _tab = 0;
   double _wallet = 128.40;
   String _transitDestination = 'KLCC';
+  int _transitRequest = 0;
+  String? _ongoingDestination;
 
   void _openTransitFor(String destination) {
     setState(() {
       _transitDestination = destination;
+      _transitRequest++;
+      _ongoingDestination = destination;
       _tab = 0;
+    });
+  }
+
+  void _cancelDestination(String destination) {
+    setState(() {
+      if (_ongoingDestination == destination) {
+        _ongoingDestination = null;
+      }
     });
   }
 
@@ -243,27 +257,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      TransitRouterScreen(destination: _transitDestination),
+    final pages = <Widget>[
+      TransitRouterScreen(
+        destination: _transitDestination,
+        request: _transitRequest,
+        ongoingDestination: _ongoingDestination,
+        onNavigationCancelled: () => setState(() => _ongoingDestination = null),
+      ),
       HubPoolScreen(wallet: _wallet, onFareDeducted: _deductFare),
-      PelancongPlanScreen(onGoViaTransit: _openTransitFor),
-      AccountConsoleScreen(role: widget.role, wallet: _wallet, onTopUp: _topUp),
+      SafeArea(
+        child: Column(
+          children: [
+            _DashboardHeader(
+              role: widget.role,
+              wallet: _wallet,
+              showWallet: false,
+            ),
+            Expanded(
+              child: PelancongPlanScreen(
+                ongoingDestination: _ongoingDestination,
+                onGoNow: _openTransitFor,
+                onCancelDestination: _cancelDestination,
+              ),
+            ),
+          ],
+        ),
+      ),
+      SafeArea(
+        child: Column(
+          children: [
+            _DashboardHeader(
+              role: widget.role,
+              wallet: _wallet,
+              showWallet: true,
+            ),
+            Expanded(
+              child: AccountConsoleScreen(
+                role: widget.role,
+                wallet: _wallet,
+                onTopUp: _topUp,
+              ),
+            ),
+          ],
+        ),
+      ),
     ];
 
     return Scaffold(
       body: _BlueShell(
-        child: _tab == 0 || _tab == 1
-            ? pages[_tab]
-            : SafeArea(
-                child: Column(
-                  children: [
-                    _DashboardHeader(role: widget.role, wallet: _wallet),
-                    Expanded(
-                      child: IndexedStack(index: _tab, children: pages),
-                    ),
-                  ],
-                ),
-              ),
+        child: IndexedStack(index: _tab, children: pages),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
@@ -294,9 +336,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class TransitRouterScreen extends StatefulWidget {
-  const TransitRouterScreen({required this.destination, super.key});
+  const TransitRouterScreen({
+    required this.destination,
+    required this.request,
+    required this.ongoingDestination,
+    required this.onNavigationCancelled,
+    super.key,
+  });
 
   final String destination;
+  final int request;
+  final String? ongoingDestination;
+  final VoidCallback onNavigationCancelled;
 
   @override
   State<TransitRouterScreen> createState() => _TransitRouterScreenState();
@@ -340,14 +391,17 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   @override
   void didUpdateWidget(covariant TransitRouterScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.destination != widget.destination) {
+    if (oldWidget.destination != widget.destination ||
+        oldWidget.request != widget.request) {
       _toController.text = widget.destination;
-      unawaited(_searchDestination());
       _candidate = null;
       _candidates = const [];
       _routes = const [];
       _selectedRoute = null;
       _navigating = false;
+      _departureLocation = null;
+      _departureName = null;
+      unawaited(_searchDestination());
     }
   }
 
@@ -431,6 +485,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
             child: _TripDetailsDropdown(
               destination: _candidate,
               route: _selectedRoute!,
+              ongoing: widget.ongoingDestination == _candidate?.name,
               onStop: _resetNavigation,
             ),
           ),
@@ -761,6 +816,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _departureName = null;
       _toController.clear();
     });
+    widget.onNavigationCancelled();
   }
 
   List<DestinationCandidate> _previewCandidates(String query) {
@@ -1193,11 +1249,22 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   RideStage _stage = RideStage.idle;
   Driver? _driver;
   DestinationCandidate? _destination;
+  List<DestinationCandidate> _destinationCandidates = const [];
   TransitOption? _route;
+  String? _destinationStatusMessage;
   int _seconds = 0;
   bool _fareDeducted = false;
+  bool _searchingDestination = false;
   static const _origin = LatLng(3.1478, 101.6953);
   static const _originName = 'Current pickup point';
+  static const _providedGoogleMapsApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+  );
+  static const _developmentGoogleMapsApiKey =
+      'AIzaSyDEDpjqw4CrmsiJSOGWtjeH4LnJSl715jw';
+  static const _googleMapsApiKey = _providedGoogleMapsApiKey == ''
+      ? _developmentGoogleMapsApiKey
+      : _providedGoogleMapsApiKey;
 
   @override
   void initState() {
@@ -1221,7 +1288,13 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   }
 
   void _bookRide() {
-    final destination = _selectedDestination;
+    final destination = _destination;
+    if (destination == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Search and choose a destination first.')),
+      );
+      return;
+    }
     final rideDistanceKm = _rideDistanceKm(destination.location);
     final fare = _fareForDistance(rideDistanceKm);
     if (widget.wallet < fare) {
@@ -1264,7 +1337,15 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_seconds <= 1) {
         timer.cancel();
-        final destination = _destination ?? _selectedDestination;
+        final destination = _destination;
+        if (destination == null) {
+          setState(() {
+            _stage = RideStage.idle;
+            _seconds = 0;
+            _route = null;
+          });
+          return;
+        }
         final fare = _fareForDistance(_rideDistanceKm(destination.location));
         if (!_fareDeducted) {
           widget.onFareDeducted(fare);
@@ -1305,31 +1386,19 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     });
   }
 
-  DestinationCandidate get _selectedDestination {
-    final query = _destinationController.text.trim().toLowerCase();
-    final fallback = _hubDestinations.first;
-    return _hubDestinations.firstWhere(
-      (destination) =>
-          query.isNotEmpty &&
-          (destination.name.toLowerCase().contains(query) ||
-              destination.address.toLowerCase().contains(query)),
-      orElse: () => fallback,
-    );
-  }
-
   List<DestinationCandidate> get _visibleDestinations {
     final query = _destinationController.text.trim().toLowerCase();
     if (query.isEmpty) {
-      return _hubDestinations;
+      return _destinationCandidates;
     }
-    final matches = _hubDestinations
+    final matches = _destinationCandidates
         .where(
           (destination) =>
               destination.name.toLowerCase().contains(query) ||
               destination.address.toLowerCase().contains(query),
         )
         .toList();
-    return matches.isEmpty ? _hubDestinations : matches;
+    return matches.isEmpty ? _destinationCandidates : matches;
   }
 
   LatLng? get _vehicleLocation {
@@ -1347,7 +1416,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   }
 
   double get _selectedDistanceKm =>
-      _rideDistanceKm((_destination ?? _selectedDestination).location);
+      _destination == null ? 0 : _rideDistanceKm(_destination!.location);
 
   double get _selectedFare => _fareForDistance(_selectedDistanceKm);
 
@@ -1477,15 +1546,77 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     );
   }
 
+  void _handleDestinationTextChanged() {
+    setState(() {
+      _destination = null;
+      _destinationStatusMessage = null;
+      _destinationCandidates = const [];
+    });
+  }
+
+  Future<void> _searchDestination() async {
+    final query = _destinationController.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _destination = null;
+        _destinationCandidates = const [];
+        _destinationStatusMessage = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _searchingDestination = true;
+      _destination = null;
+      _destinationStatusMessage = null;
+    });
+
+    try {
+      final candidates = await _GoogleMapsApi.findPlaces(
+        query: query,
+        apiKey: _googleMapsApiKey,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _destinationCandidates = candidates;
+        _destination = candidates.isEmpty ? null : candidates.first;
+        _destinationStatusMessage = candidates.isEmpty
+            ? 'No places found. Try a more specific address or landmark.'
+            : null;
+      });
+      final destination = candidates.isEmpty ? null : candidates.first;
+      if (destination != null) {
+        await _mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(destination.location, 14.5),
+        );
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _destinationCandidates = const [];
+        _destination = null;
+        _destinationStatusMessage = 'Place search failed. Try again.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _searchingDestination = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.paddingOf(context).top;
-    final destination = _destination ?? _selectedDestination;
+    final destination = _destination;
     return Stack(
       children: [
         Positioned.fill(
           child: _LiveGoogleMapSurface(
-            apiKeyReady: true,
+            apiKeyReady: _googleMapsApiKey.isNotEmpty,
             currentLocation: _origin,
             currentAccuracyMeters: null,
             candidate: destination,
@@ -1514,11 +1645,15 @@ class _HubPoolScreenState extends State<HubPoolScreen>
             driver: _driver,
             destinations: _visibleDestinations,
             selectedDestination: destination,
-            onTextChanged: () => setState(() {}),
+            statusMessage: _destinationStatusMessage,
+            searchingDestination: _searchingDestination,
+            onTextChanged: _handleDestinationTextChanged,
+            onSearch: _searchDestination,
             onSelectDestination: (candidate) {
               setState(() {
                 _destinationController.text = candidate.name;
                 _destination = candidate;
+                _destinationStatusMessage = null;
               });
               unawaited(
                 _mapController?.animateCamera(
@@ -1526,7 +1661,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
                 ),
               );
             },
-            onBook: _bookRide,
+            onBook: destination == null ? null : _bookRide,
             onCancel: _stage == RideStage.matching ||
                     _stage == RideStage.tracking
                 ? _cancelRide
@@ -1538,32 +1673,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     );
   }
 
-  static const _hubDestinations = [
-    DestinationCandidate(
-      name: 'TRX Exchange',
-      address: 'Tun Razak Exchange, Kuala Lumpur',
-      location: LatLng(3.1421, 101.7184),
-      placeId: 'hub-trx',
-    ),
-    DestinationCandidate(
-      name: 'Suria KLCC',
-      address: 'Kuala Lumpur City Centre',
-      location: LatLng(3.1579, 101.7123),
-      placeId: 'hub-klcc',
-    ),
-    DestinationCandidate(
-      name: 'KL Sentral',
-      address: 'Brickfields, Kuala Lumpur',
-      location: LatLng(3.1340, 101.6869),
-      placeId: 'hub-sentral',
-    ),
-    DestinationCandidate(
-      name: 'Bukit Bintang',
-      address: 'Bukit Bintang, Kuala Lumpur',
-      location: LatLng(3.1468, 101.7113),
-      placeId: 'hub-bukit-bintang',
-    ),
-  ];
 }
 
 class _HubPoolOverlay extends StatelessWidget {
@@ -1577,7 +1686,10 @@ class _HubPoolOverlay extends StatelessWidget {
     required this.driver,
     required this.destinations,
     required this.selectedDestination,
+    required this.statusMessage,
+    required this.searchingDestination,
     required this.onTextChanged,
+    required this.onSearch,
     required this.onSelectDestination,
     required this.onBook,
     required this.onCancel,
@@ -1592,10 +1704,13 @@ class _HubPoolOverlay extends StatelessWidget {
   final double distanceKm;
   final Driver? driver;
   final List<DestinationCandidate> destinations;
-  final DestinationCandidate selectedDestination;
+  final DestinationCandidate? selectedDestination;
+  final String? statusMessage;
+  final bool searchingDestination;
   final VoidCallback onTextChanged;
+  final VoidCallback onSearch;
   final ValueChanged<DestinationCandidate> onSelectDestination;
-  final VoidCallback onBook;
+  final VoidCallback? onBook;
   final VoidCallback? onCancel;
   final VoidCallback? onReset;
 
@@ -1610,10 +1725,13 @@ class _HubPoolOverlay extends StatelessWidget {
       RideStage.cancelled => 'Ride cancelled',
     };
     final subtitle = switch (stage) {
-      RideStage.idle => '${distanceKm.toStringAsFixed(1)} km / ${fare.toStringAsFixed(2)} credit',
+      RideStage.idle => selectedDestination == null
+          ? 'Search any destination'
+          : '${distanceKm.toStringAsFixed(1)} km / ${fare.toStringAsFixed(2)} credit',
       RideStage.matching => 'Confirmed. Matching in $seconds sec',
       RideStage.tracking => 'Arrives in $seconds sec',
-      RideStage.onboard => '${driver?.vehicle ?? 'Vehicle'} to ${selectedDestination.name}',
+      RideStage.onboard =>
+        '${driver?.vehicle ?? 'Vehicle'} to ${selectedDestination?.name ?? 'destination'}',
       RideStage.completed => 'Fare deducted',
       RideStage.cancelled => 'You can book again',
     };
@@ -1680,40 +1798,74 @@ class _HubPoolOverlay extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (stage == RideStage.idle || stage == RideStage.cancelled) ...[
-            TextField(
-              controller: controller,
-              onChanged: (_) => onTextChanged(),
-              style: const TextStyle(color: Color(0xFF172033)),
-              decoration: InputDecoration(
-                hintText: 'Search destination',
-                hintStyle: const TextStyle(color: Color(0xFF98A2B3)),
-                prefixIcon: const Icon(Icons.search_rounded),
-                filled: true,
-                fillColor: const Color(0xFFF0F4FA),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const Key('feature-b-destination'),
+                    controller: controller,
+                    onChanged: (_) => onTextChanged(),
+                    onSubmitted: (_) => onSearch(),
+                    style: const TextStyle(color: Color(0xFF172033)),
+                    decoration: InputDecoration(
+                      hintText: 'Search destination',
+                      hintStyle: const TextStyle(color: Color(0xFF98A2B3)),
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      fillColor: const Color(0xFFF0F4FA),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  tooltip: 'Search destinations',
+                  onPressed: searchingDestination ? null : onSearch,
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFF0B7CFF),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFFB9D7FF),
+                    disabledForegroundColor: Colors.white,
+                  ),
+                  icon: searchingDestination
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.near_me_rounded),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
-            for (final destination in destinations.take(3)) ...[
+            if (statusMessage != null) ...[
+              _SheetNotice(message: statusMessage!),
+              const SizedBox(height: 10),
+            ],
+            for (final destination in destinations.take(6)) ...[
               _HubDestinationTile(
                 destination: destination,
-                selected: destination.placeId == selectedDestination.placeId,
+                selected: destination.placeId == selectedDestination?.placeId,
                 onTap: () => onSelectDestination(destination),
               ),
               const SizedBox(height: 8),
             ],
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                key: const Key('book-ride'),
-                onPressed: onBook,
-                icon: const Icon(Icons.local_taxi_rounded),
-                label: const Text('Book Ride'),
+            if (destinations.isNotEmpty) ...[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  key: const Key('book-ride'),
+                  onPressed: onBook,
+                  icon: const Icon(Icons.local_taxi_rounded),
+                  label: const Text('Book Ride'),
+                ),
               ),
-            ),
+            ],
             if (onReset != null)
               TextButton(
                 onPressed: onReset,
@@ -1815,45 +1967,185 @@ class _HubDestinationTile extends StatelessWidget {
 }
 
 class PelancongPlanScreen extends StatefulWidget {
-  const PelancongPlanScreen({required this.onGoViaTransit, super.key});
+  const PelancongPlanScreen({
+    required this.ongoingDestination,
+    required this.onGoNow,
+    required this.onCancelDestination,
+    super.key,
+  });
 
-  final ValueChanged<String> onGoViaTransit;
+  final String? ongoingDestination;
+  final ValueChanged<String> onGoNow;
+  final ValueChanged<String> onCancelDestination;
 
   @override
   State<PelancongPlanScreen> createState() => _PelancongPlanScreenState();
 }
 
 class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
-  double _radius = 10;
-  List<Attraction> _spots = [];
-  bool _accepted = false;
+  double _attractionCount = 3;
+  double _distanceKm = 10;
+  double _priceIndex = 1;
+  List<ItineraryStop> _itinerary = const [];
+  late final List<Attraction> _blindBoxLocations = _buildBlindBoxLocations();
 
-  final List<Attraction> _database = const [
-    Attraction('KLCC Park', '10:00 - 22:00', 4.7, 0, Color(0xFF40A9FF)),
-    Attraction('Central Market', '10:00 - 20:00', 4.5, 25, Color(0xFF00E2A7)),
-    Attraction('Batu Caves', '07:00 - 21:00', 4.8, 15, Color(0xFFFFCE3D)),
-    Attraction('Merdeka 118 View', '09:00 - 18:00', 4.6, 60, Color(0xFF7C5CFF)),
-    Attraction('River of Life', '11:00 - 23:00', 4.4, 10, Color(0xFFFF7A59)),
-    Attraction('National Mosque', '09:00 - 17:30', 4.6, 0, Color(0xFF38D9FF)),
-  ];
+  PriceTier get _priceTier => PriceTier.values[_priceIndex.round()];
 
   void _generate() {
-    final shuffled = List<Attraction>.of(_database)..shuffle(Random());
     setState(() {
-      _spots = shuffled.take(3 + Random().nextInt(3)).toList();
-      _accepted = false;
+      _itinerary = _buildItinerary(
+        stopCount: _attractionCount.round(),
+        totalDistanceKm: _distanceKm,
+        priceTier: _priceTier,
+      );
     });
   }
 
-  void _removeSpot(Attraction spot) {
-    setState(() => _spots = _spots.where((item) => item != spot).toList());
+  Future<bool> _confirmCancel(ItineraryStop stop) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel destination?'),
+        content: Text('Remove ${stop.attraction.name} from this itinerary?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      widget.onCancelDestination(stop.attraction.name);
+      setState(() {
+        _itinerary = [
+          for (final item in _itinerary)
+            if (item != stop) item,
+        ];
+      });
+      return true;
+    }
+    return false;
   }
 
-  void _clearAll() {
-    setState(() {
-      _spots = [];
-      _accepted = false;
-    });
+  List<ItineraryStop> _buildItinerary({
+    required int stopCount,
+    required double totalDistanceKm,
+    required PriceTier priceTier,
+  }) {
+    final attractions = _pickBlindBoxMatches(
+      stopCount: stopCount,
+      totalDistanceKm: totalDistanceKm,
+      priceTier: priceTier,
+    );
+    final distanceTotal = attractions.fold<double>(
+      0,
+      (sum, attraction) => sum + attraction.suggestedDistanceKm,
+    );
+    var clock = 9 * 60;
+
+    return [
+      for (var i = 0; i < attractions.length; i++)
+        (() {
+          final attraction = attractions[i];
+          final distance = distanceTotal == 0
+              ? totalDistanceKm / attractions.length
+              : attraction.suggestedDistanceKm * totalDistanceKm / distanceTotal;
+          final travelMinutes = max(8, (distance * 4.2).round());
+          final arrival = clock + travelMinutes;
+          final start = max(arrival, attraction.openMinute);
+          final end = min(
+            start + attraction.stayMinutes,
+            attraction.closeMinute,
+          );
+          clock = end;
+          return ItineraryStop(
+            order: i + 1,
+            attraction: attraction,
+            startMinute: start,
+            endMinute: end,
+            distanceKm: distance,
+            travelMinutes: travelMinutes,
+            cost: attraction.costFor(priceTier),
+          );
+        })(),
+    ];
+  }
+
+  List<Attraction> _pickBlindBoxMatches({
+    required int stopCount,
+    required double totalDistanceKm,
+    required PriceTier priceTier,
+  }) {
+    final distanceLimit = max(1.0, totalDistanceKm);
+    var expandedDistanceLimit = distanceLimit;
+    var exactMatches = _matchingLocations(
+      priceTier: priceTier,
+      distanceLimit: expandedDistanceLimit,
+    );
+    while (_uniqueImageCount(exactMatches) < stopCount &&
+        expandedDistanceLimit < 50) {
+      expandedDistanceLimit = min(50, expandedDistanceLimit + 5);
+      exactMatches = _matchingLocations(
+        priceTier: priceTier,
+        distanceLimit: expandedDistanceLimit,
+      );
+    }
+    final distanceMatches = _blindBoxLocations
+        .where((location) => location.suggestedDistanceKm <= distanceLimit)
+        .toList();
+    final pool = _uniqueImageCount(exactMatches) >= stopCount
+        ? exactMatches
+        : _uniqueImageCount(distanceMatches) >= stopCount
+            ? distanceMatches
+            : _blindBoxLocations;
+    return _sampleUniquePhotoLocations(pool, stopCount);
+  }
+
+  int _uniqueImageCount(List<Attraction> locations) =>
+      locations.map((location) => location.imageAsset).toSet().length;
+
+  List<Attraction> _matchingLocations({
+    required PriceTier priceTier,
+    required double distanceLimit,
+  }) {
+    return _blindBoxLocations
+        .where(
+          (location) =>
+              location.priceTier == priceTier &&
+              location.suggestedDistanceKm <= distanceLimit,
+        )
+        .toList();
+  }
+
+  List<Attraction> _sampleUniquePhotoLocations(
+    List<Attraction> pool,
+    int stopCount,
+  ) {
+    final shuffled = List<Attraction>.of(pool)..shuffle(Random());
+    final usedImages = <String>{};
+    final selected = <Attraction>[];
+    for (final location in shuffled) {
+      if (usedImages.add(location.imageAsset)) {
+        selected.add(location);
+      }
+      if (selected.length == stopCount) {
+        return selected;
+      }
+    }
+    for (final location in shuffled) {
+      if (!selected.contains(location)) {
+        selected.add(location);
+      }
+      if (selected.length == stopCount) {
+        break;
+      }
+    }
+    return selected;
   }
 
   @override
@@ -1863,70 +2155,109 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       children: [
         const _SectionTitle(
           icon: Icons.explore_rounded,
-          title: 'PelancongPlan Engine',
-          trailing: '3-5 stops',
+          title: 'KL Blind Box',
+          trailing: '1000 places',
         ),
-        _GlassPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Radius: ${_radius.toStringAsFixed(0)} km',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              Slider(
-                value: _radius,
-                min: 5,
-                max: 20,
-                divisions: 3,
-                label: '${_radius.toStringAsFixed(0)} km',
-                onChanged: (value) => setState(() => _radius = value),
-              ),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  key: const Key('generate-route'),
-                  onPressed: _generate,
-                  icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('Generate Route'),
+        if (_itinerary.isEmpty) ...[
+          _GlassPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _PlanSlider(
+                  icon: Icons.place_rounded,
+                  label: 'Attractions',
+                  valueLabel: '${_attractionCount.round()} stops',
+                  value: _attractionCount,
+                  min: 3,
+                  max: 6,
+                  divisions: 3,
+                  onChanged: (value) => setState(() {
+                    _attractionCount = value;
+                    _itinerary = const [];
+                  }),
                 ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (_spots.isEmpty)
-          const _MapPreview(
-            title: 'Nearby Malaysian gems',
-            subtitle: 'Generate a smart 3-5 stop discovery route',
-          )
-        else ...[
-          _ItineraryMap(spots: _spots, accepted: _accepted),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => setState(() => _accepted = true),
-                  icon: const Icon(Icons.check_circle_rounded),
-                  label: const Text('Accept Plan'),
+                _PlanSlider(
+                  icon: Icons.route_rounded,
+                  label: 'Trip distance',
+                  valueLabel: '${_distanceKm.round()} km',
+                  value: _distanceKm,
+                  min: 1,
+                  max: 50,
+                  divisions: 49,
+                  onChanged: (value) => setState(() {
+                    _distanceKm = value;
+                    _itinerary = const [];
+                  }),
                 ),
-              ),
-              const SizedBox(width: 10),
-              IconButton.filledTonal(
-                tooltip: 'All Cancel',
-                onPressed: _clearAll,
-                icon: const Icon(Icons.delete_sweep_rounded),
-              ),
-            ],
+                _PlanSlider(
+                  icon: Icons.payments_rounded,
+                  label: 'Pricing',
+                  valueLabel: _priceTier.label,
+                  value: _priceIndex,
+                  min: 0,
+                  max: 2,
+                  divisions: 2,
+                  onChanged: (value) => setState(() {
+                    _priceIndex = value;
+                    _itinerary = const [];
+                  }),
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    key: const Key('generate-route'),
+                    onPressed: _generate,
+                    icon: const Icon(Icons.auto_awesome_rounded),
+                    label: const Text('Open Blind Box'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _GlassPanel(
+            child: Row(
+              children: [
+                const Icon(Icons.event_note_rounded, color: Color(0xFF40A9FF)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Choose attraction count, distance, and pricing, then open a blind box from 1000 KL locations.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: .78),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          _ItinerarySummary(
+            stops: _itinerary,
+            priceTier: _priceTier,
           ),
           const SizedBox(height: 12),
-          for (final spot in _spots) ...[
-            _AttractionCard(
-              spot: spot,
-              active: _accepted,
-              onTransit: () => widget.onGoViaTransit(spot.name),
-              onRemove: () => _removeSpot(spot),
+          for (final stop in _itinerary) ...[
+            Dismissible(
+              key: ValueKey('itinerary-${stop.attraction.name}'),
+              direction: DismissDirection.endToStart,
+              confirmDismiss: (_) => _confirmCancel(stop),
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF4B43),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Icon(Icons.delete_rounded, color: Colors.white),
+              ),
+              child: _ItineraryStopCard(
+                stop: stop,
+                ongoing:
+                    widget.ongoingDestination == stop.attraction.name,
+                onGoNow: () => widget.onGoNow(stop.attraction.name),
+              ),
             ),
             const SizedBox(height: 12),
           ],
@@ -2091,10 +2422,15 @@ class _AdminConsole extends StatelessWidget {
 }
 
 class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({required this.role, required this.wallet});
+  const _DashboardHeader({
+    required this.role,
+    required this.wallet,
+    required this.showWallet,
+  });
 
   final UserRole role;
   final double wallet;
+  final bool showWallet;
 
   @override
   Widget build(BuildContext context) {
@@ -2121,7 +2457,9 @@ class _DashboardHeader extends StatelessWidget {
                 Text(
                   role == UserRole.admin
                       ? 'Registry and system controls'
-                      : 'Wallet RM ${wallet.toStringAsFixed(2)}',
+                      : showWallet
+                          ? 'Wallet RM ${wallet.toStringAsFixed(2)}'
+                          : 'Classic destination itinerary',
                   style: TextStyle(color: Colors.white.withValues(alpha: .7)),
                 ),
               ],
@@ -2992,11 +3330,13 @@ class _TripDetailsDropdown extends StatefulWidget {
   const _TripDetailsDropdown({
     required this.destination,
     required this.route,
+    required this.ongoing,
     required this.onStop,
   });
 
   final DestinationCandidate? destination;
   final TransitOption route;
+  final bool ongoing;
   final VoidCallback onStop;
 
   @override
@@ -3060,6 +3400,15 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Color(0xFF687386)),
                     ),
+                    if (widget.ongoing)
+                      const Text(
+                        'On Going',
+                        style: TextStyle(
+                          color: Color(0xFF0B7CFF),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -3283,60 +3632,6 @@ class _MapLoadingPill extends StatelessWidget {
   }
 }
 
-class _MapPreview extends StatelessWidget {
-  const _MapPreview({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 230,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF8DD9FF), Color(0xFFB9F0D4)],
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: _MapPainter())),
-          Positioned(
-            left: 18,
-            right: 18,
-            bottom: 18,
-            child: _GlassPanel(
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    backgroundColor: Color(0xFF0B7CFF),
-                    child: Icon(Icons.search_rounded),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        Text(subtitle),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _RideStatusPanel extends StatelessWidget {
   const _RideStatusPanel({
     required this.stage,
@@ -3498,44 +3793,220 @@ class _DriverCard extends StatelessWidget {
   }
 }
 
-class _ItineraryMap extends StatelessWidget {
-  const _ItineraryMap({required this.spots, required this.accepted});
+class _PlanSlider extends StatelessWidget {
+  const _PlanSlider({
+    required this.icon,
+    required this.label,
+    required this.valueLabel,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+  });
 
-  final List<Attraction> spots;
-  final bool accepted;
+  final IconData icon;
+  final String label;
+  final String valueLabel;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final ValueChanged<double> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 250,
-      decoration: BoxDecoration(
-        color: const Color(0xFFBDEBDE),
-        borderRadius: BorderRadius.circular(28),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
         children: [
-          Positioned.fill(child: CustomPaint(painter: _MapPainter())),
-          Positioned.fill(
-            child: CustomPaint(painter: _PolylinePainter(spots.length)),
-          ),
-          for (var i = 0; i < spots.length; i++)
-            Positioned(
-              left: 34.0 + (i % 2) * 156,
-              top: 30.0 + i * 38,
-              child: _MapPin(number: i + 1, color: spots[i].color),
-            ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: _GlassPanel(
-              child: Text(
-                accepted
-                    ? 'Smart sequence accepted: tap Start on a stop for transit routing.'
-                    : 'Preview route overlay: ${spots.length} generated stops.',
-                style: const TextStyle(fontWeight: FontWeight.w800),
+          Row(
+            children: [
+              Icon(icon, size: 18, color: const Color(0xFF40A9FF)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
+              Text(
+                valueLabel,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            label: valueLabel,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItinerarySummary extends StatelessWidget {
+  const _ItinerarySummary({required this.stops, required this.priceTier});
+
+  final List<ItineraryStop> stops;
+  final PriceTier priceTier;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalCost = stops.fold<int>(0, (sum, stop) => sum + stop.cost);
+    final totalDistance = stops.fold<double>(
+      0,
+      (sum, stop) => sum + stop.distanceKm,
+    );
+    final totalTravel = stops.fold<int>(
+      0,
+      (sum, stop) => sum + stop.travelMinutes,
+    );
+    final start = stops.first.startMinute;
+    final end = stops.last.endMinute;
+
+    return _GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Itinerary',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _SummaryChip(
+                icon: Icons.schedule_rounded,
+                label: '${_formatClock(start)} - ${_formatClock(end)}',
+              ),
+              _SummaryChip(
+                icon: Icons.route_rounded,
+                label: '${totalDistance.toStringAsFixed(1)} km',
+              ),
+              _SummaryChip(
+                icon: Icons.directions_car_rounded,
+                label: '$totalTravel min travel',
+              ),
+              _SummaryChip(
+                icon: Icons.payments_rounded,
+                label: '${priceTier.label} / RM $totalCost',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryChip extends StatelessWidget {
+  const _SummaryChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: Icon(icon, size: 16),
+      label: Text(label),
+      backgroundColor: Colors.white.withValues(alpha: .12),
+      side: BorderSide(color: Colors.white.withValues(alpha: .14)),
+    );
+  }
+}
+
+class _ItineraryStopCard extends StatelessWidget {
+  const _ItineraryStopCard({
+    required this.stop,
+    required this.ongoing,
+    required this.onGoNow,
+  });
+
+  final ItineraryStop stop;
+  final bool ongoing;
+  final VoidCallback onGoNow;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassPanel(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset(
+              stop.attraction.imageAsset,
+              width: 84,
+              height: 84,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                width: 84,
+                height: 84,
+                color: stop.attraction.color,
+                alignment: Alignment.center,
+                child: const Icon(Icons.image_not_supported_rounded),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  stop.attraction.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _ItineraryDetailRow(
+                  icon: Icons.schedule_rounded,
+                  text:
+                      '${_formatClock(stop.startMinute)} - ${_formatClock(stop.endMinute)}',
+                ),
+                _ItineraryDetailRow(
+                  icon: Icons.access_time_rounded,
+                  text: 'Opening hours: ${stop.attraction.hours}',
+                ),
+                _ItineraryDetailRow(
+                  icon: Icons.route_rounded,
+                  text: 'Distance: ${stop.distanceKm.toStringAsFixed(1)} km',
+                ),
+                _ItineraryDetailRow(
+                  icon: Icons.directions_car_rounded,
+                  text: stop.travelMinutes == 0
+                      ? 'Start point'
+                      : 'Travel time: ${stop.travelMinutes} min',
+                ),
+                _ItineraryDetailRow(
+                  icon: Icons.payments_rounded,
+                  text: 'Cost: RM ${stop.cost}',
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: onGoNow,
+                    icon: Icon(
+                      ongoing
+                          ? Icons.navigation_rounded
+                          : Icons.near_me_rounded,
+                    ),
+                    label: Text(ongoing ? 'On Going' : 'Go Now'),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -3544,73 +4015,24 @@ class _ItineraryMap extends StatelessWidget {
   }
 }
 
-class _AttractionCard extends StatelessWidget {
-  const _AttractionCard({
-    required this.spot,
-    required this.active,
-    required this.onTransit,
-    required this.onRemove,
-  });
+class _ItineraryDetailRow extends StatelessWidget {
+  const _ItineraryDetailRow({required this.icon, required this.text});
 
-  final Attraction spot;
-  final bool active;
-  final VoidCallback onTransit;
-  final VoidCallback onRemove;
+  final IconData icon;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return _GlassPanel(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 92,
-            height: 92,
-            decoration: BoxDecoration(
-              color: spot.color,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(Icons.landscape_rounded, size: 42),
-          ),
-          const SizedBox(width: 14),
+          Icon(icon, size: 16, color: Colors.white.withValues(alpha: .72)),
+          const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  spot.name,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 4),
-                Text('${spot.hours} / ${spot.isOpen ? 'OPEN' : 'CLOSED'}'),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star_rounded,
-                      color: Color(0xFFFFCE3D),
-                      size: 18,
-                    ),
-                    Text(' ${spot.rating} / Cost RM ${spot.cost}'),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    FilledButton.tonalIcon(
-                      onPressed: active ? onTransit : null,
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Start'),
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: 'Cancel single spot',
-                      onPressed: onRemove,
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-              ],
+            child: Text(
+              text,
+              style: TextStyle(color: Colors.white.withValues(alpha: .76)),
             ),
           ),
         ],
@@ -3666,31 +4088,6 @@ class _PageDots extends StatelessWidget {
             shape: BoxShape.circle,
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MapPin extends StatelessWidget {
-  const _MapPin({required this.number, required this.color});
-
-  final int number;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white, width: 3),
-      ),
-      child: Text(
-        '$number',
-        style: const TextStyle(fontWeight: FontWeight.w900),
       ),
     );
   }
@@ -3876,38 +4273,6 @@ class _NavigationMapPainter extends CustomPainter {
   }
 }
 
-class _MapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final road = Paint()
-      ..color = Colors.white.withValues(alpha: .38)
-      ..strokeWidth = 5
-      ..style = PaintingStyle.stroke;
-    final river = Paint()
-      ..color = const Color(0xFF40A9FF).withValues(alpha: .38)
-      ..strokeWidth = 20
-      ..style = PaintingStyle.stroke;
-    final path = Path()
-      ..moveTo(-20, size.height * .64)
-      ..quadraticBezierTo(
-        size.width * .42,
-        size.height * .38,
-        size.width + 20,
-        size.height * .52,
-      );
-    canvas.drawPath(path, river);
-    for (var y = 32.0; y < size.height; y += 52) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y + 40), road);
-    }
-    for (var x = 36.0; x < size.width; x += 74) {
-      canvas.drawLine(Offset(x, 0), Offset(x - 28, size.height), road);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
 class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -3933,34 +4298,6 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _PolylinePainter extends CustomPainter {
-  const _PolylinePainter(this.count);
-
-  final int count;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (count < 2) {
-      return;
-    }
-    final paint = Paint()
-      ..color = const Color(0xFF0B7CFF)
-      ..strokeWidth = 5
-      ..strokeCap = StrokeCap.round;
-    final points = [
-      for (var i = 0; i < count; i++)
-        Offset(56.0 + (i % 2) * 156, 52.0 + i * 38),
-    ];
-    for (var i = 0; i < points.length - 1; i++) {
-      canvas.drawLine(points[i], points[i + 1], paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PolylinePainter oldDelegate) =>
-      oldDelegate.count != count;
 }
 
 class DestinationCandidate {
@@ -4351,16 +4688,380 @@ class Driver {
 }
 
 class Attraction {
-  const Attraction(this.name, this.hours, this.rating, this.cost, this.color);
+  const Attraction({
+    required this.name,
+    required this.hours,
+    required this.openMinute,
+    required this.closeMinute,
+    required this.baseCost,
+    required this.stayMinutes,
+    required this.suggestedDistanceKm,
+    required this.priceTier,
+    required this.imageAsset,
+    required this.color,
+  });
 
   final String name;
   final String hours;
-  final double rating;
-  final int cost;
+  final int openMinute;
+  final int closeMinute;
+  final int baseCost;
+  final int stayMinutes;
+  final double suggestedDistanceKm;
+  final PriceTier priceTier;
+  final String imageAsset;
   final Color color;
 
-  bool get isOpen {
-    final hour = DateTime.now().hour;
-    return hour >= 9 && hour < 21;
+  int costFor(PriceTier tier) {
+    final multiplier = switch (tier) {
+      PriceTier.budget => .7,
+      PriceTier.midRange => 1.0,
+      PriceTier.luxury => 1.8,
+    };
+    return max(0, (baseCost * multiplier).round());
   }
+}
+
+class ItineraryStop {
+  const ItineraryStop({
+    required this.order,
+    required this.attraction,
+    required this.startMinute,
+    required this.endMinute,
+    required this.distanceKm,
+    required this.travelMinutes,
+    required this.cost,
+  });
+
+  final int order;
+  final Attraction attraction;
+  final int startMinute;
+  final int endMinute;
+  final double distanceKm;
+  final int travelMinutes;
+  final int cost;
+}
+
+extension on PriceTier {
+  String get label => switch (this) {
+        PriceTier.budget => 'Budget',
+        PriceTier.midRange => 'Mid-range',
+        PriceTier.luxury => 'Luxury',
+      };
+}
+
+String _formatClock(int minutes) {
+  final normalized = minutes % (24 * 60);
+  final hour = normalized ~/ 60;
+  final minute = normalized % 60;
+  return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+}
+
+List<Attraction> _buildBlindBoxLocations() {
+  final verifiedPlaces = [
+    const Attraction(
+      name: 'Batu Caves',
+      hours: '07:00 - 21:00',
+      openMinute: 7 * 60,
+      closeMinute: 21 * 60,
+      baseCost: 12,
+      stayMinutes: 75,
+      suggestedDistanceKm: 16,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/batu_caves.jpg',
+      color: Color(0xFFFFCE3D),
+    ),
+    const Attraction(
+      name: 'National Mosque',
+      hours: '09:00 - 17:30',
+      openMinute: 9 * 60,
+      closeMinute: 17 * 60 + 30,
+      baseCost: 0,
+      stayMinutes: 45,
+      suggestedDistanceKm: 6,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/national_mosque.jpg',
+      color: Color(0xFF38D9FF),
+    ),
+    const Attraction(
+      name: 'Central Market',
+      hours: '10:00 - 20:00',
+      openMinute: 10 * 60,
+      closeMinute: 20 * 60,
+      baseCost: 35,
+      stayMinutes: 70,
+      suggestedDistanceKm: 5,
+      priceTier: PriceTier.midRange,
+      imageAsset: 'assets/attractions/central_market.jpg',
+      color: Color(0xFF00E2A7),
+    ),
+    const Attraction(
+      name: 'Merdeka Square',
+      hours: 'Open 24 hours',
+      openMinute: 0,
+      closeMinute: 24 * 60,
+      baseCost: 0,
+      stayMinutes: 40,
+      suggestedDistanceKm: 4,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/merdeka_square.jpg',
+      color: Color(0xFF7C5CFF),
+    ),
+    const Attraction(
+      name: 'Petronas Twin Towers',
+      hours: '09:00 - 21:00',
+      openMinute: 9 * 60,
+      closeMinute: 21 * 60,
+      baseCost: 98,
+      stayMinutes: 90,
+      suggestedDistanceKm: 7,
+      priceTier: PriceTier.luxury,
+      imageAsset: 'assets/attractions/petronas_twin_towers.jpg',
+      color: Color(0xFF40A9FF),
+    ),
+    const Attraction(
+      name: 'KLCC Park',
+      hours: '10:00 - 22:00',
+      openMinute: 10 * 60,
+      closeMinute: 22 * 60,
+      baseCost: 0,
+      stayMinutes: 45,
+      suggestedDistanceKm: 3,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/klcc_park.jpg',
+      color: Color(0xFFFF7A59),
+    ),
+    const Attraction(
+      name: 'Aquaria KLCC',
+      hours: '10:00 - 20:00',
+      openMinute: 10 * 60,
+      closeMinute: 20 * 60,
+      baseCost: 62,
+      stayMinutes: 75,
+      suggestedDistanceKm: 6,
+      priceTier: PriceTier.luxury,
+      imageAsset: 'assets/attractions/aquaria_klcc.jpg',
+      color: Color(0xFF00A9CE),
+    ),
+    const Attraction(
+      name: 'Perdana Botanical Garden',
+      hours: '07:00 - 20:00',
+      openMinute: 7 * 60,
+      closeMinute: 20 * 60,
+      baseCost: 0,
+      stayMinutes: 70,
+      suggestedDistanceKm: 8,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/perdana_botanical_garden.jpg',
+      color: Color(0xFF3CCB7F),
+    ),
+    const Attraction(
+      name: 'Thean Hou Temple',
+      hours: '08:00 - 22:00',
+      openMinute: 8 * 60,
+      closeMinute: 22 * 60,
+      baseCost: 0,
+      stayMinutes: 55,
+      suggestedDistanceKm: 9,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/thean_hou_temple.jpg',
+      color: Color(0xFFFF7A59),
+    ),
+    const Attraction(
+      name: 'Islamic Arts Museum Malaysia',
+      hours: '09:30 - 18:00',
+      openMinute: 9 * 60 + 30,
+      closeMinute: 18 * 60,
+      baseCost: 20,
+      stayMinutes: 80,
+      suggestedDistanceKm: 7,
+      priceTier: PriceTier.midRange,
+      imageAsset: 'assets/attractions/islamic_arts_museum.jpg',
+      color: Color(0xFF38D9FF),
+    ),
+    const Attraction(
+      name: 'KL Tower',
+      hours: '09:00 - 22:00',
+      openMinute: 9 * 60,
+      closeMinute: 22 * 60,
+      baseCost: 110,
+      stayMinutes: 80,
+      suggestedDistanceKm: 8,
+      priceTier: PriceTier.luxury,
+      imageAsset: 'assets/attractions/kl_tower.jpg',
+      color: Color(0xFF40A9FF),
+    ),
+    const Attraction(
+      name: 'Masjid Jamek',
+      hours: '10:00 - 18:00',
+      openMinute: 10 * 60,
+      closeMinute: 18 * 60,
+      baseCost: 0,
+      stayMinutes: 40,
+      suggestedDistanceKm: 4,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/jamek_mosque.jpg',
+      color: Color(0xFF38D9FF),
+    ),
+    const Attraction(
+      name: 'River of Life',
+      hours: '07:00 - 23:00',
+      openMinute: 7 * 60,
+      closeMinute: 23 * 60,
+      baseCost: 0,
+      stayMinutes: 45,
+      suggestedDistanceKm: 4,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/river_of_life.jpg',
+      color: Color(0xFF40A9FF),
+    ),
+    const Attraction(
+      name: 'Royal Selangor Visitor Centre',
+      hours: '09:00 - 17:00',
+      openMinute: 9 * 60,
+      closeMinute: 17 * 60,
+      baseCost: 80,
+      stayMinutes: 85,
+      suggestedDistanceKm: 12,
+      priceTier: PriceTier.luxury,
+      imageAsset: 'assets/attractions/royal_selangor.jpg',
+      color: Color(0xFF8793A4),
+    ),
+    const Attraction(
+      name: 'Muzium Negara',
+      hours: '09:00 - 17:00',
+      openMinute: 9 * 60,
+      closeMinute: 17 * 60,
+      baseCost: 5,
+      stayMinutes: 60,
+      suggestedDistanceKm: 7,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/museum_negara.jpg',
+      color: Color(0xFF7C5CFF),
+    ),
+    const Attraction(
+      name: 'Little India Brickfields',
+      hours: '10:00 - 22:00',
+      openMinute: 10 * 60,
+      closeMinute: 22 * 60,
+      baseCost: 25,
+      stayMinutes: 65,
+      suggestedDistanceKm: 8,
+      priceTier: PriceTier.midRange,
+      imageAsset: 'assets/attractions/little_india_brickfields.jpg',
+      color: Color(0xFFFFCE3D),
+    ),
+    const Attraction(
+      name: 'Jalan Alor',
+      hours: '17:00 - 00:00',
+      openMinute: 17 * 60,
+      closeMinute: 24 * 60,
+      baseCost: 45,
+      stayMinutes: 75,
+      suggestedDistanceKm: 6,
+      priceTier: PriceTier.midRange,
+      imageAsset: 'assets/attractions/jalan_alor.jpg',
+      color: Color(0xFFFF7A59),
+    ),
+    const Attraction(
+      name: 'Kwai Chai Hong',
+      hours: '09:00 - 00:00',
+      openMinute: 9 * 60,
+      closeMinute: 24 * 60,
+      baseCost: 25,
+      stayMinutes: 55,
+      suggestedDistanceKm: 5,
+      priceTier: PriceTier.midRange,
+      imageAsset: 'assets/attractions/kwai_chai_hong.jpg',
+      color: Color(0xFF7C5CFF),
+    ),
+    const Attraction(
+      name: 'REXKL',
+      hours: '10:00 - 22:00',
+      openMinute: 10 * 60,
+      closeMinute: 22 * 60,
+      baseCost: 40,
+      stayMinutes: 70,
+      suggestedDistanceKm: 5,
+      priceTier: PriceTier.midRange,
+      imageAsset: 'assets/attractions/rexkl.jpg',
+      color: Color(0xFF00E2A7),
+    ),
+    const Attraction(
+      name: 'Tugu Negara',
+      hours: '07:00 - 18:00',
+      openMinute: 7 * 60,
+      closeMinute: 18 * 60,
+      baseCost: 0,
+      stayMinutes: 45,
+      suggestedDistanceKm: 9,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/tugu_negara.jpg',
+      color: Color(0xFF8793A4),
+    ),
+    const Attraction(
+      name: 'Berjaya Times Square',
+      hours: '10:00 - 22:00',
+      openMinute: 10 * 60,
+      closeMinute: 22 * 60,
+      baseCost: 80,
+      stayMinutes: 80,
+      suggestedDistanceKm: 7,
+      priceTier: PriceTier.luxury,
+      imageAsset: 'assets/attractions/berjaya_times_square.jpg',
+      color: Color(0xFFFFCE3D),
+    ),
+    const Attraction(
+      name: 'Pavilion Kuala Lumpur',
+      hours: '10:00 - 22:00',
+      openMinute: 10 * 60,
+      closeMinute: 22 * 60,
+      baseCost: 120,
+      stayMinutes: 90,
+      suggestedDistanceKm: 6,
+      priceTier: PriceTier.luxury,
+      imageAsset: 'assets/attractions/pavilion_kl.jpg',
+      color: Color(0xFF40A9FF),
+    ),
+    const Attraction(
+      name: 'Titiwangsa Lake Gardens',
+      hours: '06:00 - 22:00',
+      openMinute: 6 * 60,
+      closeMinute: 22 * 60,
+      baseCost: 0,
+      stayMinutes: 60,
+      suggestedDistanceKm: 10,
+      priceTier: PriceTier.budget,
+      imageAsset: 'assets/attractions/titiwangsa_lake_gardens.jpg',
+      color: Color(0xFF3CCB7F),
+    ),
+    const Attraction(
+      name: 'Bank Negara Malaysia Museum',
+      hours: '10:00 - 17:00',
+      openMinute: 10 * 60,
+      closeMinute: 17 * 60,
+      baseCost: 10,
+      stayMinutes: 70,
+      suggestedDistanceKm: 8,
+      priceTier: PriceTier.midRange,
+      imageAsset: 'assets/attractions/bank_negara_museum.jpg',
+      color: Color(0xFF7C5CFF),
+    ),
+  ];
+
+  return List<Attraction>.generate(1000, (index) {
+    final place = verifiedPlaces[index % verifiedPlaces.length];
+    return Attraction(
+      name: place.name,
+      hours: place.hours,
+      openMinute: place.openMinute,
+      closeMinute: place.closeMinute,
+      baseCost: place.baseCost,
+      stayMinutes: place.stayMinutes,
+      suggestedDistanceKm: place.suggestedDistanceKm,
+      priceTier: place.priceTier,
+      imageAsset: place.imageAsset,
+      color: place.color,
+    );
+  });
 }
