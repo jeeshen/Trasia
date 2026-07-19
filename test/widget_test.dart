@@ -21,4 +21,30 @@ void main() {
     expect(find.text('Search and Navigate'), findsOneWidget);
     expect(find.byKey(const Key('feature-a-destination')), findsOneWidget);
   });
+
+  testWidgets('Feature C shows map after generating results', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const TrasiaApp());
+
+    await tester.tap(find.byKey(const Key('start-now')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('login-user')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.text('Plan'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('generate-route')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('feature-c-results-map')), findsOneWidget);
+    expect(find.byKey(const Key('feature-c-results-toggle')), findsOneWidget);
+    expect(find.byKey(const Key('feature-c-results-list')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('feature-c-results-toggle')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('feature-c-results-list')), findsOneWidget);
+  });
 }

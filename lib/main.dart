@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -16,6 +18,80 @@ enum UserRole { user, admin }
 enum RideStage { idle, matching, tracking, onboard, completed, cancelled }
 
 enum PriceTier { budget, midRange, luxury }
+
+enum BlindBoxTravelMode { drive, transit }
+
+enum FeatureCTripStatus { notStarted, traveling, arrived, completed }
+
+extension BlindBoxTravelModeDetails on BlindBoxTravelMode {
+  String get label {
+    return switch (this) {
+      BlindBoxTravelMode.drive => 'Drive',
+      BlindBoxTravelMode.transit => 'Transit',
+    };
+  }
+
+  IconData get icon {
+    return switch (this) {
+      BlindBoxTravelMode.drive => Icons.directions_car_rounded,
+      BlindBoxTravelMode.transit => Icons.directions_transit_rounded,
+    };
+  }
+
+  int travelMinutesFor(double km) {
+    return switch (this) {
+      BlindBoxTravelMode.drive => max(8, (km * 4.2).round()),
+      BlindBoxTravelMode.transit => max(20, (km * 4.8 + 18).round()),
+    };
+  }
+}
+
+class _GoogleMapsConfig {
+  static const providedApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+  static const developmentApiKey =
+      'AIzaSyDEDpjqw4CrmsiJSOGWtjeH4LnJSl715jw';
+  static const apiKey = providedApiKey == ''
+      ? developmentApiKey
+      : providedApiKey;
+
+  static bool get isReady => apiKey.isNotEmpty;
+}
+
+class SharedMapView {
+  const SharedMapView({
+    required this.signature,
+    this.currentLocation,
+    this.currentAccuracyMeters,
+    this.candidate,
+    this.selectedRoute,
+    this.navigating = false,
+    this.vehicleLocation,
+    this.vehicleColor,
+    this.initialTarget,
+    this.initialZoom,
+    this.extraMarkers = const <Marker>{},
+    this.extraPolylines = const <Polyline>{},
+  });
+
+  final String signature;
+  final LatLng? currentLocation;
+  final double? currentAccuracyMeters;
+  final DestinationCandidate? candidate;
+  final TransitOption? selectedRoute;
+  final bool navigating;
+  final LatLng? vehicleLocation;
+  final Color? vehicleColor;
+  final LatLng? initialTarget;
+  final double? initialZoom;
+  final Set<Marker> extraMarkers;
+  final Set<Polyline> extraPolylines;
+
+  static const initial = SharedMapView(
+    signature: 'initial',
+    initialTarget: LatLng(3.1478, 101.6953),
+    initialZoom: 12,
+  );
+}
 
 class TrasiaApp extends StatelessWidget {
   const TrasiaApp({super.key});
@@ -229,6 +305,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _transitDestination = 'KLCC';
   int _transitRequest = 0;
   String? _ongoingDestination;
+  GoogleMapController? _mapController;
+  SharedMapView _mapView = SharedMapView.initial;
+  LatLng? _sharedCurrentLocation;
+  double? _sharedCurrentAccuracyMeters;
+  bool _centeringOnLocation = false;
 
   void _openTransitFor(String destination) {
     setState(() {
@@ -255,33 +336,122 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _wallet += amount);
   }
 
+  void _updateMapView(SharedMapView view) {
+    final incomingLocation = view.currentLocation;
+    if (incomingLocation != null && view.currentAccuracyMeters != null) {
+      _sharedCurrentLocation = incomingLocation;
+      _sharedCurrentAccuracyMeters = view.currentAccuracyMeters;
+    }
+    if (_mapView.signature == view.signature) {
+      return;
+    }
+    final oldPrefix = _mapView.signature.split('|').first;
+    final newPrefix = view.signature.split('|').first;
+    setState(() => _mapView = view);
+    final target = view.initialTarget;
+    final zoom = view.initialZoom;
+    if (_mapController != null &&
+        target != null &&
+        zoom != null &&
+        oldPrefix != newPrefix) {
+      unawaited(
+        _mapController!.animateCamera(CameraUpdate.newLatLngZoom(target, zoom)),
+      );
+    }
+  }
+
+  Future<void> _centerSharedMapOnCurrentLocation() async {
+    final controller = _mapController;
+    if (controller == null || _centeringOnLocation) {
+      return;
+    }
+    setState(() => _centeringOnLocation = true);
+    try {
+      final location = await _readDeviceLocation();
+      if (!mounted || location == null) {
+        return;
+      }
+      setState(() {
+        _sharedCurrentLocation = location;
+        _sharedCurrentAccuracyMeters = 0;
+      });
+      await controller.animateCamera(CameraUpdate.newLatLngZoom(location, 17));
+    } finally {
+      if (mounted) {
+        setState(() => _centeringOnLocation = false);
+      }
+    }
+  }
+
+  Future<LatLng?> _readDeviceLocation() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Turn on location services first.')),
+      );
+      return null;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Location permission is needed.')),
+      );
+      return null;
+    }
+
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+          distanceFilter: 0,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      return LatLng(position.latitude, position.longitude);
+    } catch (_) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Unable to read current location.')),
+      );
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
       TransitRouterScreen(
+        active: _tab == 0,
+        mapController: _mapController,
+        onMapViewChanged: _updateMapView,
         destination: _transitDestination,
         request: _transitRequest,
         ongoingDestination: _ongoingDestination,
         onNavigationCancelled: () => setState(() => _ongoingDestination = null),
       ),
-      HubPoolScreen(wallet: _wallet, onFareDeducted: _deductFare),
-      SafeArea(
-        child: Column(
-          children: [
-            _DashboardHeader(
-              role: widget.role,
-              wallet: _wallet,
-              showWallet: false,
-            ),
-            Expanded(
-              child: PelancongPlanScreen(
-                ongoingDestination: _ongoingDestination,
-                onGoNow: _openTransitFor,
-                onCancelDestination: _cancelDestination,
-              ),
-            ),
-          ],
-        ),
+      HubPoolScreen(
+        active: _tab == 1,
+        mapController: _mapController,
+        onMapViewChanged: _updateMapView,
+        currentLocation: _sharedCurrentLocation,
+        currentAccuracyMeters: _sharedCurrentAccuracyMeters,
+        wallet: _wallet,
+        onFareDeducted: _deductFare,
+      ),
+      PelancongPlanScreen(
+        active: _tab == 2,
+        mapController: _mapController,
+        onMapViewChanged: _updateMapView,
+        currentLocation: _sharedCurrentLocation,
+        currentAccuracyMeters: _sharedCurrentAccuracyMeters,
+        ongoingDestination: _ongoingDestination,
+        onGoNow: _openTransitFor,
+        onCancelDestination: _cancelDestination,
       ),
       SafeArea(
         child: Column(
@@ -304,8 +474,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
 
     return Scaffold(
-      body: _BlueShell(
-        child: IndexedStack(index: _tab, children: pages),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_tab != 3)
+            _LiveGoogleMapSurface(
+              apiKeyReady: _GoogleMapsConfig.isReady,
+              currentLocation: _mapView.currentLocation,
+              currentAccuracyMeters: _mapView.currentAccuracyMeters,
+              candidate: _mapView.candidate,
+              selectedRoute: _mapView.selectedRoute,
+              navigating: _mapView.navigating,
+              vehicleLocation: _mapView.vehicleLocation,
+              vehicleColor: _mapView.vehicleColor,
+              initialTarget: _mapView.initialTarget,
+              initialZoom: _mapView.initialZoom,
+              extraMarkers: _mapView.extraMarkers,
+              extraPolylines: _mapView.extraPolylines,
+              onMapCreated: (controller) {
+                setState(() => _mapController = controller);
+              },
+              onCameraMove: (_) {},
+            ),
+          IndexedStack(index: _tab, children: pages),
+          if (_tab != 3)
+            Positioned(
+              right: 16,
+              bottom: 18,
+              child: _MapLocationButton(
+                loading: _centeringOnLocation,
+                onPressed: _centerSharedMapOnCurrentLocation,
+              ),
+            ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
@@ -337,6 +538,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 class TransitRouterScreen extends StatefulWidget {
   const TransitRouterScreen({
+    required this.active,
+    required this.mapController,
+    required this.onMapViewChanged,
     required this.destination,
     required this.request,
     required this.ongoingDestination,
@@ -344,6 +548,9 @@ class TransitRouterScreen extends StatefulWidget {
     super.key,
   });
 
+  final bool active;
+  final GoogleMapController? mapController;
+  final ValueChanged<SharedMapView> onMapViewChanged;
   final String destination;
   final int request;
   final String? ongoingDestination;
@@ -369,15 +576,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   String? _statusMessage;
   bool _loading = false;
   bool _navigating = false;
-  static const _providedGoogleMapsApiKey = String.fromEnvironment(
-    'GOOGLE_MAPS_API_KEY',
-  );
-  static const _developmentGoogleMapsApiKey =
-      'AIzaSyDEDpjqw4CrmsiJSOGWtjeH4LnJSl715jw';
-  static const _googleMapsApiKey = _providedGoogleMapsApiKey == ''
-      ? _developmentGoogleMapsApiKey
-      : _providedGoogleMapsApiKey;
-
   @override
   void initState() {
     super.initState();
@@ -391,6 +589,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   @override
   void didUpdateWidget(covariant TransitRouterScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _mapController = widget.mapController ?? _mapController;
     if (oldWidget.destination != widget.destination ||
         oldWidget.request != widget.request) {
       _toController.text = widget.destination;
@@ -401,7 +600,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _navigating = false;
       _departureLocation = null;
       _departureName = null;
-      unawaited(_searchDestination());
+      unawaited(_searchDestination(autoCalculate: true));
     }
   }
 
@@ -412,27 +611,37 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     super.dispose();
   }
 
+  SharedMapView get _currentMapView => SharedMapView(
+        signature:
+            'transit|${_pointKey(_currentLocation)}|${_currentAccuracyMeters?.round()}|${_candidate?.placeId}|${_selectedRoute?.label}|$_navigating|${_routes.length}',
+        currentLocation: _currentLocation,
+        currentAccuracyMeters: _currentAccuracyMeters,
+        candidate: _candidate,
+        selectedRoute: _selectedRoute,
+        navigating: _navigating,
+        initialTarget: _currentLocation ?? _lastMapCenter,
+        initialZoom: _currentLocation == null ? 12 : 15,
+      );
+
+  void _publishMapView() {
+    if (!widget.active) {
+      return;
+    }
+    final view = _currentMapView;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.active) {
+        widget.onMapViewChanged(view);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    _mapController = widget.mapController ?? _mapController;
+    _publishMapView();
     final topInset = MediaQuery.paddingOf(context).top;
     return Stack(
       children: [
-        Positioned.fill(
-          child: _LiveGoogleMapSurface(
-            apiKeyReady: _hasGoogleMapsKey,
-            currentLocation: _currentLocation,
-            currentAccuracyMeters: _currentAccuracyMeters,
-            candidate: _candidate,
-            selectedRoute: _selectedRoute,
-            navigating: _navigating,
-            onMapCreated: (controller) {
-              _mapController = controller;
-            },
-            onCameraMove: (position) {
-              _lastMapCenter = position.target;
-            },
-          ),
-        ),
         if (!_navigating)
           Positioned(
             left: 14,
@@ -447,7 +656,9 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
               routes: _routes,
               selectedRoute: _selectedRoute,
               navigating: _navigating,
+              onTextChanged: () => setState(() {}),
               onSearch: _searchDestination,
+              onClearDestination: _clearTransitDestination,
               onConfirmDestination: _calculateDirections,
               onSelectRoute: _startPlannedRoute,
             ),
@@ -457,12 +668,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
           bottom: 18,
           child: Column(
             children: [
-              _RoundMapButton(
-                icon: Icons.my_location_rounded,
-                tooltip: 'Current location',
-                onPressed: () => unawaited(_centerOnCurrentLocation()),
-              ),
-              const SizedBox(height: 10),
               _RoundMapButton(
                 icon: Icons.layers_rounded,
                 tooltip: 'Map layers',
@@ -493,7 +698,21 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     );
   }
 
-  bool get _hasGoogleMapsKey => _googleMapsApiKey.isNotEmpty;
+  bool get _hasGoogleMapsKey => _GoogleMapsConfig.isReady;
+
+  void _clearTransitDestination() {
+    setState(() {
+      _toController.clear();
+      _candidate = null;
+      _candidates = const [];
+      _routes = const [];
+      _selectedRoute = null;
+      _statusMessage = null;
+      _navigating = false;
+      _departureLocation = null;
+      _departureName = null;
+    });
+  }
 
   Future<void> _warmCurrentLocation() async {
     await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -501,26 +720,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       return;
     }
     await _loadCurrentLocation(silent: true);
-  }
-
-  Future<void> _centerOnCurrentLocation() async {
-    if (_navigating && _departureLocation != null && _mapController != null) {
-      await _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(_departureLocation!, 17),
-      );
-      return;
-    }
-    await _loadCurrentLocation();
-    if (_mapController == null) {
-      return;
-    }
-    final location = _currentLocation;
-    if (location == null) {
-      return;
-    }
-    await _mapController!.animateCamera(
-      CameraUpdate.newLatLngZoom(location, 17),
-    );
   }
 
   Future<void> _loadCurrentLocation({bool silent = false}) async {
@@ -621,7 +820,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     }
   }
 
-  Future<void> _searchDestination() async {
+  Future<void> _searchDestination({bool autoCalculate = false}) async {
     final query = _toController.text.trim();
     if (query.isEmpty) {
       setState(() {
@@ -644,6 +843,9 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
             'Preview mode. Add a Google Maps API key for live place results and directions.';
         _navigating = false;
       });
+      if (autoCalculate && candidates.isNotEmpty) {
+        await _calculateDirections(candidates.first);
+      }
       return;
     }
 
@@ -663,7 +865,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       }
       final candidates = await _GoogleMapsApi.findPlaces(
         query: query,
-        apiKey: _googleMapsApiKey,
+        apiKey: _GoogleMapsConfig.apiKey,
       );
       setState(() {
         _candidate = candidates.isEmpty ? null : candidates.first;
@@ -676,6 +878,9 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         await _mapController?.animateCamera(
           CameraUpdate.newLatLngZoom(candidates.first.location, 14.5),
         );
+        if (autoCalculate && mounted) {
+          await _calculateDirections(candidates.first);
+        }
       }
     } catch (error) {
       setState(() => _statusMessage = 'Place search failed: $error');
@@ -698,51 +903,55 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       CameraUpdate.newLatLngZoom(_routingOrigin, 15),
     );
 
-    final origin = _routingOrigin;
-    if (!_hasGoogleMapsKey) {
-      final routes = _previewRoutes(destination);
-      setState(() {
-        _routes = routes;
-        _selectedRoute = null;
-        _statusMessage = _usingFallbackDeparture
-            ? 'Device GPS looks unreliable, so planning starts from the Kuala Lumpur map area until a precise current location is available.'
-            : 'Preview routes shown. Connect Google Maps API for real travel time and path interpolation.';
-      });
-      return;
-    }
     setState(() {
       _loading = true;
       _statusMessage = null;
     });
-    try {
-      final routes = await _GoogleMapsApi.fetchTransitDirections(
-        origin: origin,
-        destination: destination,
-        apiKey: _googleMapsApiKey,
-      );
+    final transitRoutes = _multimodalTransitRoutes(destination);
+    final roadAlignedTransitRoutes = transitRoutes.isEmpty
+        ? transitRoutes
+        : await _roadAlignAccessTransitRoutes(transitRoutes);
+    if (!_hasGoogleMapsKey) {
+      final routes = roadAlignedTransitRoutes.isEmpty
+          ? _previewRoutes(destination)
+          : roadAlignedTransitRoutes;
       setState(() {
         _routes = routes;
-        _selectedRoute = null;
+        _selectedRoute = routes.isEmpty ? null : routes.first;
+        _statusMessage = _usingFallbackDeparture
+            ? 'Device GPS looks unreliable, so planning starts from the Kuala Lumpur map area until a precise current location is available.'
+            : 'Preview routes shown. Connect Google Maps API for real travel time and path interpolation.';
+        _loading = false;
+      });
+      return;
+    }
+    try {
+      final routes = roadAlignedTransitRoutes;
+      setState(() {
+        _routes = routes;
+        _selectedRoute = routes.isEmpty ? null : routes.first;
       });
       if (routes.isNotEmpty) {
         await _mapController?.animateCamera(
           CameraUpdate.newLatLngZoom(_routingOrigin, 15),
         );
       } else {
-        setState(() => _statusMessage = 'No Google transit route found.');
+        setState(() => _statusMessage = 'No travel options found.');
       }
     } catch (error) {
       if (_isGoogleRoutesUnavailable(error)) {
-        final routes = _previewRoutes(destination);
+        final routes = roadAlignedTransitRoutes.isEmpty
+            ? _previewRoutes(destination)
+            : roadAlignedTransitRoutes;
         setState(() {
           _routes = routes;
-          _selectedRoute = null;
+          _selectedRoute = routes.isEmpty ? null : routes.first;
           _statusMessage = _usingFallbackDeparture
               ? 'Device GPS looks unreliable, so planning starts from the Kuala Lumpur map area until a precise current location is available.'
-              : null;
+              : 'Live road routing is unavailable, so estimated travel options are shown.';
         });
       } else {
-        setState(() => _statusMessage = 'Directions failed: $error');
+        setState(() => _statusMessage = 'Travel options failed: $error');
       }
     } finally {
       if (mounted) {
@@ -855,6 +1064,289 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         message.contains('permission denied');
   }
 
+  List<TransitOption> _multimodalTransitRoutes(
+    DestinationCandidate destination,
+  ) {
+    final origin = _routingOrigin;
+    final target = destination.location;
+    final startStop = _nearestTransitStop(origin);
+    final endStop = _nearestTransitStop(target);
+    if (startStop == null || endStop == null) {
+      return const [];
+    }
+    final variants = [
+      _TransitRouteVariant(
+        label: 'Fastest Transit',
+        color: const Color(0xFF22B8F2),
+        crowdBias: .70,
+        costFor: (edge) =>
+            edge.minutes.toDouble() +
+            (edge.mode == _TransitMode.walk ? 5.0 : 0.0),
+      ),
+      _TransitRouteVariant(
+        label: 'Cheapest Route',
+        color: const Color(0xFF00C48C),
+        crowdBias: .48,
+        costFor: (edge) => edge.fare * 20 + edge.minutes * .25,
+      ),
+      _TransitRouteVariant(
+        label: 'Minimum Transfers',
+        color: const Color(0xFFFFB000),
+        crowdBias: .36,
+        costFor: (edge) =>
+            edge.minutes.toDouble() +
+            (edge.operatorKey == 'walk' ? 2.0 : 0.0) +
+            (edge.transferPenalty ? 18.0 : 0.0),
+      ),
+    ];
+    final options = <TransitOption>[];
+    final seenChains = <String>{};
+    for (final variant in variants) {
+      final path = _findTransitPath(startStop.id, endStop.id, variant);
+      if (path.isEmpty) {
+        continue;
+      }
+      final option = _transitOptionFromPath(
+        variant: variant,
+        origin: origin,
+        destination: destination,
+        startStop: startStop,
+        endStop: endStop,
+        path: path,
+      );
+      final chainKey = option.legs.map((leg) => leg.mode).join('|');
+      if (seenChains.add('${variant.label}|$chainKey')) {
+        options.add(option);
+      }
+    }
+    return options.take(3).toList();
+  }
+
+  _TransitStopNode? _nearestTransitStop(LatLng location) {
+    _TransitStopNode? nearest;
+    var bestMeters = double.infinity;
+    for (final stop in _klTransitStops) {
+      final meters = _metersBetween(location, stop.location);
+      if (meters < bestMeters) {
+        bestMeters = meters;
+        nearest = stop;
+      }
+    }
+    return nearest;
+  }
+
+  List<_TransitEdge> _findTransitPath(
+    String startId,
+    String endId,
+    _TransitRouteVariant variant,
+  ) {
+    final graph = <String, List<_TransitEdge>>{};
+    for (final edge in _klTransitEdges) {
+      graph.putIfAbsent(edge.fromId, () => []).add(edge);
+      graph.putIfAbsent(edge.toId, () => []).add(edge.reversed);
+    }
+    final distances = <String, double>{startId: 0};
+    final previous = <String, _TransitEdge>{};
+    final visited = <String>{};
+    while (true) {
+      String? current;
+      var best = double.infinity;
+      for (final entry in distances.entries) {
+        if (!visited.contains(entry.key) && entry.value < best) {
+          current = entry.key;
+          best = entry.value;
+        }
+      }
+      if (current == null || current == endId) {
+        break;
+      }
+      visited.add(current);
+      for (final edge in graph[current] ?? const <_TransitEdge>[]) {
+        final transferPenalty = previous[current] == null
+            ? 0
+            : previous[current]!.operatorKey == edge.operatorKey
+                ? 0
+                : 1;
+        final score = best +
+            variant.costFor(edge.copyWith(transferPenalty: transferPenalty > 0));
+        if (score < (distances[edge.toId] ?? double.infinity)) {
+          distances[edge.toId] = score;
+          previous[edge.toId] =
+              edge.copyWith(transferPenalty: transferPenalty > 0);
+        }
+      }
+    }
+    if (!previous.containsKey(endId) && startId != endId) {
+      return const [];
+    }
+    final path = <_TransitEdge>[];
+    var cursor = endId;
+    while (cursor != startId) {
+      final edge = previous[cursor];
+      if (edge == null) {
+        break;
+      }
+      path.insert(0, edge);
+      cursor = edge.fromId;
+    }
+    return path;
+  }
+
+  TransitOption _transitOptionFromPath({
+    required _TransitRouteVariant variant,
+    required LatLng origin,
+    required DestinationCandidate destination,
+    required _TransitStopNode startStop,
+    required _TransitStopNode endStop,
+    required List<_TransitEdge> path,
+  }) {
+    final legs = <RouteLeg>[];
+    final firstWalkMeters = _metersBetween(origin, startStop.location);
+    final lastWalkMeters = _metersBetween(endStop.location, destination.location);
+    var totalMinutes = 0;
+    var totalMeters = firstWalkMeters + lastWalkMeters;
+    var totalFare = 0.0;
+    var transfers = 0;
+    if (firstWalkMeters > 60) {
+      final minutes = max(2, (firstWalkMeters / 75).round());
+      totalMinutes += minutes;
+      legs.add(
+        _leg(
+          _routingOriginName,
+          startStop.name,
+          'Walk',
+          _formatLegMinutes(minutes),
+          _formatLegDistance(firstWalkMeters),
+          Icons.directions_walk_rounded,
+          [origin, startStop.location],
+        ),
+      );
+    }
+    _TransitEdge? previousEdge;
+    for (final edge in path) {
+      final from = _stopById(edge.fromId);
+      final to = _stopById(edge.toId);
+      if (from == null || to == null) {
+        continue;
+      }
+      if (previousEdge != null &&
+          previousEdge.operatorKey != edge.operatorKey) {
+        transfers++;
+        totalMinutes += 3;
+      }
+      previousEdge = edge;
+      totalMinutes += edge.minutes;
+      totalMeters += _metersBetween(from.location, to.location);
+      totalFare += edge.fare;
+      legs.add(
+        _leg(
+          from.name,
+          to.name,
+          edge.modeLabel,
+          _formatLegMinutes(edge.minutes),
+          _formatLegDistance(_metersBetween(from.location, to.location)),
+          edge.icon,
+          edge.pointsFor(from.location, to.location),
+        ),
+      );
+    }
+    if (lastWalkMeters > 60) {
+      final minutes = max(2, (lastWalkMeters / 75).round());
+      totalMinutes += minutes;
+      legs.add(
+        _leg(
+          endStop.name,
+          destination.name,
+          'Walk',
+          _formatLegMinutes(minutes),
+          _formatLegDistance(lastWalkMeters),
+          Icons.directions_walk_rounded,
+          [endStop.location, destination.location],
+        ),
+      );
+    }
+    totalMinutes += 4; // Published schedules still need average wait time.
+    final chain = legs.map((leg) => leg.mode).toSet().join(' -> ');
+    final fare = totalFare <= 0 ? 'Free' : 'RM ${totalFare.toStringAsFixed(2)}';
+    return TransitOption(
+      label: variant.label,
+      chain: chain,
+      time: _formatLegMinutes(totalMinutes),
+      distance: _formatLegDistance(totalMeters),
+      fare: fare,
+      transfers: transfers == 0 ? 'No transfer' : '$transfers transfer',
+      crowd: variant.crowdBias,
+      color: variant.color,
+      legs: legs,
+      firstLegPointCount: legs.isEmpty ? 2 : legs.first.points.length,
+      firstStopLabel: legs.isEmpty ? destination.name : legs.first.toName,
+      nextInstruction:
+          'Use ${legs.where((leg) => leg.mode != 'Walk').map((leg) => leg.mode).take(3).join(' + ')}',
+    );
+  }
+
+  _TransitStopNode? _stopById(String id) {
+    for (final stop in _klTransitStops) {
+      if (stop.id == id) {
+        return stop;
+      }
+    }
+    return null;
+  }
+
+  Future<List<TransitOption>> _roadAlignAccessTransitRoutes(
+    List<TransitOption> routes,
+  ) async {
+    final alignedRoutes = <TransitOption>[];
+    for (final route in routes) {
+      final alignedLegs = <RouteLeg>[];
+      for (final leg in route.legs) {
+        if (!_needsRoadGeometry(leg) || leg.points.length < 2) {
+          alignedLegs.add(leg);
+          continue;
+        }
+        try {
+          final roadRoute = await _GoogleMapsApi.fetchDrivingRoute(
+            origin: leg.points.first,
+            destination: leg.points.last,
+            apiKey: _GoogleMapsConfig.apiKey,
+          );
+          alignedLegs.add(_copyLegWithPoints(leg, roadRoute.points));
+        } catch (_) {
+          alignedLegs.add(_copyLegWithPoints(leg, const []));
+        }
+      }
+      alignedRoutes.add(
+        route.copyWith(
+          legs: alignedLegs,
+          firstLegPointCount:
+              alignedLegs.isEmpty ? 2 : max(2, alignedLegs.first.points.length),
+        ),
+      );
+    }
+    return alignedRoutes;
+  }
+
+  bool _needsRoadGeometry(RouteLeg leg) {
+    final mode = leg.mode.toLowerCase();
+    return mode == 'walk' ||
+        mode.contains('bus') ||
+        mode.contains('feeder') ||
+        mode.contains('linkway');
+  }
+
+  RouteLeg _copyLegWithPoints(RouteLeg leg, List<LatLng> points) {
+    return RouteLeg(
+      fromName: leg.fromName,
+      toName: leg.toName,
+      mode: leg.mode,
+      time: leg.time,
+      distance: leg.distance,
+      icon: leg.icon,
+      points: points,
+    );
+  }
+
   List<TransitOption> _previewRoutes([DestinationCandidate? destination]) {
     final destinationLocation = destination?.location;
     final target = destinationLocation != null &&
@@ -863,45 +1355,81 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         : const LatLng(3.1579, 101.7123);
     final origin = _routingOrigin;
     final originName = _routingOriginName;
+    final distanceMeters = _metersBetween(origin, target);
+    final distanceKm = max(.2, distanceMeters / 1000);
+    final driveMinutes = max(4, (distanceMeters / 400).round());
+    final transitMinutes = max(12, (distanceKm / 24 * 60 + 10).round());
+    final walkMinutes = max(4, (distanceKm / 4.8 * 60).round());
+    final transitFare = (1.20 + distanceKm * .55).clamp(1.20, 8.00);
     return [
       TransitOption(
-        label: 'Best Transit',
-        chain: 'Walk -> Nearest rail -> Connector',
-        time: '34 min',
-        distance: '8.4 km',
-        fare: 'RM 4.80',
-        transfers: '3 steps',
+        label: 'Drive',
+        chain: 'Car route',
+        time: _formatLegMinutes(driveMinutes),
+        distance: _formatLegDistance(distanceMeters),
+        fare: 'Fare varies',
+        transfers: 'Direct',
         crowd: .52,
         color: const Color(0xFF22B8F2),
-        legs: _previewRouteLegs(origin, originName, target, 0),
-        firstStopLabel: 'Nearest rail station',
-        nextInstruction: 'Head to the nearest rail station',
+        legs: [
+          _leg(
+            originName,
+            _candidate?.name ?? 'Destination',
+            'Drive',
+            _formatLegMinutes(driveMinutes),
+            _formatLegDistance(distanceMeters),
+            Icons.directions_car_rounded,
+            const [],
+          ),
+        ],
+        firstStopLabel: _candidate?.name ?? 'Destination',
+        nextInstruction: 'Connect Google driving routes to show the road path',
       ),
       TransitOption(
-        label: 'Minimum Transfer',
-        chain: 'Walk -> Nearest rail -> Walk',
-        time: '42 min',
-        distance: '9.1 km',
-        fare: 'RM 5.20',
-        transfers: '2 steps',
-        crowd: .44,
+        label: 'Transit',
+        chain: 'Walk -> Rail/Bus -> Walk',
+        time: _formatLegMinutes(transitMinutes),
+        distance: _formatLegDistance(distanceMeters),
+        fare: 'RM ${transitFare.toStringAsFixed(2)}',
+        transfers: distanceKm > 7 ? '2 transfers' : '1 transfer',
+        crowd: .58,
         color: const Color(0xFF00C48C),
-        legs: _previewRouteLegs(origin, originName, target, 1),
-        firstStopLabel: 'Nearest rail station',
-        nextInstruction: 'Walk toward the nearest rail platform',
+        legs: [
+          _leg(
+            originName,
+            _candidate?.name ?? 'Destination',
+            'Transit',
+            _formatLegMinutes(transitMinutes),
+            _formatLegDistance(distanceMeters),
+            Icons.directions_transit_rounded,
+            const [],
+          ),
+        ],
+        firstStopLabel: 'Nearest station',
+        nextInstruction: 'Use the nearest rail or bus connection',
       ),
       TransitOption(
-        label: 'Cheapest',
-        chain: 'Walk -> Nearest rail -> Rapid KL Bus -> Walk',
-        time: '58 min',
-        distance: '7.8 km',
-        fare: 'RM 2.60',
-        transfers: '3 steps',
-        crowd: .36,
+        label: 'Walk',
+        chain: 'Walking route',
+        time: _formatLegMinutes(walkMinutes),
+        distance: _formatLegDistance(distanceMeters),
+        fare: 'Free',
+        transfers: 'No transfer',
+        crowd: .12,
         color: const Color(0xFFFFB000),
-        legs: _previewRouteLegs(origin, originName, target, 2),
-        firstStopLabel: 'Nearest rail station',
-        nextInstruction: 'Walk to the nearest rail station',
+        legs: [
+          _leg(
+            originName,
+            _candidate?.name ?? 'Destination',
+            'Walk',
+            _formatLegMinutes(walkMinutes),
+            _formatLegDistance(distanceMeters),
+            Icons.directions_walk_rounded,
+            const [],
+          ),
+        ],
+        firstStopLabel: _candidate?.name ?? 'Destination',
+        nextInstruction: 'Walk toward ${_candidate?.name ?? 'destination'}',
       ),
     ];
   }
@@ -948,199 +1476,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         location.longitude <= 102.05;
   }
 
-  static const _lrtStops = [
-    _TransitStop('Masjid Jamek LRT Station', LatLng(3.1494, 101.6961)),
-    _TransitStop('Dang Wangi LRT Station', LatLng(3.1567, 101.7018)),
-    _TransitStop('Kampung Baru LRT Station', LatLng(3.1612, 101.7069)),
-    _TransitStop('KLCC LRT Station', LatLng(3.1590, 101.7132)),
-    _TransitStop('Ampang Park LRT Station', LatLng(3.1605, 101.7197)),
-    _TransitStop('Damai LRT Station', LatLng(3.1643, 101.7240)),
-    _TransitStop('Dato Keramat LRT Station', LatLng(3.1653, 101.7306)),
-    _TransitStop('Jelatek LRT Station', LatLng(3.1672, 101.7357)),
-    _TransitStop('Setiawangsa LRT Station', LatLng(3.1758, 101.7357)),
-    _TransitStop('Sri Rampai LRT Station', LatLng(3.1995, 101.7375)),
-    _TransitStop('Wangsa Maju LRT Station', LatLng(3.2056, 101.7317)),
-    _TransitStop('Taman Melati LRT Station', LatLng(3.2194, 101.7227)),
-  ];
-
-  static const _mrtStops = [
-    _TransitStop('Batu 11 Cheras MRT Station', LatLng(3.0613, 101.7738)),
-    _TransitStop('Bandar Tun Hussein Onn MRT Station', LatLng(3.0487, 101.7758)),
-    _TransitStop('Bukit Dukung MRT Station', LatLng(3.0338, 101.7712)),
-    _TransitStop('Sri Raya MRT Station', LatLng(3.0640, 101.7542)),
-    _TransitStop('Kajang MRT Station', LatLng(2.9837, 101.7906)),
-    _TransitStop('Bukit Bintang MRT Entrance A', LatLng(3.1469, 101.7114)),
-    _TransitStop('Tun Razak Exchange MRT Station', LatLng(3.1422, 101.7206)),
-    _TransitStop('Pasar Seni MRT Platform', LatLng(3.1420, 101.6950)),
-    _TransitStop('Merdeka MRT Station', LatLng(3.1413, 101.7022)),
-  ];
-
-  static const _railStops = [
-    ..._lrtStops,
-    ..._mrtStops,
-    _TransitStop('Hang Tuah Monorail Station', LatLng(3.1408, 101.7060)),
-    _TransitStop('Maharajalela Monorail Station', LatLng(3.1381, 101.6993)),
-    _TransitStop('Imbi Monorail Station', LatLng(3.1423, 101.7098)),
-    _TransitStop('Raja Chulan Monorail Station', LatLng(3.1500, 101.7108)),
-    _TransitStop('Medan Tuanku Monorail Station', LatLng(3.1593, 101.6996)),
-    _TransitStop('Kuala Lumpur KTM Station', LatLng(3.1394, 101.6936)),
-    _TransitStop('Bank Negara KTM Station', LatLng(3.1584, 101.6936)),
-  ];
-
-  _TransitStop _nearestStop(LatLng origin, List<_TransitStop> stops) {
-    var nearest = stops.first;
-    var bestMeters = double.infinity;
-    for (final stop in stops) {
-      final meters = _metersBetween(origin, stop.location);
-      if (meters < bestMeters) {
-        bestMeters = meters;
-        nearest = stop;
-      }
-    }
-    return nearest;
-  }
-
-  String _railMode(_TransitStop stop) {
-    final name = stop.name.toLowerCase();
-    if (name.contains('mrt')) {
-      return 'MRT';
-    }
-    if (name.contains('monorail')) {
-      return 'KL Monorail';
-    }
-    if (name.contains('ktm')) {
-      return 'KTM Komuter';
-    }
-    return 'LRT';
-  }
-
-  List<RouteLeg> _previewRouteLegs(
-    LatLng origin,
-    String originName,
-    LatLng target,
-    int variant,
-  ) {
-    final destinationName = _candidate?.name ?? 'Destination';
-    final nearestRail = _nearestStop(origin, _railStops);
-    final railWalkDistance = _formatLegDistance(
-      _walkingMeters(origin, nearestRail.location),
-    );
-    final railWalkTime = _formatLegMinutes(
-      _walkingMinutes(origin, nearestRail.location),
-    );
-    final railTransitMeters = _metersBetween(
-      nearestRail.location,
-      const LatLng(3.1590, 101.7132),
-    );
-    final railTransitDistance = _formatLegDistance(railTransitMeters * 1.12);
-    final railTransitTime = _formatLegMinutes(
-      max(6, (railTransitMeters / 520).round()),
-    );
-    final railMode = _railMode(nearestRail);
-    final routes = [
-      [
-        _leg(
-          originName,
-          nearestRail.name,
-          'Walk',
-          railWalkTime,
-          railWalkDistance,
-          Icons.directions_walk_rounded,
-          _roadLikePath(origin, nearestRail.location, bend: .0008),
-        ),
-        _leg(
-          nearestRail.name,
-          'Pasar Seni MRT Platform',
-          railMode,
-          '9 min',
-          '3.2 km',
-          Icons.train_rounded,
-          _roadLikePath(
-            nearestRail.location,
-            const LatLng(3.1420, 101.6950),
-            bend: -.0011,
-          ),
-        ),
-        _leg(
-          'Pasar Seni MRT Platform',
-          'KLCC LRT Station',
-          'LRT Kelana Jaya Line',
-          '13 min',
-          '4.1 km',
-          Icons.directions_transit_rounded,
-          _roadLikePath(const LatLng(3.1420, 101.6950), target, bend: .0012),
-        ),
-      ],
-      [
-        _leg(
-          originName,
-          nearestRail.name,
-          'Walk',
-          railWalkTime,
-          railWalkDistance,
-          Icons.directions_walk_rounded,
-          _roadLikePath(origin, nearestRail.location, bend: -.0008),
-        ),
-        _leg(
-          nearestRail.name,
-          'KLCC LRT Station',
-          railMode,
-          railTransitTime,
-          railTransitDistance,
-          Icons.train_rounded,
-          _roadLikePath(nearestRail.location, target, bend: .0009),
-        ),
-      ],
-      [
-        _leg(
-          originName,
-          nearestRail.name,
-          'Walk',
-          railWalkTime,
-          railWalkDistance,
-          Icons.directions_walk_rounded,
-          _roadLikePath(origin, nearestRail.location, bend: .0006),
-        ),
-        _leg(
-          nearestRail.name,
-          'Pasar Seni LRT Platform',
-          railMode,
-          railTransitTime,
-          railTransitDistance,
-          Icons.train_rounded,
-          _roadLikePath(
-            nearestRail.location,
-            const LatLng(3.1420, 101.6950),
-            bend: -.0007,
-          ),
-        ),
-        _leg(
-          'Pasar Seni Bus Hub',
-          'KLCC North Bus Stop',
-          'Rapid KL Bus 300',
-          '18 min',
-          '3.4 km',
-          Icons.directions_bus_rounded,
-          _roadLikePath(
-            const LatLng(3.1420, 101.6950),
-            const LatLng(3.1584, 101.7120),
-            bend: .0011,
-          ),
-        ),
-        _leg(
-          'KLCC North Bus Stop',
-          destinationName,
-          'Walk',
-          '5 min',
-          '350 m',
-          Icons.directions_walk_rounded,
-          _roadLikePath(const LatLng(3.1584, 101.7120), target, bend: .0004),
-        ),
-      ],
-    ];
-    return routes[variant % routes.length];
-  }
-
   RouteLeg _leg(
     String fromName,
     String toName,
@@ -1161,19 +1496,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     );
   }
 
-  List<LatLng> _roadLikePath(LatLng from, LatLng to, {required double bend}) {
-    final firstTurn = LatLng(
-      from.latitude,
-      (from.longitude + to.longitude) / 2 + bend,
-    );
-    final secondTurn = LatLng(
-      (from.latitude + to.latitude) / 2 - bend,
-      firstTurn.longitude,
-    );
-    final thirdTurn = LatLng(secondTurn.latitude, to.longitude);
-    return [from, firstTurn, secondTurn, thirdTurn, to];
-  }
-
   double _metersBetween(LatLng from, LatLng to) {
     return Geolocator.distanceBetween(
       from.latitude,
@@ -1181,14 +1503,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       to.latitude,
       to.longitude,
     );
-  }
-
-  double _walkingMeters(LatLng from, LatLng to) {
-    return _metersBetween(from, to) * 1.25;
-  }
-
-  int _walkingMinutes(LatLng from, LatLng to) {
-    return max(2, (_walkingMeters(from, to) / 78).round());
   }
 
   String _formatLegMinutes(num minutes) {
@@ -1205,11 +1519,21 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
 
 class HubPoolScreen extends StatefulWidget {
   const HubPoolScreen({
+    required this.active,
+    required this.mapController,
+    required this.onMapViewChanged,
+    required this.currentLocation,
+    required this.currentAccuracyMeters,
     required this.wallet,
     required this.onFareDeducted,
     super.key,
   });
 
+  final bool active;
+  final GoogleMapController? mapController;
+  final ValueChanged<SharedMapView> onMapViewChanged;
+  final LatLng? currentLocation;
+  final double? currentAccuracyMeters;
   final double wallet;
   final ValueChanged<double> onFareDeducted;
 
@@ -1221,6 +1545,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     with SingleTickerProviderStateMixin {
   final _destinationController = TextEditingController();
   GoogleMapController? _mapController;
+  static const _maxApproachSeconds = 60;
   final _drivers = const [
     Driver(
       'Ali',
@@ -1246,26 +1571,30 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   ];
   late final AnimationController _carController;
   Timer? _timer;
+  Timer? _destinationRouteRefreshTimer;
+  StreamSubscription<Position>? _hubPositionSubscription;
   RideStage _stage = RideStage.idle;
   Driver? _driver;
   DestinationCandidate? _destination;
   List<DestinationCandidate> _destinationCandidates = const [];
   TransitOption? _route;
+  List<LatLng> _approachAnimationPoints = const [];
   String? _destinationStatusMessage;
   int _seconds = 0;
   bool _fareDeducted = false;
   bool _searchingDestination = false;
+  bool _loadingPickupLocation = false;
+  LatLng? _hubCurrentLocation;
+  double? _hubCurrentAccuracyMeters;
   static const _origin = LatLng(3.1478, 101.6953);
   static const _originName = 'Current pickup point';
-  static const _providedGoogleMapsApiKey = String.fromEnvironment(
-    'GOOGLE_MAPS_API_KEY',
-  );
-  static const _developmentGoogleMapsApiKey =
-      'AIzaSyDEDpjqw4CrmsiJSOGWtjeH4LnJSl715jw';
-  static const _googleMapsApiKey = _providedGoogleMapsApiKey == ''
-      ? _developmentGoogleMapsApiKey
-      : _providedGoogleMapsApiKey;
+  LatLng get _pickupLocation =>
+      _hubCurrentLocation ?? widget.currentLocation ?? _origin;
+  LatLng get _rideCurrentLocation =>
+      _hubCurrentLocation ?? widget.currentLocation ?? _pickupLocation;
 
+  double? get _pickupAccuracyMeters =>
+      _hubCurrentAccuracyMeters ?? widget.currentAccuracyMeters;
   @override
   void initState() {
     super.initState();
@@ -1277,17 +1606,162 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           setState(() {});
         }
       });
+    if (widget.active) {
+      unawaited(_loadPickupLocation(silent: true));
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant HubPoolScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _mapController = widget.mapController ?? _mapController;
+    if (widget.active && !oldWidget.active) {
+      unawaited(_loadPickupLocation(silent: true));
+    }
+    if (_pointKey(oldWidget.currentLocation) ==
+        _pointKey(widget.currentLocation)) {
+      return;
+    }
+    _refreshRouteForPickupChange();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _destinationRouteRefreshTimer?.cancel();
+    _hubPositionSubscription?.cancel();
     _carController.dispose();
     _destinationController.dispose();
     super.dispose();
   }
 
-  void _bookRide() {
+  void _refreshRouteForPickupChange() {
+    final driver = _driver;
+    final destination = _destination;
+    if (_stage == RideStage.tracking && driver != null) {
+      _approachAnimationPoints = const [];
+      final route = _pendingApproachRoute(driver);
+      setState(() => _route = route);
+      unawaited(_replaceWithDrivingApproachRoute(driver));
+      return;
+    }
+    if (_stage == RideStage.onboard && destination != null) {
+      final route = _destinationRoute(destination);
+      setState(() => _route = route);
+      unawaited(_fitRoute(route.points));
+      unawaited(_replaceWithDrivingDestinationRoute(destination));
+    }
+  }
+
+  Future<void> _loadPickupLocation({required bool silent}) async {
+    if (_loadingPickupLocation) {
+      return;
+    }
+    _loadingPickupLocation = true;
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        if (silent) {
+          return;
+        }
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+          distanceFilter: 0,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      final location = LatLng(position.latitude, position.longitude);
+      if (!mounted ||
+          !_isGreaterKlLocation(location) ||
+          position.accuracy > 120) {
+        return;
+      }
+      setState(() {
+        _hubCurrentLocation = location;
+        _hubCurrentAccuracyMeters = position.accuracy;
+      });
+      if ((_stage == RideStage.tracking && _driver != null) ||
+          (_stage == RideStage.onboard && _destination != null)) {
+        _refreshRouteForPickupChange();
+      }
+    } catch (_) {
+      // Keep the last known pickup when location services cannot refresh.
+    } finally {
+      _loadingPickupLocation = false;
+    }
+  }
+
+  void _startRideLocationUpdates() {
+    _hubPositionSubscription?.cancel();
+    _hubPositionSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 8,
+      ),
+    ).listen(_handleRidePosition, onError: (_) {});
+  }
+
+  void _stopRideLocationUpdates() {
+    _destinationRouteRefreshTimer?.cancel();
+    _destinationRouteRefreshTimer = null;
+    _hubPositionSubscription?.cancel();
+    _hubPositionSubscription = null;
+  }
+
+  void _handleRidePosition(Position position) {
+    if (!mounted || _stage != RideStage.onboard) {
+      return;
+    }
+    final location = LatLng(position.latitude, position.longitude);
+    if (!_isGreaterKlLocation(location) || position.accuracy > 120) {
+      return;
+    }
+    final previous = _hubCurrentLocation;
+    if (previous != null && _distanceMeters(previous, location) < 8) {
+      return;
+    }
+    setState(() {
+      _hubCurrentLocation = location;
+      _hubCurrentAccuracyMeters = position.accuracy;
+    });
+    _scheduleDestinationRouteRefresh();
+  }
+
+  void _scheduleDestinationRouteRefresh() {
+    final destination = _destination;
+    if (_stage != RideStage.onboard || destination == null) {
+      return;
+    }
+    _destinationRouteRefreshTimer?.cancel();
+    _destinationRouteRefreshTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted && _stage == RideStage.onboard && _destination != null) {
+        unawaited(_replaceWithDrivingDestinationRoute(_destination!));
+      }
+    });
+  }
+
+  bool _isGreaterKlLocation(LatLng location) {
+    return location.latitude >= 2.85 &&
+        location.latitude <= 3.35 &&
+        location.longitude >= 101.45 &&
+        location.longitude <= 102.05;
+  }
+
+  Future<void> _bookRide() async {
+    await _loadPickupLocation(silent: true);
     final destination = _destination;
     if (destination == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1304,6 +1778,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       return;
     }
     _timer?.cancel();
+    _stopRideLocationUpdates();
     _carController.reset();
     setState(() {
       _stage = RideStage.matching;
@@ -1311,26 +1786,63 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _driver = null;
       _destination = destination;
       _route = null;
+      _destinationStatusMessage = null;
       _fareDeducted = false;
     });
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_seconds <= 1) {
         timer.cancel();
-        final index = DateTime.now().millisecond % _drivers.length;
-        final driver = _drivers[index];
-        setState(() {
-          _stage = RideStage.tracking;
-          _driver = driver;
-          _route = _approachRoute(driver);
-          _seconds = 60;
-        });
-        _carController.forward(from: 0);
-        unawaited(_fitRoute(_route?.points ?? const []));
-        _startTrackingTimer();
+        unawaited(_confirmDriverMatch());
       } else {
         setState(() => _seconds--);
       }
     });
+  }
+
+  Future<void> _confirmDriverMatch() async {
+    if (!mounted || _stage != RideStage.matching) {
+      return;
+    }
+    final index = DateTime.now().millisecond % _drivers.length;
+    final driverProfile = _drivers[index];
+    try {
+      final arrival = await _findNearbyDriverArrival(driverProfile);
+      if (!mounted || _stage != RideStage.matching) {
+        return;
+      }
+      final arrivalSeconds = _arrivalSecondsFor(arrival.route);
+      final drivingRoute = _drivingApproachRoute(arrival.driver, arrival.route);
+      _timer?.cancel();
+      _carController.duration = Duration(seconds: arrivalSeconds);
+      setState(() {
+        _stage = RideStage.tracking;
+        _driver = arrival.driver;
+        _approachAnimationPoints = arrival.route.points;
+        _route = drivingRoute;
+        _seconds = arrivalSeconds;
+        _destinationStatusMessage = null;
+      });
+      _carController.forward(from: 0);
+      unawaited(_fitRoute(drivingRoute.points));
+      _startTrackingTimer();
+    } catch (_) {
+      if (!mounted || _stage != RideStage.matching) {
+        return;
+      }
+      final nearbyDriver = driverProfile.copyWith(
+        startLocation: _nearbyDriverCandidates(_pickupLocation).first,
+      );
+      _timer?.cancel();
+      setState(() {
+        _stage = RideStage.tracking;
+        _driver = nearbyDriver;
+        _approachAnimationPoints = const [];
+        _route = _pendingApproachRoute(nearbyDriver);
+        _seconds = _maxApproachSeconds;
+      });
+      unawaited(_replaceWithDrivingApproachRoute(nearbyDriver));
+      _startTrackingTimer();
+    }
   }
 
   void _startTrackingTimer() {
@@ -1354,9 +1866,12 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           _seconds = 0;
           _stage = RideStage.onboard;
           _route = _destinationRoute(destination);
+          _approachAnimationPoints = const [];
           _fareDeducted = true;
         });
+        _startRideLocationUpdates();
         unawaited(_fitRoute(_route?.points ?? const []));
+        unawaited(_replaceWithDrivingDestinationRoute(destination));
       } else {
         setState(() => _seconds--);
       }
@@ -1366,22 +1881,26 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   void _cancelRide() {
     _timer?.cancel();
     _carController.stop();
+    _stopRideLocationUpdates();
     setState(() {
       _stage = RideStage.cancelled;
       _seconds = 0;
       _route = null;
+      _approachAnimationPoints = const [];
     });
   }
 
   void _resetRide() {
     _timer?.cancel();
     _carController.reset();
+    _stopRideLocationUpdates();
     setState(() {
       _stage = RideStage.idle;
       _seconds = 0;
       _driver = null;
       _destination = null;
       _route = null;
+      _approachAnimationPoints = const [];
       _fareDeducted = false;
     });
   }
@@ -1407,10 +1926,15 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       return null;
     }
     if (_stage == RideStage.tracking) {
-      return _pointAlongPath(_route?.points ?? const [], _carController.value);
+      final routePoints = _route?.points ?? const <LatLng>[];
+      final animationPoints =
+          routePoints.isEmpty ? _approachAnimationPoints : routePoints;
+      return animationPoints.isEmpty
+          ? driver.startLocation
+          : _pointAlongPath(animationPoints, _carController.value);
     }
     if (_stage == RideStage.onboard) {
-      return _origin;
+      return _rideCurrentLocation;
     }
     return driver.startLocation;
   }
@@ -1420,14 +1944,212 @@ class _HubPoolScreenState extends State<HubPoolScreen>
 
   double get _selectedFare => _fareForDistance(_selectedDistanceKm);
 
-  TransitOption _approachRoute(Driver driver) {
-    final distanceKm = _rideDistanceKm(driver.startLocation, to: _origin);
-    final minutes = max(1, (distanceKm * 3).round());
+  SharedMapView get _currentMapView => SharedMapView(
+        signature:
+            'hub|${_pointKey(_pickupLocation)}|${_destination?.placeId}|${_route?.label}|${_route?.time}|${_route?.distance}|${_route?.points.length}|$_stage|${_driver?.name}|${_pointKey(_vehicleLocation)}|${_destinationCandidates.length}',
+        currentLocation: _pickupLocation,
+        currentAccuracyMeters: _pickupAccuracyMeters,
+        candidate: _destination,
+        selectedRoute: _route,
+        navigating:
+            _stage == RideStage.tracking || _stage == RideStage.onboard,
+        vehicleLocation: _vehicleLocation,
+        vehicleColor: _driver?.color,
+        initialTarget: _destination?.location ?? _pickupLocation,
+        initialZoom: _destination == null ? 13 : 14.5,
+      );
+
+  void _publishMapView() {
+    if (!widget.active) {
+      return;
+    }
+    final view = _currentMapView;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.active) {
+        widget.onMapViewChanged(view);
+      }
+    });
+  }
+
+  Future<_DriverArrival> _findNearbyDriverArrival(Driver driverProfile) async {
+    final pickup = _pickupLocation;
+    final candidates = _nearbyDriverCandidates(pickup);
+    _DriverArrival? bestArrival;
+    double? bestFullRouteSeconds;
+    for (final candidate in candidates) {
+      final driver = driverProfile.copyWith(startLocation: candidate);
+      try {
+        final route = await _GoogleMapsApi.fetchDrivingRoute(
+          origin: candidate,
+          destination: pickup,
+          apiKey: _GoogleMapsConfig.apiKey,
+        );
+        if (route.points.length < 2 || route.distanceMeters < 25) {
+          continue;
+        }
+        final arrival = _DriverArrival(driver: driver, route: route);
+        if (route.durationSeconds <= _maxApproachSeconds) {
+          return arrival;
+        }
+        if (bestArrival == null ||
+            route.durationSeconds < (bestFullRouteSeconds ?? double.infinity)) {
+          bestArrival = _arrivalFromFinalRoadSegment(driverProfile, route);
+          bestFullRouteSeconds = route.durationSeconds;
+        }
+      } catch (_) {
+        // Try the next nearby road point.
+      }
+    }
+    if (bestArrival != null) {
+      return bestArrival;
+    }
+    throw 'No nearby driver road route found';
+  }
+
+  _DriverArrival _arrivalFromFinalRoadSegment(
+    Driver driverProfile,
+    _DrivingRoute route,
+  ) {
+    final points = _lastRoadSegment(route.points, 420);
+    final distanceMeters = _pathDistanceMeters(points);
+    final averageMetersPerSecond =
+        route.durationSeconds <= 0 || route.distanceMeters <= 0
+            ? 9.0
+            : max(7.0, route.distanceMeters / route.durationSeconds);
+    final durationSeconds =
+        (distanceMeters / averageMetersPerSecond)
+            .clamp(20, _maxApproachSeconds)
+            .toDouble();
+    final approachRoute = _DrivingRoute(
+      points: points,
+      time: _GoogleMapsApi._formatSeconds(durationSeconds),
+      distance: _GoogleMapsApi._formatMeters(distanceMeters.round()),
+      distanceMeters: distanceMeters,
+      durationSeconds: durationSeconds,
+    );
+    return _DriverArrival(
+      driver: driverProfile.copyWith(startLocation: points.first),
+      route: approachRoute,
+    );
+  }
+
+  List<LatLng> _lastRoadSegment(List<LatLng> points, double maxMeters) {
+    if (points.length <= 2) {
+      return points;
+    }
+    final segment = <LatLng>[points.last];
+    var remainingMeters = maxMeters;
+    for (var i = points.length - 2; i >= 0; i--) {
+      final current = points[i];
+      final next = segment.first;
+      final length = _distanceMeters(current, next);
+      if (length >= remainingMeters) {
+        final ratio = remainingMeters / length;
+        segment.insert(
+          0,
+          LatLng(
+            next.latitude + (current.latitude - next.latitude) * ratio,
+            next.longitude + (current.longitude - next.longitude) * ratio,
+          ),
+        );
+        break;
+      }
+      segment.insert(0, current);
+      remainingMeters -= length;
+    }
+    return segment;
+  }
+
+  double _pathDistanceMeters(List<LatLng> points) {
+    var meters = 0.0;
+    for (var i = 0; i < points.length - 1; i++) {
+      meters += _distanceMeters(points[i], points[i + 1]);
+    }
+    return meters;
+  }
+
+  List<LatLng> _nearbyDriverCandidates(LatLng pickup) {
+    final random = Random(DateTime.now().millisecondsSinceEpoch);
+    final angles = <double>[
+      -pi / 2,
+      -pi / 3,
+      -pi / 4,
+      -pi / 6,
+      0,
+      pi / 6,
+      pi / 4,
+      pi / 3,
+      pi / 2,
+      pi * 2 / 3,
+      pi * 3 / 4,
+      pi * 5 / 6,
+      pi,
+    ]..shuffle(random);
+    final distancesMeters = <double>[70, 100, 140, 190, 250, 320, 420];
+    final candidates = <LatLng>[];
+    for (final distanceMeters in distancesMeters) {
+      for (final angle in angles.take(4)) {
+        candidates.add(
+          _offsetLocation(
+            pickup,
+            distanceMeters,
+            angle + random.nextDouble() * .2 - .1,
+          ),
+        );
+      }
+    }
+    return candidates;
+  }
+
+  LatLng _offsetLocation(LatLng origin, double meters, double bearingRadians) {
+    final latMeters = 111320.0;
+    final lngMeters = latMeters * cos(origin.latitude * pi / 180);
+    return LatLng(
+      origin.latitude + cos(bearingRadians) * meters / latMeters,
+      origin.longitude + sin(bearingRadians) * meters / lngMeters,
+    );
+  }
+
+  int _arrivalSecondsFor(_DrivingRoute route) {
+    final seconds = route.durationSeconds.round();
+    return seconds.clamp(20, _maxApproachSeconds).toInt();
+  }
+
+  TransitOption _pendingApproachRoute(Driver driver) {
+    return _approachRoute(
+      driver,
+      points: const [],
+      time: 'Calculating',
+      distance: '--',
+      legTime: 'Calculating',
+      legDistance: '--',
+    );
+  }
+
+  TransitOption _drivingApproachRoute(Driver driver, _DrivingRoute route) {
+    return _approachRoute(
+      driver,
+      points: route.points,
+      time: route.time,
+      distance: route.distance,
+      legTime: route.time,
+      legDistance: route.distance,
+    );
+  }
+
+  TransitOption _approachRoute(
+    Driver driver, {
+    required List<LatLng> points,
+    required String time,
+    required String distance,
+    required String legTime,
+    required String legDistance,
+  }) {
     return TransitOption(
       label: 'Driver approach',
       chain: '${driver.vehicle} -> Pickup',
-      time: '1 min demo',
-      distance: '${distanceKm.toStringAsFixed(1)} km',
+      time: time,
+      distance: distance,
       fare: 'No charge yet',
       transfers: 'Pickup',
       crowd: .2,
@@ -1437,10 +2159,10 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           fromName: '${driver.name} nearby',
           toName: _originName,
           mode: driver.vehicle,
-          time: '$minutes min',
-          distance: '${distanceKm.toStringAsFixed(1)} km',
+          time: legTime,
+          distance: legDistance,
           icon: Icons.local_taxi_rounded,
-          points: _roadPath(driver.startLocation, _origin, bend: .0012),
+          points: points,
         ),
       ],
       firstStopLabel: _originName,
@@ -1448,8 +2170,50 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     );
   }
 
+  Future<void> _replaceWithDrivingApproachRoute(Driver driver) async {
+    try {
+      final pickup = _pickupLocation;
+      final route = await _GoogleMapsApi.fetchDrivingRoute(
+        origin: driver.startLocation,
+        destination: pickup,
+        apiKey: _GoogleMapsConfig.apiKey,
+      );
+      if (!mounted || _stage != RideStage.tracking || _driver != driver) {
+        return;
+      }
+      final drivingRoute = _drivingApproachRoute(driver, route);
+      final arrivalSeconds = _arrivalSecondsFor(route);
+      _carController.duration = Duration(seconds: arrivalSeconds);
+      setState(() {
+        _approachAnimationPoints = route.points;
+        _route = drivingRoute;
+        _seconds = arrivalSeconds;
+        _destinationStatusMessage = null;
+      });
+      _carController.forward(from: 0);
+      await _fitRoute(drivingRoute.points);
+    } catch (error) {
+      if (mounted && _stage == RideStage.tracking && _driver == driver) {
+        setState(() {
+          _approachAnimationPoints = const [];
+          _route = _pendingApproachRoute(driver);
+          _destinationStatusMessage =
+              'Road route is temporarily unavailable. Retrying...';
+        });
+        Future<void>.delayed(const Duration(seconds: 3), () {
+          if (mounted && _stage == RideStage.tracking && _driver == driver) {
+            unawaited(_replaceWithDrivingApproachRoute(driver));
+          }
+        });
+      }
+    }
+  }
+
   TransitOption _destinationRoute(DestinationCandidate destination) {
-    final distanceKm = _rideDistanceKm(destination.location);
+    final origin = _stage == RideStage.onboard
+        ? _rideCurrentLocation
+        : _pickupLocation;
+    final distanceKm = _rideDistanceKm(destination.location, to: origin);
     return TransitOption(
       label: 'Hub-Pool ride',
       chain: 'Pickup -> ${destination.name}',
@@ -1467,25 +2231,52 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           time: '${max(4, (distanceKm * 4).round())} min',
           distance: '${distanceKm.toStringAsFixed(1)} km',
           icon: Icons.directions_car_rounded,
-          points: _roadPath(_origin, destination.location, bend: -.0014),
+          points: const [],
         ),
       ],
       firstStopLabel: destination.name,
-      nextInstruction: 'Ride to ${destination.name}',
+      nextInstruction: 'Getting road route to ${destination.name}',
     );
   }
 
-  List<LatLng> _roadPath(LatLng from, LatLng to, {required double bend}) {
-    final firstTurn = LatLng(
-      from.latitude,
-      (from.longitude + to.longitude) / 2 + bend,
-    );
-    final secondTurn = LatLng(
-      (from.latitude + to.latitude) / 2 - bend,
-      firstTurn.longitude,
-    );
-    final thirdTurn = LatLng(secondTurn.latitude, to.longitude);
-    return [from, firstTurn, secondTurn, thirdTurn, to];
+  Future<void> _replaceWithDrivingDestinationRoute(
+    DestinationCandidate destination,
+  ) async {
+    try {
+      final origin = _rideCurrentLocation;
+      final route = await _GoogleMapsApi.fetchDrivingRoute(
+        origin: origin,
+        destination: destination.location,
+        apiKey: _GoogleMapsConfig.apiKey,
+      );
+      if (!mounted ||
+          _stage != RideStage.onboard ||
+          _destination != destination) {
+        return;
+      }
+      final distanceKm = max(.2, route.distanceMeters / 1000);
+      final drivingRoute = _destinationRoute(destination).copyWith(
+        time: route.time,
+        distance: route.distance,
+        fare: '${_fareForDistance(distanceKm).toStringAsFixed(2)} credit',
+        legs: [
+          RouteLeg(
+            fromName: _originName,
+            toName: destination.name,
+            mode: _driver?.vehicle ?? 'Hub-Pool',
+            time: route.time,
+            distance: route.distance,
+            icon: Icons.directions_car_rounded,
+            points: route.points,
+          ),
+        ],
+      );
+      setState(() => _route = drivingRoute);
+      _publishMapView();
+      await _fitRoute(drivingRoute.points);
+    } catch (_) {
+      // Do not draw guessed ride lines; only road polylines are shown.
+    }
   }
 
   LatLng? _pointAlongPath(List<LatLng> points, double progress) {
@@ -1496,24 +2287,48 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       return points.first;
     }
     final clamped = progress.clamp(0, 1).toDouble();
-    final position = clamped * (points.length - 1);
-    final index = min(points.length - 2, position.floor());
-    final segmentProgress = position - index;
-    final from = points[index];
-    final to = points[index + 1];
-    return LatLng(
-      from.latitude + (to.latitude - from.latitude) * segmentProgress,
-      from.longitude + (to.longitude - from.longitude) * segmentProgress,
+    final segmentLengths = <double>[];
+    var totalMeters = 0.0;
+    for (var i = 0; i < points.length - 1; i++) {
+      final length = _distanceMeters(points[i], points[i + 1]);
+      segmentLengths.add(length);
+      totalMeters += length;
+    }
+    if (totalMeters == 0) {
+      return points.last;
+    }
+    var remainingMeters = totalMeters * clamped;
+    for (var i = 0; i < segmentLengths.length; i++) {
+      final segmentLength = segmentLengths[i];
+      if (remainingMeters > segmentLength && i < segmentLengths.length - 1) {
+        remainingMeters -= segmentLength;
+        continue;
+      }
+      final segmentProgress = segmentLength == 0
+          ? 0.0
+          : (remainingMeters / segmentLength).clamp(0, 1).toDouble();
+      final from = points[i];
+      final to = points[i + 1];
+      return LatLng(
+        from.latitude + (to.latitude - from.latitude) * segmentProgress,
+        from.longitude + (to.longitude - from.longitude) * segmentProgress,
+      );
+    }
+    return points.last;
+  }
+
+  double _distanceMeters(LatLng from, LatLng to) {
+    return Geolocator.distanceBetween(
+      from.latitude,
+      from.longitude,
+      to.latitude,
+      to.longitude,
     );
   }
 
-  double _rideDistanceKm(LatLng location, {LatLng to = _origin}) {
-    final meters = Geolocator.distanceBetween(
-      to.latitude,
-      to.longitude,
-      location.latitude,
-      location.longitude,
-    );
+  double _rideDistanceKm(LatLng location, {LatLng? to}) {
+    final from = to ?? _pickupLocation;
+    final meters = _distanceMeters(from, location);
     return max(.2, meters / 1000);
   }
 
@@ -1574,7 +2389,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     try {
       final candidates = await _GoogleMapsApi.findPlaces(
         query: query,
-        apiKey: _googleMapsApiKey,
+        apiKey: _GoogleMapsConfig.apiKey,
       );
       if (!mounted) {
         return;
@@ -1610,27 +2425,12 @@ class _HubPoolScreenState extends State<HubPoolScreen>
 
   @override
   Widget build(BuildContext context) {
+    _mapController = widget.mapController ?? _mapController;
+    _publishMapView();
     final topInset = MediaQuery.paddingOf(context).top;
     final destination = _destination;
     return Stack(
       children: [
-        Positioned.fill(
-          child: _LiveGoogleMapSurface(
-            apiKeyReady: _googleMapsApiKey.isNotEmpty,
-            currentLocation: _origin,
-            currentAccuracyMeters: null,
-            candidate: destination,
-            selectedRoute: _route,
-            navigating: _stage == RideStage.tracking ||
-                _stage == RideStage.onboard,
-            vehicleLocation: _vehicleLocation,
-            vehicleColor: _driver?.color,
-            onMapCreated: (controller) {
-              _mapController = controller;
-            },
-            onCameraMove: (_) {},
-          ),
-        ),
         Positioned(
           left: 14,
           right: 14,
@@ -1648,6 +2448,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
             statusMessage: _destinationStatusMessage,
             searchingDestination: _searchingDestination,
             onTextChanged: _handleDestinationTextChanged,
+            onClearInput: _clearDestinationInput,
             onSearch: _searchDestination,
             onSelectDestination: (candidate) {
               setState(() {
@@ -1663,16 +2464,33 @@ class _HubPoolScreenState extends State<HubPoolScreen>
             },
             onBook: destination == null ? null : _bookRide,
             onCancel: _stage == RideStage.matching ||
-                    _stage == RideStage.tracking
+                    _stage == RideStage.tracking ||
+                    _stage == RideStage.onboard
                 ? _cancelRide
                 : null,
-            onReset: _stage == RideStage.cancelled ? _resetRide : null,
           ),
         ),
       ],
     );
   }
 
+  void _clearDestinationInput() {
+    _timer?.cancel();
+    _carController.reset();
+    _stopRideLocationUpdates();
+    setState(() {
+      _destinationController.clear();
+      _stage = RideStage.idle;
+      _seconds = 0;
+      _driver = null;
+      _destination = null;
+      _destinationCandidates = const [];
+      _route = null;
+      _approachAnimationPoints = const [];
+      _destinationStatusMessage = null;
+      _fareDeducted = false;
+    });
+  }
 }
 
 class _HubPoolOverlay extends StatelessWidget {
@@ -1689,11 +2507,11 @@ class _HubPoolOverlay extends StatelessWidget {
     required this.statusMessage,
     required this.searchingDestination,
     required this.onTextChanged,
+    required this.onClearInput,
     required this.onSearch,
     required this.onSelectDestination,
     required this.onBook,
     required this.onCancel,
-    required this.onReset,
   });
 
   final TextEditingController controller;
@@ -1708,11 +2526,11 @@ class _HubPoolOverlay extends StatelessWidget {
   final String? statusMessage;
   final bool searchingDestination;
   final VoidCallback onTextChanged;
+  final VoidCallback onClearInput;
   final VoidCallback onSearch;
   final ValueChanged<DestinationCandidate> onSelectDestination;
   final VoidCallback? onBook;
   final VoidCallback? onCancel;
-  final VoidCallback? onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -1811,6 +2629,13 @@ class _HubPoolOverlay extends StatelessWidget {
                       hintText: 'Search destination',
                       hintStyle: const TextStyle(color: Color(0xFF98A2B3)),
                       prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: controller.text.trim().isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear destination',
+                              onPressed: onClearInput,
+                              icon: const Icon(Icons.close_rounded),
+                            ),
                       filled: true,
                       fillColor: const Color(0xFFF0F4FA),
                       border: OutlineInputBorder(
@@ -1866,11 +2691,6 @@ class _HubPoolOverlay extends StatelessWidget {
                 ),
               ),
             ],
-            if (onReset != null)
-              TextButton(
-                onPressed: onReset,
-                child: const Text('Reset'),
-              ),
           ] else ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
@@ -1885,6 +2705,10 @@ class _HubPoolOverlay extends StatelessWidget {
                 color: const Color(0xFF0B7CFF),
               ),
             ),
+            if (statusMessage != null) ...[
+              const SizedBox(height: 10),
+              _SheetNotice(message: statusMessage!),
+            ],
             if (driver != null) ...[
               const SizedBox(height: 12),
               _DriverCard(driver: driver!),
@@ -1968,12 +2792,22 @@ class _HubDestinationTile extends StatelessWidget {
 
 class PelancongPlanScreen extends StatefulWidget {
   const PelancongPlanScreen({
+    required this.active,
+    required this.mapController,
+    required this.onMapViewChanged,
+    required this.currentLocation,
+    required this.currentAccuracyMeters,
     required this.ongoingDestination,
     required this.onGoNow,
     required this.onCancelDestination,
     super.key,
   });
 
+  final bool active;
+  final GoogleMapController? mapController;
+  final ValueChanged<SharedMapView> onMapViewChanged;
+  final LatLng? currentLocation;
+  final double? currentAccuracyMeters;
   final String? ongoingDestination;
   final ValueChanged<String> onGoNow;
   final ValueChanged<String> onCancelDestination;
@@ -1986,10 +2820,39 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   double _attractionCount = 3;
   double _distanceKm = 10;
   double _priceIndex = 1;
+  BlindBoxTravelMode _travelMode = BlindBoxTravelMode.drive;
   List<ItineraryStop> _itinerary = const [];
+  bool _itineraryListVisible = false;
+  GoogleMapController? _mapController;
+  final Map<String, BitmapDescriptor> _featureCMarkerIcons = {};
+  List<LatLng> _featureCRoutePoints = const [];
+  int _markerIconRevision = 0;
+  int _routeRevision = 0;
+  FeatureCTripStatus _tripStatus = FeatureCTripStatus.notStarted;
+  int _activeStopIndex = 0;
+  int _tripTotalStops = 0;
+  int _completedStopCount = 0;
   late final List<Attraction> _blindBoxLocations = _buildBlindBoxLocations();
-
   PriceTier get _priceTier => PriceTier.values[_priceIndex.round()];
+
+  @override
+  void didUpdateWidget(covariant PelancongPlanScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _mapController = widget.mapController ?? _mapController;
+    if (widget.active &&
+        (!oldWidget.active || oldWidget.mapController != widget.mapController) &&
+        _itinerary.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.active) {
+          unawaited(_fitItineraryMap());
+        }
+      });
+    }
+    if (_itinerary.isNotEmpty &&
+        _pointKey(oldWidget.currentLocation) != _pointKey(widget.currentLocation)) {
+      unawaited(_loadFeatureCDrivingRoute());
+    }
+  }
 
   void _generate() {
     setState(() {
@@ -1997,8 +2860,176 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         stopCount: _attractionCount.round(),
         totalDistanceKm: _distanceKm,
         priceTier: _priceTier,
+        travelMode: _travelMode,
       );
+      _itineraryListVisible = false;
+      _featureCRoutePoints = const [];
+      _tripStatus = FeatureCTripStatus.notStarted;
+      _activeStopIndex = 0;
+      _tripTotalStops = _itinerary.length;
+      _completedStopCount = 0;
+      _routeRevision++;
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_fitItineraryMap());
+    });
+    unawaited(_loadFeatureCMarkerIcons());
+    unawaited(_loadFeatureCDrivingRoute());
+  }
+
+  void _removeStop(ItineraryStop stop) {
+    widget.onCancelDestination(stop.attraction.name);
+    final removedIndex = _itinerary.indexOf(stop);
+    setState(() {
+      _itinerary = [
+        for (final item in _itinerary)
+          if (item != stop) item,
+      ];
+      _tripTotalStops = max(0, _tripTotalStops - 1);
+      if (_itinerary.isEmpty) {
+        _itineraryListVisible = false;
+        _tripStatus = FeatureCTripStatus.notStarted;
+        _activeStopIndex = 0;
+        _tripTotalStops = 0;
+        _completedStopCount = 0;
+      } else if (removedIndex >= 0 && removedIndex < _activeStopIndex) {
+        _activeStopIndex--;
+      } else if (_activeStopIndex >= _itinerary.length) {
+        _activeStopIndex = _itinerary.length - 1;
+      }
+    });
+  }
+
+  Future<void> _focusItineraryStop(ItineraryStop stop) async {
+    await _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(stop.attraction.location, 16),
+    );
+  }
+
+  ItineraryStop? get _activeTripStop {
+    if (_itinerary.isEmpty ||
+        _activeStopIndex < 0 ||
+        _activeStopIndex >= _itinerary.length) {
+      return null;
+    }
+    return _itinerary[_activeStopIndex];
+  }
+
+  void _startFeatureCTrip() {
+    if (_itinerary.isEmpty) {
+      return;
+    }
+    setState(() {
+      _activeStopIndex = 0;
+      _tripStatus = FeatureCTripStatus.traveling;
+      _itineraryListVisible = true;
+    });
+    unawaited(_focusActiveTripStop());
+  }
+
+  void _markActiveStopArrived() {
+    final stop = _activeTripStop;
+    if (stop == null) {
+      return;
+    }
+    widget.onCancelDestination(stop.attraction.name);
+    setState(() {
+      _itinerary = [
+        for (final item in _itinerary)
+          if (item != stop) item,
+      ];
+      _completedStopCount =
+          min(_tripTotalStops, _completedStopCount + 1);
+      if (_itinerary.isEmpty) {
+        _tripStatus = FeatureCTripStatus.completed;
+        _activeStopIndex = 0;
+        _featureCRoutePoints = const [];
+        _routeRevision++;
+        return;
+      }
+      if (_activeStopIndex >= _itinerary.length) {
+        _activeStopIndex = _itinerary.length - 1;
+      }
+      _tripStatus = FeatureCTripStatus.traveling;
+      _routeRevision++;
+    });
+    unawaited(_focusActiveTripStop());
+  }
+
+  void _goToNextFeatureCStop() {
+    if (_itinerary.isEmpty) {
+      return;
+    }
+    if (_activeStopIndex >= _itinerary.length - 1) {
+      setState(() => _tripStatus = FeatureCTripStatus.completed);
+      return;
+    }
+    setState(() {
+      _activeStopIndex++;
+      _tripStatus = FeatureCTripStatus.traveling;
+    });
+    unawaited(_focusActiveTripStop());
+  }
+
+  void _finishFeatureCTrip() {
+    setState(() => _tripStatus = FeatureCTripStatus.completed);
+  }
+
+  void _resetFeatureCPlanner() {
+    setState(() {
+      _itinerary = const [];
+      _itineraryListVisible = false;
+      _featureCRoutePoints = const [];
+      _tripStatus = FeatureCTripStatus.notStarted;
+      _activeStopIndex = 0;
+      _tripTotalStops = 0;
+      _completedStopCount = 0;
+      _routeRevision++;
+    });
+  }
+
+  Future<void> _focusActiveTripStop() async {
+    final stop = _activeTripStop;
+    if (stop == null) {
+      return;
+    }
+    await _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(stop.attraction.location, 15.5),
+    );
+  }
+
+  Future<void> _showMapStopAction(ItineraryStop stop) async {
+    final action = await showModalBottomSheet<_MapStopAction>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (context) => _MapStopActionSheet(stop: stop),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case _MapStopAction.continueTrip:
+        break;
+      case _MapStopAction.proceed:
+        final index = _itinerary.indexOf(stop);
+        if (index >= 0) {
+          setState(() {
+            _activeStopIndex = index;
+            _tripStatus = FeatureCTripStatus.traveling;
+            _itineraryListVisible = true;
+          });
+        }
+        break;
+      case _MapStopAction.cancel:
+        final confirmed = await _confirmCancel(stop);
+        if (confirmed && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${stop.attraction.name} removed')),
+          );
+        }
+        break;
+    }
   }
 
   Future<bool> _confirmCancel(ItineraryStop stop) async {
@@ -2020,22 +3051,358 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       ),
     );
     if (confirmed == true) {
-      widget.onCancelDestination(stop.attraction.name);
-      setState(() {
-        _itinerary = [
-          for (final item in _itinerary)
-            if (item != stop) item,
-        ];
-      });
+      _removeStop(stop);
       return true;
     }
     return false;
+  }
+
+  Future<void> _fitItineraryMap() async {
+    final controller = _mapController;
+    if (controller == null || _itinerary.isEmpty) {
+      return;
+    }
+    var minLat = _itinerary.first.attraction.location.latitude;
+    var maxLat = minLat;
+    var minLng = _itinerary.first.attraction.location.longitude;
+    var maxLng = minLng;
+    for (final stop in _itinerary) {
+      final location = stop.attraction.location;
+      minLat = min(minLat, location.latitude);
+      maxLat = max(maxLat, location.latitude);
+      minLng = min(minLng, location.longitude);
+      maxLng = max(maxLng, location.longitude);
+    }
+    if (minLat == maxLat && minLng == maxLng) {
+      await controller.animateCamera(
+        CameraUpdate.newLatLngZoom(_itinerary.first.attraction.location, 14.5),
+      );
+      return;
+    }
+    await controller.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(minLat, minLng),
+          northeast: LatLng(maxLat, maxLng),
+        ),
+        88,
+      ),
+    );
+  }
+
+  SharedMapView get _currentMapView {
+    if (_itinerary.isEmpty) {
+      return SharedMapView(
+        signature: 'plan-empty|${_pointKey(widget.currentLocation)}',
+        currentLocation: widget.currentLocation,
+        currentAccuracyMeters: widget.currentAccuracyMeters,
+        initialTarget:
+            widget.currentLocation ?? const LatLng(3.1478, 101.6953),
+        initialZoom: widget.currentLocation == null ? 12 : 15,
+      );
+    }
+    return SharedMapView(
+      signature:
+          'plan|${_pointKey(widget.currentLocation)}|mode:${_travelMode.name}|trip:${_tripStatus.name}:$_activeStopIndex|icons:$_markerIconRevision|route:$_routeRevision|${_itinerary.map((stop) => '${stop.order}:${stop.attraction.name}').join('|')}',
+      currentLocation: widget.currentLocation,
+      currentAccuracyMeters: widget.currentAccuracyMeters,
+      initialTarget: _itinerary.first.attraction.location,
+      initialZoom: 13.2,
+      extraMarkers: _featureCMarkers(),
+      extraPolylines: _featureCPolylines(),
+    );
+  }
+
+  Future<void> _loadFeatureCMarkerIcons() async {
+    final stops = List<ItineraryStop>.of(_itinerary);
+    var changed = false;
+    for (final stop in stops) {
+      final key = _featureCMarkerKey(stop);
+      if (_featureCMarkerIcons.containsKey(key)) {
+        continue;
+      }
+      _featureCMarkerIcons[key] = await _createFeatureCMarkerIcon(stop);
+      changed = true;
+    }
+    if (!mounted || !changed) {
+      return;
+    }
+    setState(() {
+      _markerIconRevision++;
+    });
+  }
+
+  Future<void> _loadFeatureCDrivingRoute() async {
+    if (_travelMode == BlindBoxTravelMode.transit) {
+      setState(() {
+        _featureCRoutePoints = const [];
+        _routeRevision++;
+      });
+      return;
+    }
+    if (!_GoogleMapsConfig.isReady || _itinerary.length < 2) {
+      return;
+    }
+    final routeTargets = [
+      if (widget.currentLocation != null) widget.currentLocation!,
+      for (final stop in _itinerary) stop.attraction.location,
+    ];
+    if (routeTargets.length < 2) {
+      return;
+    }
+    try {
+      final roadPoints = <LatLng>[];
+      for (var i = 0; i < routeTargets.length - 1; i++) {
+        final segment = await _GoogleMapsApi.fetchDrivingRoute(
+          origin: routeTargets[i],
+          destination: routeTargets[i + 1],
+          apiKey: _GoogleMapsConfig.apiKey,
+        );
+        if (roadPoints.isNotEmpty && segment.points.isNotEmpty) {
+          roadPoints.addAll(segment.points.skip(1));
+        } else {
+          roadPoints.addAll(segment.points);
+        }
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _featureCRoutePoints = roadPoints;
+        _routeRevision++;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _featureCRoutePoints = const [];
+        _routeRevision++;
+      });
+    }
+  }
+
+  String _featureCMarkerKey(ItineraryStop stop) {
+    return [
+      stop.attraction.name,
+      stop.attraction.imageAsset,
+      stop.startMinute,
+      stop.cost,
+      stop.attraction.color.toARGB32(),
+    ].join('|');
+  }
+
+  Future<BitmapDescriptor> _createFeatureCMarkerIcon(ItineraryStop stop) async {
+    const width = 264.0;
+    const height = 112.0;
+    const cardHeight = 74.0;
+    const imageSize = 54.0;
+    const cardRadius = 16.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final cardRect = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(0, 0, width, cardHeight),
+      const Radius.circular(cardRadius),
+    );
+
+    canvas.drawRRect(
+      cardRect.shift(const Offset(0, 4)),
+      Paint()
+        ..isAntiAlias = true
+        ..color = const Color(0x33000000)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.drawRRect(
+      cardRect,
+      Paint()
+        ..isAntiAlias = true
+        ..color = Colors.white,
+    );
+
+    final attractionImage = await _loadFeatureCMarkerImage(
+      stop.attraction.imageAsset,
+    );
+    final imageRect = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(10, 10, imageSize, imageSize),
+      const Radius.circular(12),
+    );
+    canvas.save();
+    canvas.clipRRect(imageRect);
+    canvas.drawImageRect(
+      attractionImage,
+      Rect.fromLTWH(
+        0,
+        0,
+        attractionImage.width.toDouble(),
+        attractionImage.height.toDouble(),
+      ),
+      imageRect.outerRect,
+      Paint()..isAntiAlias = true,
+    );
+    canvas.restore();
+
+    final titlePainter = TextPainter(
+      text: TextSpan(
+        text: stop.attraction.name,
+        style: const TextStyle(
+          color: Color(0xFF101828),
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+          height: 1.05,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 2,
+      ellipsis: '...',
+    )..layout(maxWidth: width - 84);
+    titlePainter.paint(canvas, const Offset(74, 11));
+
+    final metaPainter = TextPainter(
+      text: TextSpan(
+        text: '${_formatClock(stop.startMinute)} / RM ${stop.cost}',
+        style: const TextStyle(
+          color: Color(0xFF475467),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '...',
+    )..layout(maxWidth: width - 84);
+    metaPainter.paint(canvas, const Offset(74, 51));
+
+    final pinCenter = Offset(width / 2, height - 18);
+    final pinPaint = Paint()
+      ..isAntiAlias = true
+      ..color = stop.attraction.color;
+    final pinPath = Path()
+      ..moveTo(width / 2 - 13, cardHeight - 2)
+      ..quadraticBezierTo(width / 2, height - 2, width / 2 + 13, cardHeight - 2)
+      ..close();
+    canvas.drawPath(pinPath, pinPaint);
+    canvas.drawCircle(pinCenter, 14, pinPaint);
+    canvas.drawCircle(
+      pinCenter,
+      5,
+      Paint()
+        ..isAntiAlias = true
+        ..color = Colors.white,
+    );
+
+    final markerImage = await recorder.endRecording().toImage(
+          width.toInt(),
+          height.toInt(),
+        );
+    final byteData = await markerImage.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    return BitmapDescriptor.bytes(
+      byteData!.buffer.asUint8List(),
+    );
+  }
+
+  Future<ui.Image> _loadFeatureCMarkerImage(String assetPath) async {
+    final data = await rootBundle.load(assetPath);
+    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    final codec = await ui.instantiateImageCodec(
+      bytes,
+      targetWidth: 108,
+      targetHeight: 108,
+    );
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
+
+  Set<Marker> _featureCMarkers() {
+    return {
+      for (final stop in _itinerary)
+        Marker(
+          markerId: MarkerId('feature_c_stop_${stop.order}'),
+          position: stop.attraction.location,
+          infoWindow: InfoWindow(
+            title: stop.attraction.name,
+            snippet: '${_formatClock(stop.startMinute)} / RM ${stop.cost}',
+          ),
+          icon: _featureCMarkerIcons[_featureCMarkerKey(stop)] ??
+              BitmapDescriptor.defaultMarkerWithHue(
+                _attractionMarkerHue(stop.attraction.color),
+              ),
+          anchor: const Offset(0.5, 0.98),
+          zIndexInt: 20 + stop.order,
+          onTap: () => _showMapStopAction(stop),
+        ),
+    };
+  }
+
+  Set<Polyline> _featureCPolylines() {
+    final routePoints = _featureCRoutePoints;
+    return {
+      if (routePoints.length > 1)
+        Polyline(
+          polylineId: const PolylineId('feature_c_route_shadow'),
+          points: routePoints,
+          width: 8,
+          color: const Color(0xFFFFD43B),
+          zIndex: 1,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+        ),
+      if (routePoints.length > 1)
+        Polyline(
+          polylineId: const PolylineId('feature_c_route'),
+          points: routePoints,
+          width: 4,
+          color: const Color(0xFF0B7CFF),
+          zIndex: 2,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+        ),
+    };
+  }
+
+  double _attractionMarkerHue(Color color) {
+    if (color == const Color(0xFFFFCE3D)) {
+      return BitmapDescriptor.hueYellow;
+    }
+    if (color == const Color(0xFF00E2A7) ||
+        color == const Color(0xFF3CCB7F)) {
+      return BitmapDescriptor.hueGreen;
+    }
+    if (color == const Color(0xFFFF7A59)) {
+      return BitmapDescriptor.hueOrange;
+    }
+    if (color == const Color(0xFF7C5CFF)) {
+      return BitmapDescriptor.hueViolet;
+    }
+    if (color == const Color(0xFF38D9FF) ||
+        color == const Color(0xFF40A9FF) ||
+        color == const Color(0xFF00A9CE)) {
+      return BitmapDescriptor.hueAzure;
+    }
+    return BitmapDescriptor.hueRose;
+  }
+
+  void _publishMapView() {
+    if (!widget.active) {
+      return;
+    }
+    final view = _currentMapView;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.active) {
+        widget.onMapViewChanged(view);
+      }
+    });
   }
 
   List<ItineraryStop> _buildItinerary({
     required int stopCount,
     required double totalDistanceKm,
     required PriceTier priceTier,
+    required BlindBoxTravelMode travelMode,
   }) {
     final attractions = _pickBlindBoxMatches(
       stopCount: stopCount,
@@ -2055,7 +3422,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
           final distance = distanceTotal == 0
               ? totalDistanceKm / attractions.length
               : attraction.suggestedDistanceKm * totalDistanceKm / distanceTotal;
-          final travelMinutes = max(8, (distance * 4.2).round());
+          final travelMinutes = travelMode.travelMinutesFor(distance);
           final arrival = clock + travelMinutes;
           final start = max(arrival, attraction.openMinute);
           final end = min(
@@ -2070,6 +3437,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
             endMinute: end,
             distanceKm: distance,
             travelMinutes: travelMinutes,
+            travelMode: travelMode,
             cost: attraction.costFor(priceTier),
           );
         })(),
@@ -2150,15 +3518,79 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 22),
-      children: [
-        const _SectionTitle(
-          icon: Icons.explore_rounded,
-          title: 'KL Blind Box',
-          trailing: '1000 places',
+    _mapController = widget.mapController ?? _mapController;
+    _publishMapView();
+    if (_itinerary.isNotEmpty || _tripStatus == FeatureCTripStatus.completed) {
+      return Stack(
+        key: const Key('feature-c-results-map'),
+        fit: StackFit.expand,
+        children: [
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+              child: Column(
+                children: [
+                  const _SectionTitle(
+                    icon: Icons.explore_rounded,
+                    title: 'KL Blind Box',
+                    trailing: 'Map results',
+                  ),
+                  const Spacer(),
+                  if (_itinerary.isNotEmpty)
+                    Align(
+                      alignment: Alignment.bottomLeft,
+                      child: _FeatureCResultsToggle(
+                        count: _itinerary.length,
+                        expanded: _itineraryListVisible,
+                        onTap: () => setState(
+                          () => _itineraryListVisible = !_itineraryListVisible,
+                        ),
+                      ),
+                    )
+                  else
+                    _FeatureCTripCompletedBanner(
+                      onPlanAnotherTrip: _resetFeatureCPlanner,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (_itineraryListVisible && _itinerary.isNotEmpty)
+            _FeatureCResultsSheet(
+              stops: _itinerary,
+              priceTier: _priceTier,
+              ongoingDestination: widget.ongoingDestination,
+              tripStatus: _tripStatus,
+              activeStopIndex: _activeStopIndex,
+              tripTotalStops: _tripTotalStops,
+              completedStopCount: _completedStopCount,
+              onClose: () => setState(() => _itineraryListVisible = false),
+              onCancel: _confirmCancel,
+              onFocusStop: _focusItineraryStop,
+              onChooseRoute: widget.onGoNow,
+              onStartTrip: _startFeatureCTrip,
+              onArrived: _markActiveStopArrived,
+              onNextPlace: _goToNextFeatureCStop,
+              onFinishTrip: _finishFeatureCTrip,
+            ),
+        ],
+      );
+    }
+
+    return _BlueShell(
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          18,
+          MediaQuery.paddingOf(context).top + 8,
+          18,
+          22,
         ),
-        if (_itinerary.isEmpty) ...[
+        children: [
+          const _SectionTitle(
+            icon: Icons.explore_rounded,
+            title: 'KL Blind Box',
+            trailing: '1000 places',
+          ),
           _GlassPanel(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2189,6 +3621,15 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
                     _itinerary = const [];
                   }),
                 ),
+                _BlindBoxTravelModeSelector(
+                  value: _travelMode,
+                  onChanged: (value) => setState(() {
+                    _travelMode = value;
+                    _itinerary = const [];
+                    _featureCRoutePoints = const [];
+                  }),
+                ),
+                const SizedBox(height: 8),
                 _PlanSlider(
                   icon: Icons.payments_rounded,
                   label: 'Pricing',
@@ -2232,37 +3673,8 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
               ],
             ),
           ),
-        ] else ...[
-          _ItinerarySummary(
-            stops: _itinerary,
-            priceTier: _priceTier,
-          ),
-          const SizedBox(height: 12),
-          for (final stop in _itinerary) ...[
-            Dismissible(
-              key: ValueKey('itinerary-${stop.attraction.name}'),
-              direction: DismissDirection.endToStart,
-              confirmDismiss: (_) => _confirmCancel(stop),
-              background: Container(
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 18),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF4B43),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: const Icon(Icons.delete_rounded, color: Colors.white),
-              ),
-              child: _ItineraryStopCard(
-                stop: stop,
-                ongoing:
-                    widget.ongoingDestination == stop.attraction.name,
-                onGoNow: () => widget.onGoNow(stop.attraction.name),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -2675,7 +4087,9 @@ class _MapSearchWindow extends StatelessWidget {
     required this.routes,
     required this.selectedRoute,
     required this.navigating,
+    required this.onTextChanged,
     required this.onSearch,
+    required this.onClearDestination,
     required this.onConfirmDestination,
     required this.onSelectRoute,
   });
@@ -2688,7 +4102,9 @@ class _MapSearchWindow extends StatelessWidget {
   final List<TransitOption> routes;
   final TransitOption? selectedRoute;
   final bool navigating;
+  final VoidCallback onTextChanged;
   final VoidCallback onSearch;
+  final VoidCallback onClearDestination;
   final ValueChanged<DestinationCandidate> onConfirmDestination;
   final ValueChanged<TransitOption> onSelectRoute;
 
@@ -2757,17 +4173,25 @@ class _MapSearchWindow extends StatelessWidget {
                 child: TextField(
                   key: const Key('feature-a-destination'),
                   controller: toController,
+                  onChanged: (_) => onTextChanged(),
                   onSubmitted: (_) => onSearch(),
                   style: const TextStyle(color: Color(0xFF172033)),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     isDense: true,
                     filled: true,
-                    fillColor: Color(0xFFF2F6FB),
+                    fillColor: const Color(0xFFF2F6FB),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(99)),
                       borderSide: BorderSide.none,
                     ),
-                    prefixIcon: Icon(Icons.search_rounded),
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: toController.text.trim().isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Clear destination',
+                            onPressed: onClearDestination,
+                            icon: const Icon(Icons.close_rounded),
+                          ),
                     hintText: 'Search and Navigate',
                   ),
                 ),
@@ -2864,6 +4288,10 @@ class _LiveGoogleMapSurface extends StatefulWidget {
     required this.navigating,
     this.vehicleLocation,
     this.vehicleColor,
+    this.initialTarget,
+    this.initialZoom,
+    this.extraMarkers = const <Marker>{},
+    this.extraPolylines = const <Polyline>{},
     required this.onMapCreated,
     required this.onCameraMove,
   });
@@ -2876,6 +4304,10 @@ class _LiveGoogleMapSurface extends StatefulWidget {
   final bool navigating;
   final LatLng? vehicleLocation;
   final Color? vehicleColor;
+  final LatLng? initialTarget;
+  final double? initialZoom;
+  final Set<Marker> extraMarkers;
+  final Set<Polyline> extraPolylines;
   final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<CameraPosition> onCameraMove;
 
@@ -2900,6 +4332,14 @@ class _LiveGoogleMapSurfaceState extends State<_LiveGoogleMapSurface> {
         ? const <LatLng>[]
         : _remainingLegs(route);
     final firstStop = currentLeg.length > 1 ? currentLeg.last : null;
+    final currentAndVehicleTogether =
+        widget.currentLocation != null &&
+        widget.vehicleLocation != null &&
+        _pointKey(widget.currentLocation) == _pointKey(widget.vehicleLocation);
+    final firstStopIsDestination =
+        firstStop != null &&
+        widget.candidate != null &&
+        _distanceBetweenPoints(firstStop, widget.candidate!.location) < 80;
     final polylines = <Polyline>{
       if (route != null && currentLeg.length > 1)
         Polyline(
@@ -2923,9 +4363,10 @@ class _LiveGoogleMapSurfaceState extends State<_LiveGoogleMapSurface> {
           startCap: Cap.roundCap,
           endCap: Cap.roundCap,
         ),
+      ...widget.extraPolylines,
     };
     final markers = <Marker>{
-      if (widget.currentLocation != null)
+      if (widget.currentLocation != null && !currentAndVehicleTogether)
         Marker(
           markerId: const MarkerId('current_location'),
           position: widget.currentLocation!,
@@ -2944,7 +4385,7 @@ class _LiveGoogleMapSurfaceState extends State<_LiveGoogleMapSurface> {
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
-      if (firstStop != null && widget.navigating)
+      if (firstStop != null && widget.navigating && !firstStopIsDestination)
         Marker(
           markerId: const MarkerId('first_stop'),
           position: firstStop,
@@ -2960,6 +4401,7 @@ class _LiveGoogleMapSurfaceState extends State<_LiveGoogleMapSurface> {
             _markerHueForColor(widget.vehicleColor ?? const Color(0xFF0B7CFF)),
           ),
         ),
+      ...widget.extraMarkers,
     };
     final circles = <Circle>{
       if (widget.currentLocation != null && widget.currentAccuracyMeters != null)
@@ -2983,9 +4425,11 @@ class _LiveGoogleMapSurfaceState extends State<_LiveGoogleMapSurface> {
           child: GoogleMap(
             initialCameraPosition: CameraPosition(
               target:
+                  widget.initialTarget ??
                   widget.currentLocation ??
                   _LiveGoogleMapSurface._defaultKualaLumpur,
-              zoom: widget.currentLocation == null ? 12 : 15,
+              zoom:
+                  widget.initialZoom ?? (widget.currentLocation == null ? 12 : 15),
             ),
             onMapCreated: (controller) {
               if (mounted) {
@@ -3057,6 +4501,53 @@ class _LiveGoogleMapSurfaceState extends State<_LiveGoogleMapSurface> {
     }
     return BitmapDescriptor.hueBlue;
   }
+
+  double _distanceBetweenPoints(LatLng from, LatLng to) {
+    return Geolocator.distanceBetween(
+      from.latitude,
+      from.longitude,
+      to.latitude,
+      to.longitude,
+    );
+  }
+}
+
+class _MapLocationButton extends StatelessWidget {
+  const _MapLocationButton({required this.loading, required this.onPressed});
+
+  final bool loading;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('map-current-location'),
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 4,
+      shadowColor: const Color(0x33001844),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: loading ? null : onPressed,
+        child: SizedBox.square(
+          dimension: 44,
+          child: Center(
+            child: loading
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  )
+                : const Icon(
+                    Icons.my_location_rounded,
+                    color: Color(0xFF0B7CFF),
+                    size: 23,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
 }
 
 class _MapUnavailableSurface extends StatelessWidget {
@@ -3290,6 +4781,14 @@ class _RouteChoiceCard extends StatelessWidget {
                 _DarkMiniMetric(Icons.payments_rounded, route.fare),
               ],
             ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _DarkMiniMetric(Icons.sync_alt_rounded, route.transfers),
+                const SizedBox(width: 8),
+                Expanded(child: _PeakCrowdBars(crowd: route.crowd)),
+              ],
+            ),
           ],
         ),
       ),
@@ -3322,6 +4821,57 @@ class _DarkMiniMetric extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PeakCrowdBars extends StatelessWidget {
+  const _PeakCrowdBars({required this.crowd});
+
+  final double crowd;
+
+  @override
+  Widget build(BuildContext context) {
+    final levels = [
+      (crowd * .75).clamp(.08, 1).toDouble(),
+      crowd.clamp(.08, 1).toDouble(),
+      (crowd * .62).clamp(.08, 1).toDouble(),
+      (crowd * .9).clamp(.08, 1).toDouble(),
+    ];
+    return Row(
+      children: [
+        const Icon(Icons.bar_chart_rounded, size: 16, color: Color(0xFF0B7CFF)),
+        const SizedBox(width: 4),
+        SizedBox(
+          height: 20,
+          width: 54,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (final level in levels) ...[
+                Expanded(
+                  child: Container(
+                    height: 18 * level,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0B7CFF).withValues(alpha: .78),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 3),
+              ],
+            ],
+          ),
+        ),
+        const Text(
+          'Peak',
+          style: TextStyle(
+            color: Color(0xFF172033),
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -3850,6 +5400,62 @@ class _PlanSlider extends StatelessWidget {
   }
 }
 
+class _BlindBoxTravelModeSelector extends StatelessWidget {
+  const _BlindBoxTravelModeSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final BlindBoxTravelMode value;
+  final ValueChanged<BlindBoxTravelMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(value.icon, size: 18, color: const Color(0xFF40A9FF)),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Travel mode',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Text(
+                value.label,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<BlindBoxTravelMode>(
+            segments: const [
+              ButtonSegment(
+                value: BlindBoxTravelMode.drive,
+                icon: Icon(Icons.directions_car_rounded),
+                label: Text('Drive'),
+              ),
+              ButtonSegment(
+                value: BlindBoxTravelMode.transit,
+                icon: Icon(Icons.directions_transit_rounded),
+                label: Text('Transit'),
+              ),
+            ],
+            selected: {value},
+            showSelectedIcon: false,
+            onSelectionChanged: (selection) => onChanged(selection.first),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ItinerarySummary extends StatelessWidget {
   const _ItinerarySummary({required this.stops, required this.priceTier});
 
@@ -3867,6 +5473,7 @@ class _ItinerarySummary extends StatelessWidget {
       0,
       (sum, stop) => sum + stop.travelMinutes,
     );
+    final travelMode = stops.first.travelMode;
     final start = stops.first.startMinute;
     final end = stops.last.endMinute;
 
@@ -3892,14 +5499,500 @@ class _ItinerarySummary extends StatelessWidget {
                 label: '${totalDistance.toStringAsFixed(1)} km',
               ),
               _SummaryChip(
-                icon: Icons.directions_car_rounded,
-                label: '$totalTravel min travel',
+                icon: travelMode.icon,
+                label: '${travelMode.label} / $totalTravel min',
               ),
               _SummaryChip(
                 icon: Icons.payments_rounded,
                 label: '${priceTier.label} / RM $totalCost',
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _MapStopAction { continueTrip, proceed, cancel }
+
+class _FeatureCResultsToggle extends StatelessWidget {
+  const _FeatureCResultsToggle({
+    required this.count,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final int count;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton.extended(
+      key: const Key('feature-c-results-toggle'),
+      heroTag: 'feature-c-results-toggle',
+      onPressed: onTap,
+      backgroundColor: const Color(0xFF0B7CFF),
+      foregroundColor: Colors.white,
+      icon: Icon(expanded ? Icons.close_rounded : Icons.list_alt_rounded),
+      label: Text(expanded ? 'Hide results' : '$count results'),
+    );
+  }
+}
+
+class _FeatureCTripCompletedBanner extends StatelessWidget {
+  const _FeatureCTripCompletedBanner({required this.onPlanAnotherTrip});
+
+  final VoidCallback onPlanAnotherTrip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33001844),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Icon(Icons.flag_rounded, color: Color(0xFF0B7CFF)),
+              const Text(
+                'Trip completed',
+                style: TextStyle(
+                  color: Color(0xFF172033),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: onPlanAnotherTrip,
+                icon: const Icon(Icons.tune_rounded),
+                label: const Text('Plan another trip'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: const LinearProgressIndicator(
+              minHeight: 8,
+              value: 1,
+              backgroundColor: Color(0x3322C7F4),
+              color: Color(0xFF0B7CFF),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeatureCResultsSheet extends StatelessWidget {
+  const _FeatureCResultsSheet({
+    required this.stops,
+    required this.priceTier,
+    required this.ongoingDestination,
+    required this.tripStatus,
+    required this.activeStopIndex,
+    required this.tripTotalStops,
+    required this.completedStopCount,
+    required this.onClose,
+    required this.onCancel,
+    required this.onFocusStop,
+    required this.onChooseRoute,
+    required this.onStartTrip,
+    required this.onArrived,
+    required this.onNextPlace,
+    required this.onFinishTrip,
+  });
+
+  final List<ItineraryStop> stops;
+  final PriceTier priceTier;
+  final String? ongoingDestination;
+  final FeatureCTripStatus tripStatus;
+  final int activeStopIndex;
+  final int tripTotalStops;
+  final int completedStopCount;
+  final VoidCallback onClose;
+  final Future<bool> Function(ItineraryStop stop) onCancel;
+  final ValueChanged<ItineraryStop> onFocusStop;
+  final ValueChanged<String> onChooseRoute;
+  final VoidCallback onStartTrip;
+  final VoidCallback onArrived;
+  final VoidCallback onNextPlace;
+  final VoidCallback onFinishTrip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          key: const Key('feature-c-results-list'),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .56,
+          ),
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          decoration: BoxDecoration(
+            color: const Color(0xEE102D4A),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withValues(alpha: .14)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x44001844),
+                blurRadius: 26,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              shrinkWrap: true,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.list_alt_rounded, color: Color(0xFF40A9FF)),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Results',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Hide results',
+                      onPressed: onClose,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _FeatureCTripProgressPanel(
+                  stops: stops,
+                  status: tripStatus,
+                  activeStopIndex: activeStopIndex,
+                  totalStops: tripTotalStops,
+                  completedStops: completedStopCount,
+                  onChooseRoute: onChooseRoute,
+                  onStartTrip: onStartTrip,
+                  onArrived: onArrived,
+                  onNextPlace: onNextPlace,
+                  onFinishTrip: onFinishTrip,
+                ),
+                const SizedBox(height: 12),
+                for (var i = 0; i < stops.length; i++) ...[
+                  Dismissible(
+                    key: ValueKey('itinerary-${stops[i].attraction.name}'),
+                    direction: DismissDirection.endToStart,
+                    confirmDismiss: (_) => onCancel(stops[i]),
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF4B43),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: const Icon(
+                        Icons.delete_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                    child: _ItineraryStopCard(
+                      stop: stops[i],
+                      active: i == activeStopIndex &&
+                          tripStatus != FeatureCTripStatus.notStarted,
+                      completed: tripStatus == FeatureCTripStatus.completed ||
+                          i < activeStopIndex,
+                      arrived: i == activeStopIndex &&
+                          tripStatus == FeatureCTripStatus.arrived,
+                      ongoing: ongoingDestination == stops[i].attraction.name,
+                      onFocus: () => onFocusStop(stops[i]),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapStopActionSheet extends StatelessWidget {
+  const _MapStopActionSheet({required this.stop});
+
+  final ItineraryStop stop;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    stop.attraction.imageAsset,
+                    width: 76,
+                    height: 76,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 76,
+                      height: 76,
+                      color: stop.attraction.color,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.image_not_supported_rounded),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        stop.attraction.name,
+                        style: const TextStyle(
+                          color: Color(0xFF172033),
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '${_formatClock(stop.startMinute)} - ${_formatClock(stop.endMinute)} / ${stop.attraction.hours}',
+                        style: const TextStyle(color: Color(0xFF687386)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () =>
+                    Navigator.of(context).pop(_MapStopAction.proceed),
+                icon: const Icon(Icons.near_me_rounded),
+                label: const Text('Proceed'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                onPressed: () =>
+                    Navigator.of(context).pop(_MapStopAction.continueTrip),
+                icon: const Icon(Icons.check_circle_rounded),
+                label: const Text('Continue itinerary'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () =>
+                    Navigator.of(context).pop(_MapStopAction.cancel),
+                icon: const Icon(Icons.cancel_rounded),
+                label: const Text('Cancel this stop'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureCTripProgressPanel extends StatelessWidget {
+  const _FeatureCTripProgressPanel({
+    required this.stops,
+    required this.status,
+    required this.activeStopIndex,
+    required this.totalStops,
+    required this.completedStops,
+    required this.onChooseRoute,
+    required this.onStartTrip,
+    required this.onArrived,
+    required this.onNextPlace,
+    required this.onFinishTrip,
+  });
+
+  final List<ItineraryStop> stops;
+  final FeatureCTripStatus status;
+  final int activeStopIndex;
+  final int totalStops;
+  final int completedStops;
+  final ValueChanged<String> onChooseRoute;
+  final VoidCallback onStartTrip;
+  final VoidCallback onArrived;
+  final VoidCallback onNextPlace;
+  final VoidCallback onFinishTrip;
+
+  @override
+  Widget build(BuildContext context) {
+    final safeIndex = activeStopIndex.clamp(0, max(0, stops.length - 1)).toInt();
+    final activeStop = stops.isEmpty ? null : stops[safeIndex];
+    final total = max(1, totalStops == 0 ? stops.length : totalStops);
+    final completed = completedStops.clamp(0, total).toDouble();
+    final progress = switch (status) {
+      FeatureCTripStatus.notStarted => 0.0,
+      FeatureCTripStatus.traveling => completed / total,
+      FeatureCTripStatus.arrived => min(1.0, (completed + .5) / total),
+      FeatureCTripStatus.completed => 1.0,
+    };
+    final title = switch (status) {
+      FeatureCTripStatus.notStarted => 'Ready to start',
+      FeatureCTripStatus.traveling =>
+        'Going to ${activeStop?.attraction.name ?? 'next place'}',
+      FeatureCTripStatus.arrived =>
+        'Arrived at ${activeStop?.attraction.name ?? 'this place'}',
+      FeatureCTripStatus.completed => 'Trip completed',
+    };
+    final subtitle = switch (status) {
+      FeatureCTripStatus.notStarted => '$total places queued',
+      FeatureCTripStatus.traveling =>
+        'Completed ${completed.toInt()} of $total',
+      FeatureCTripStatus.arrived => completedStops >= total - 1
+          ? 'Last place reached'
+          : 'Current place will be removed from the list',
+      FeatureCTripStatus.completed => 'End of itinerary',
+    };
+    final String actionLabel;
+    final VoidCallback? actionCallback;
+    switch (status) {
+      case FeatureCTripStatus.notStarted:
+        actionLabel = 'Start Trip';
+        actionCallback = onStartTrip;
+        break;
+      case FeatureCTripStatus.traveling:
+        actionLabel = 'Arrived';
+        actionCallback = onArrived;
+        break;
+      case FeatureCTripStatus.arrived:
+        actionLabel =
+            safeIndex >= stops.length - 1 ? 'Finish Trip' : 'Next Place';
+        actionCallback =
+            safeIndex >= stops.length - 1 ? onFinishTrip : onNextPlace;
+        break;
+      case FeatureCTripStatus.completed:
+        actionLabel = 'Completed';
+        actionCallback = null;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0x3322C7F4),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x6638D9FF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.timeline_rounded, color: Color(0xFF40A9FF)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: status == FeatureCTripStatus.traveling &&
+                          activeStop != null
+                      ? () => onChooseRoute(activeStop.attraction.name)
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            if (status == FeatureCTripStatus.traveling &&
+                                activeStop != null)
+                              const Padding(
+                                padding: EdgeInsets.only(left: 6),
+                                child: Icon(
+                                  Icons.alt_route_rounded,
+                                  size: 16,
+                                  color: Color(0xFF40A9FF),
+                                ),
+                              ),
+                          ],
+                        ),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: .72),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                children: [
+                  FilledButton(
+                    onPressed: actionCallback,
+                    child: Text(actionLabel),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: progress.clamp(0, 1).toDouble(),
+              backgroundColor: const Color(0x3322C7F4),
+              color: const Color(0xFF0B7CFF),
+            ),
           ),
         ],
       ),
@@ -3927,89 +6020,109 @@ class _SummaryChip extends StatelessWidget {
 class _ItineraryStopCard extends StatelessWidget {
   const _ItineraryStopCard({
     required this.stop,
+    required this.active,
+    required this.completed,
+    required this.arrived,
     required this.ongoing,
-    required this.onGoNow,
+    required this.onFocus,
   });
 
   final ItineraryStop stop;
+  final bool active;
+  final bool completed;
+  final bool arrived;
   final bool ongoing;
-  final VoidCallback onGoNow;
+  final VoidCallback onFocus;
 
   @override
   Widget build(BuildContext context) {
-    return _GlassPanel(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.asset(
-              stop.attraction.imageAsset,
-              width: 84,
-              height: 84,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
+    final statusLabel = completed
+        ? 'Completed'
+        : arrived
+            ? 'Arrived'
+            : active
+                ? 'Going'
+                : 'Queued';
+    final statusIcon = completed
+        ? Icons.check_circle_rounded
+        : arrived
+            ? Icons.place_rounded
+            : active
+                ? Icons.navigation_rounded
+                : Icons.radio_button_unchecked_rounded;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onFocus,
+      child: _GlassPanel(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                stop.attraction.imageAsset,
                 width: 84,
                 height: 84,
-                color: stop.attraction.color,
-                alignment: Alignment.center,
-                child: const Icon(Icons.image_not_supported_rounded),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 84,
+                  height: 84,
+                  color: stop.attraction.color,
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.image_not_supported_rounded),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stop.attraction.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _ItineraryDetailRow(
-                  icon: Icons.schedule_rounded,
-                  text:
-                      '${_formatClock(stop.startMinute)} - ${_formatClock(stop.endMinute)}',
-                ),
-                _ItineraryDetailRow(
-                  icon: Icons.access_time_rounded,
-                  text: 'Opening hours: ${stop.attraction.hours}',
-                ),
-                _ItineraryDetailRow(
-                  icon: Icons.route_rounded,
-                  text: 'Distance: ${stop.distanceKm.toStringAsFixed(1)} km',
-                ),
-                _ItineraryDetailRow(
-                  icon: Icons.directions_car_rounded,
-                  text: stop.travelMinutes == 0
-                      ? 'Start point'
-                      : 'Travel time: ${stop.travelMinutes} min',
-                ),
-                _ItineraryDetailRow(
-                  icon: Icons.payments_rounded,
-                  text: 'Cost: RM ${stop.cost}',
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: onGoNow,
-                    icon: Icon(
-                      ongoing
-                          ? Icons.navigation_rounded
-                          : Icons.near_me_rounded,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    stop.attraction.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
                     ),
-                    label: Text(ongoing ? 'On Going' : 'Go Now'),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  _ItineraryDetailRow(
+                    icon: Icons.schedule_rounded,
+                    text:
+                        '${_formatClock(stop.startMinute)} - ${_formatClock(stop.endMinute)}',
+                  ),
+                  _ItineraryDetailRow(
+                    icon: Icons.access_time_rounded,
+                    text: 'Opening hours: ${stop.attraction.hours}',
+                  ),
+                  _ItineraryDetailRow(
+                    icon: Icons.route_rounded,
+                    text: 'Distance: ${stop.distanceKm.toStringAsFixed(1)} km',
+                  ),
+                  _ItineraryDetailRow(
+                    icon: stop.travelMode.icon,
+                    text: stop.travelMinutes == 0
+                        ? 'Start point / ${stop.travelMode.label}'
+                        : '${stop.travelMode.label}: ${stop.travelMinutes} min',
+                  ),
+                  _ItineraryDetailRow(
+                    icon: Icons.payments_rounded,
+                    text: 'Cost: RM ${stop.cost}',
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.tonalIcon(
+                      onPressed: onFocus,
+                      icon: Icon(statusIcon),
+                      label: Text(ongoing ? 'On Going' : statusLabel),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -4315,6 +6428,24 @@ class DestinationCandidate {
 }
 
 class _GoogleMapsApi {
+  static String drivingRouteErrorMessage(Object error) {
+    final message = error.toString();
+    final normalized = message.toLowerCase();
+    if (normalized.contains('legacyapinotactivated') ||
+        normalized.contains('not enabled') ||
+        normalized.contains('not been used') ||
+        normalized.contains('api_not_activated') ||
+        normalized.contains('request_denied')) {
+      return 'Google route API is not enabled for this key. Enable Routes Preferred API or Routes API in Google Cloud.';
+    }
+    if (normalized.contains('api key') ||
+        normalized.contains('permission') ||
+        normalized.contains('forbidden')) {
+      return 'Google Maps API key cannot request driving routes.';
+    }
+    return 'Google driving route failed.';
+  }
+
   static Future<List<DestinationCandidate>> findPlaces({
     required String query,
     required String apiKey,
@@ -4418,14 +6549,142 @@ class _GoogleMapsApi {
     ];
   }
 
-  static Future<List<TransitOption>> fetchTransitDirections({
+  static Future<List<TransitOption>> fetchTravelOptions({
     required LatLng origin,
     required DestinationCandidate destination,
     required String apiKey,
   }) async {
+    final route = await fetchDrivingRoute(
+      origin: origin,
+      destination: destination.location,
+      apiKey: apiKey,
+    );
+    final distanceKm = max(.2, route.distanceMeters / 1000);
+    final transitMinutes = max(12, (distanceKm / 24 * 60 + 10).round());
+    final walkMinutes = max(4, (distanceKm / 4.8 * 60).round());
+    final transitFare = (1.20 + distanceKm * .55).clamp(1.20, 8.00);
+    return [
+      TransitOption(
+        label: 'Drive',
+        chain: 'Car route',
+        time: route.time,
+        distance: route.distance,
+        fare: 'Fare varies',
+        transfers: 'Direct',
+        crowd: .35,
+        color: const Color(0xFF22B8F2),
+        legs: [
+          RouteLeg(
+            fromName: 'Current location',
+            toName: destination.name,
+            mode: 'Drive',
+            time: route.time,
+            distance: route.distance,
+            icon: Icons.directions_car_rounded,
+            points: route.points,
+          ),
+        ],
+        firstLegPointCount: route.points.length,
+        firstStopLabel: destination.name,
+        nextInstruction: 'Drive to ${destination.name}',
+      ),
+      TransitOption(
+        label: 'Transit',
+        chain: 'Walk -> Rail/Bus -> Walk',
+        time: _formatMinutes(transitMinutes),
+        distance: route.distance,
+        fare: 'RM ${transitFare.toStringAsFixed(2)}',
+        transfers: distanceKm > 7 ? '2 transfers' : '1 transfer',
+        crowd: .58,
+        color: const Color(0xFF00C48C),
+        legs: [
+          RouteLeg(
+            fromName: 'Current location',
+            toName: destination.name,
+            mode: 'Transit',
+            time: _formatMinutes(transitMinutes),
+            distance: route.distance,
+            icon: Icons.directions_transit_rounded,
+            points: const [],
+          ),
+        ],
+        firstStopLabel: 'Nearest station',
+        nextInstruction: 'Use the nearest rail or bus connection',
+      ),
+      TransitOption(
+        label: 'Walk',
+        chain: 'Walking route',
+        time: _formatMinutes(walkMinutes),
+        distance: route.distance,
+        fare: 'Free',
+        transfers: 'No transfer',
+        crowd: .12,
+        color: const Color(0xFFFFB000),
+        legs: [
+          RouteLeg(
+            fromName: 'Current location',
+            toName: destination.name,
+            mode: 'Walk',
+            time: _formatMinutes(walkMinutes),
+            distance: route.distance,
+            icon: Icons.directions_walk_rounded,
+            points: const [],
+          ),
+        ],
+        firstStopLabel: destination.name,
+        nextInstruction: 'Walk toward ${destination.name}',
+      ),
+    ];
+  }
+
+  static Future<_DrivingRoute> fetchDrivingRoute({
+    required LatLng origin,
+    required LatLng destination,
+    required String apiKey,
+  }) async {
+    Object? roadServiceError;
+    try {
+      return await _fetchOsrmDrivingRoute(
+        origin: origin,
+        destination: destination,
+      );
+    } catch (error) {
+      roadServiceError = error;
+    }
+    if (apiKey.isEmpty) {
+      throw roadServiceError ?? 'No road route found';
+    }
+    Object? routesError;
+    try {
+      return await _fetchRoutesDrivingRoute(
+        origin: origin,
+        destination: destination,
+        apiKey: apiKey,
+      );
+    } catch (error) {
+      routesError = error;
+    }
+    try {
+      return await _fetchDirectionsDrivingRoute(
+        origin: origin,
+        destination: destination,
+        apiKey: apiKey,
+      );
+    } catch (directionsError) {
+      throw 'Road service: $roadServiceError / '
+          'Google Routes API: $routesError / '
+          'Google Directions API: $directionsError';
+    }
+  }
+
+  static Future<_DrivingRoute> _fetchRoutesDrivingRoute({
+    required LatLng origin,
+    required LatLng destination,
+    required String apiKey,
+  }) async {
     final uri = Uri.https(
-      'routes.googleapis.com',
-      '/directions/v2:computeRoutes',
+      'routespreferred.googleapis.com',
+      '/v1:computeRoutes',
     );
     final response = await http.post(
       uri,
@@ -4433,7 +6692,7 @@ class _GoogleMapsApi {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask':
-            'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs.steps.travelMode,routes.legs.steps.navigationInstruction.instructions,routes.legs.steps.transitDetails',
+            'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline',
       },
       body: jsonEncode({
         'origin': {
@@ -4447,13 +6706,14 @@ class _GoogleMapsApi {
         'destination': {
           'location': {
             'latLng': {
-              'latitude': destination.location.latitude,
-              'longitude': destination.location.longitude,
+              'latitude': destination.latitude,
+              'longitude': destination.longitude,
             },
           },
         },
-        'travelMode': 'TRANSIT',
-        'computeAlternativeRoutes': true,
+        'travelMode': 'DRIVE',
+        'routingPreference': 'TRAFFIC_AWARE',
+        'computeAlternativeRoutes': false,
         'polylineQuality': 'HIGH_QUALITY',
         'polylineEncoding': 'ENCODED_POLYLINE',
         'languageCode': 'en',
@@ -4467,75 +6727,157 @@ class _GoogleMapsApi {
       throw error?['message'] ?? 'Unknown Routes API error';
     }
     final routes = body['routes'] as List<dynamic>? ?? const [];
-    return [
-      for (var i = 0; i < routes.length; i++)
-        _routeFromJson(routes[i] as Map<String, dynamic>, i),
-    ];
-  }
-
-  static TransitOption _routeFromJson(Map<String, dynamic> route, int index) {
-    final leg = (route['legs'] as List<dynamic>).first as Map<String, dynamic>;
-    final steps = (leg['steps'] as List<dynamic>? ?? const [])
-        .cast<Map<String, dynamic>>();
-    final chain = steps
-        .map((step) {
-          final mode = (step['travelMode'] as String? ?? '').toLowerCase();
-          if (step['transitDetails'] case final Map<String, dynamic> details) {
-            final line =
-                details['transitLine'] as Map<String, dynamic>? ?? const {};
-            return (line['nameShort'] as String?) ??
-                (line['name'] as String?) ??
-                'Transit';
-          }
-          return mode == 'walking' ? 'Walk' : mode;
-        })
-        .where((part) => part.isNotEmpty)
-        .toList();
+    if (routes.isEmpty) {
+      throw 'No driving route found';
+    }
+    final route = routes.first as Map<String, dynamic>;
     final overviewPolyline = route['polyline'] as Map<String, dynamic>?;
     final points = _decodePolyline(
       (overviewPolyline?['encodedPolyline'] as String?) ?? '',
     );
-    final firstInstruction = steps.isEmpty
-        ? 'Head toward destination'
-        : ((steps.first['navigationInstruction']
-                      as Map<String, dynamic>?)?['instructions']
-                  as String?) ??
-              'Start route';
-    final firstStopLabel = chain.isEmpty ? 'First stop' : chain.first;
-    final colors = const [
-      Color(0xFF22B8F2),
-      Color(0xFF00C48C),
-      Color(0xFFFFB000),
-    ];
-    final labels = const ['Recommended', 'Alternative', 'Low transfer'];
-    return TransitOption(
-      label: index < labels.length ? labels[index] : 'Route ${index + 1}',
-      chain: chain.isEmpty ? 'Transit route' : chain.take(5).join(' -> '),
+    if (points.isEmpty) {
+      throw 'Driving route did not include a road polyline';
+    }
+    final distanceMeters = (route['distanceMeters'] as num?)?.toDouble() ?? 0;
+    final durationSeconds =
+        _parseGoogleDurationSeconds(route['duration'] as String?);
+    return _DrivingRoute(
+      points: points,
       time: _formatDuration(route['duration'] as String?),
-      distance: _formatMeters(route['distanceMeters'] as int?),
-      fare:
-          ((route['fare'] as Map<String, dynamic>?)?['text'] as String?) ??
-          'Fare varies',
-      transfers: '${max(0, chain.length - 1)} steps',
-      crowd: .45 + min(index, 2) * .15,
-      color: colors[index % colors.length],
-      legs: [
-        RouteLeg(
-          fromName: 'Current location',
-          toName: firstStopLabel,
-          mode: chain.isEmpty ? 'Transit' : chain.first,
-          time: 'First leg',
-          distance: 'Calculating',
-          icon: Icons.directions_transit_rounded,
-          points: points,
-        ),
-      ],
-      firstLegPointCount: points.isEmpty
-          ? 2
-          : max(2, (points.length * .28).round()),
-      firstStopLabel: firstStopLabel,
-      nextInstruction: firstInstruction,
+      distance: _formatMeters(distanceMeters.round()),
+      distanceMeters: distanceMeters,
+      durationSeconds: durationSeconds,
     );
+  }
+
+  static Future<_DrivingRoute> _fetchDirectionsDrivingRoute({
+    required LatLng origin,
+    required LatLng destination,
+    required String apiKey,
+  }) async {
+    final uri = Uri.https('maps.googleapis.com', '/maps/api/directions/json', {
+      'origin': '${origin.latitude},${origin.longitude}',
+      'destination': '${destination.latitude},${destination.longitude}',
+      'mode': 'driving',
+      'region': 'my',
+      'alternatives': 'false',
+      'key': apiKey,
+    });
+    final response = await http.get(uri);
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final status = body['status'] as String?;
+    if (response.statusCode != 200 || status != 'OK') {
+      throw body['error_message'] ?? status ?? 'Unknown Directions API error';
+    }
+    final routes = body['routes'] as List<dynamic>? ?? const [];
+    if (routes.isEmpty) {
+      throw 'No driving route found';
+    }
+    final route = routes.first as Map<String, dynamic>;
+    final overviewPolyline =
+        route['overview_polyline'] as Map<String, dynamic>?;
+    final points = _decodePolyline(
+      (overviewPolyline?['points'] as String?) ?? '',
+    );
+    if (points.isEmpty) {
+      throw 'Driving route did not include a road polyline';
+    }
+    final legs = route['legs'] as List<dynamic>? ?? const [];
+    final leg = legs.isEmpty
+        ? const <String, dynamic>{}
+        : legs.first as Map<String, dynamic>;
+    final duration = leg['duration'] as Map<String, dynamic>? ?? const {};
+    final distance = leg['distance'] as Map<String, dynamic>? ?? const {};
+    final distanceMeters = (distance['value'] as num?)?.toDouble() ?? 0;
+    final durationSeconds = (duration['value'] as num?)?.toDouble() ?? 0;
+    return _DrivingRoute(
+      points: points,
+      time: (duration['text'] as String?) ?? '--',
+      distance: (distance['text'] as String?) ??
+          _formatMeters(distanceMeters.round()),
+      distanceMeters: distanceMeters,
+      durationSeconds: durationSeconds,
+    );
+  }
+
+  static Future<_DrivingRoute> _fetchOsrmDrivingRoute({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    final coordinates =
+        '${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}';
+    Object? lastError;
+    for (final server in const [
+      ('router.project-osrm.org', '/route/v1/driving/'),
+      ('routing.openstreetmap.de', '/routed-car/route/v1/driving/'),
+    ]) {
+      try {
+        return await _fetchOsrmRouteFromServer(
+          host: server.$1,
+          pathPrefix: server.$2,
+          coordinates: coordinates,
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? 'No road routing service available';
+  }
+
+  static Future<_DrivingRoute> _fetchOsrmRouteFromServer({
+    required String host,
+    required String pathPrefix,
+    required String coordinates,
+  }) async {
+    final uri = Uri.https(host, '$pathPrefix$coordinates', {
+      'overview': 'full',
+      'geometries': 'geojson',
+      'steps': 'false',
+      'alternatives': 'false',
+    });
+    final response = await http
+        .get(uri)
+        .timeout(const Duration(seconds: 8));
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final code = body['code'] as String?;
+    if (response.statusCode != 200 || code != 'Ok') {
+      throw (body['message'] as String?) ?? code ?? 'Unknown OSRM error';
+    }
+    final routes = body['routes'] as List<dynamic>? ?? const [];
+    if (routes.isEmpty) {
+      throw 'No OSRM driving route found';
+    }
+    final route = routes.first as Map<String, dynamic>;
+    final geometry = route['geometry'] as Map<String, dynamic>? ?? const {};
+    final coordinatesList =
+        geometry['coordinates'] as List<dynamic>? ?? const [];
+    final points = [
+      for (final coordinate in coordinatesList)
+        if (coordinate is List && coordinate.length >= 2)
+          LatLng(
+            (coordinate[1] as num).toDouble(),
+            (coordinate[0] as num).toDouble(),
+          ),
+    ];
+    if (points.isEmpty) {
+      throw 'OSRM route did not include road geometry';
+    }
+    final distanceMeters = (route['distance'] as num?)?.toDouble() ?? 0;
+    final durationSeconds = (route['duration'] as num?)?.toDouble() ?? 0;
+    return _DrivingRoute(
+      points: points,
+      time: _formatSeconds(durationSeconds),
+      distance: _formatMeters(distanceMeters.round()),
+      distanceMeters: distanceMeters,
+      durationSeconds: durationSeconds,
+    );
+  }
+
+  static double _parseGoogleDurationSeconds(String? duration) {
+    if (duration == null || !duration.endsWith('s')) {
+      return 0;
+    }
+    return double.tryParse(duration.substring(0, duration.length - 1)) ?? 0;
   }
 
   static String _formatDuration(String? duration) {
@@ -4547,6 +6889,21 @@ class _GoogleMapsApi {
       return '--';
     }
     final minutes = (seconds / 60).round();
+    if (minutes < 60) {
+      return '$minutes min';
+    }
+    final hours = minutes ~/ 60;
+    final remainder = minutes % 60;
+    return remainder == 0 ? '$hours hr' : '$hours hr $remainder min';
+  }
+
+  static String _formatSeconds(num seconds) {
+    final minutes = max(1, (seconds / 60).round());
+    return _formatMinutes(minutes);
+  }
+
+  static String _formatMinutes(num minutesValue) {
+    final minutes = max(1, minutesValue.round());
     if (minutes < 60) {
       return '$minutes min';
     }
@@ -4600,6 +6957,22 @@ class _GoogleMapsApi {
   }
 }
 
+class _DrivingRoute {
+  const _DrivingRoute({
+    required this.points,
+    required this.time,
+    required this.distance,
+    required this.distanceMeters,
+    required this.durationSeconds,
+  });
+
+  final List<LatLng> points;
+  final String time;
+  final String distance;
+  final double distanceMeters;
+  final double durationSeconds;
+}
+
 class TransitOption {
   const TransitOption({
     required this.label,
@@ -4628,6 +7001,36 @@ class TransitOption {
   final int firstLegPointCount;
   final String firstStopLabel;
   final String nextInstruction;
+
+  TransitOption copyWith({
+    String? label,
+    String? chain,
+    String? time,
+    String? distance,
+    String? fare,
+    String? transfers,
+    double? crowd,
+    Color? color,
+    List<RouteLeg>? legs,
+    int? firstLegPointCount,
+    String? firstStopLabel,
+    String? nextInstruction,
+  }) {
+    return TransitOption(
+      label: label ?? this.label,
+      chain: chain ?? this.chain,
+      time: time ?? this.time,
+      distance: distance ?? this.distance,
+      fare: fare ?? this.fare,
+      transfers: transfers ?? this.transfers,
+      crowd: crowd ?? this.crowd,
+      color: color ?? this.color,
+      legs: legs ?? this.legs,
+      firstLegPointCount: firstLegPointCount ?? this.firstLegPointCount,
+      firstStopLabel: firstStopLabel ?? this.firstStopLabel,
+      nextInstruction: nextInstruction ?? this.nextInstruction,
+    );
+  }
 
   List<LatLng> get points {
     final all = <LatLng>[];
@@ -4664,12 +7067,323 @@ class RouteLeg {
   final List<LatLng> points;
 }
 
-class _TransitStop {
-  const _TransitStop(this.name, this.location);
+enum _TransitMode { rail, bus, feeder, walk }
 
+class _TransitStopNode {
+  const _TransitStopNode(this.id, this.name, this.location);
+
+  final String id;
   final String name;
   final LatLng location;
 }
+
+class _TransitEdge {
+  const _TransitEdge({
+    required this.fromId,
+    required this.toId,
+    required this.mode,
+    required this.operatorName,
+    required this.routeName,
+    required this.minutes,
+    required this.fare,
+    this.transferPenalty = false,
+  });
+
+  final String fromId;
+  final String toId;
+  final _TransitMode mode;
+  final String operatorName;
+  final String routeName;
+  final int minutes;
+  final double fare;
+  final bool transferPenalty;
+
+  String get operatorKey => mode == _TransitMode.walk
+      ? 'walk'
+      : '$operatorName|$routeName';
+
+  String get modeLabel {
+    return switch (mode) {
+      _TransitMode.rail => routeName,
+      _TransitMode.bus => '$operatorName Bus $routeName',
+      _TransitMode.feeder => '$operatorName Feeder $routeName',
+      _TransitMode.walk => 'Walk',
+    };
+  }
+
+  IconData get icon {
+    return switch (mode) {
+      _TransitMode.rail => Icons.train_rounded,
+      _TransitMode.bus => Icons.directions_bus_rounded,
+      _TransitMode.feeder => Icons.airport_shuttle_rounded,
+      _TransitMode.walk => Icons.directions_walk_rounded,
+    };
+  }
+
+  _TransitEdge get reversed => copyWith(fromId: toId, toId: fromId);
+
+  _TransitEdge copyWith({
+    String? fromId,
+    String? toId,
+    bool? transferPenalty,
+  }) {
+    return _TransitEdge(
+      fromId: fromId ?? this.fromId,
+      toId: toId ?? this.toId,
+      mode: mode,
+      operatorName: operatorName,
+      routeName: routeName,
+      minutes: minutes,
+      fare: fare,
+      transferPenalty: transferPenalty ?? this.transferPenalty,
+    );
+  }
+
+  List<LatLng> pointsFor(LatLng from, LatLng to) => [from, to];
+}
+
+class _TransitRouteVariant {
+  const _TransitRouteVariant({
+    required this.label,
+    required this.color,
+    required this.crowdBias,
+    required this.costFor,
+  });
+
+  final String label;
+  final Color color;
+  final double crowdBias;
+  final double Function(_TransitEdge edge) costFor;
+}
+
+const gtfsStaticRapidRailKlEndpoint =
+    'https://api.data.gov.my/gtfs-static/prasarana?category=rapid-rail-kl';
+const gtfsStaticRapidBusKlEndpoint =
+    'https://api.data.gov.my/gtfs-static/prasarana?category=rapid-bus-kl';
+const gtfsStaticMrtFeederEndpoint =
+    'https://api.data.gov.my/gtfs-static/prasarana?category=rapid-bus-mrtfeeder';
+const gtfsStaticKtmbEndpoint = 'https://api.data.gov.my/gtfs-static/ktmb';
+
+const _klTransitStops = [
+  _TransitStopNode('kl_sentral', 'KL Sentral', LatLng(3.1340, 101.6869)),
+  _TransitStopNode('muzium', 'Muzium Negara MRT', LatLng(3.1379, 101.6870)),
+  _TransitStopNode('pasar_seni', 'Pasar Seni', LatLng(3.1426, 101.6955)),
+  _TransitStopNode('masjid_jamek', 'Masjid Jamek', LatLng(3.1489, 101.6956)),
+  _TransitStopNode('dang_wangi', 'Dang Wangi', LatLng(3.1567, 101.7018)),
+  _TransitStopNode('bukit_nanas', 'Bukit Nanas', LatLng(3.1562, 101.7042)),
+  _TransitStopNode('klcc', 'KLCC', LatLng(3.1590, 101.7132)),
+  _TransitStopNode('ampang_park', 'Ampang Park', LatLng(3.1605, 101.7197)),
+  _TransitStopNode('trx', 'Tun Razak Exchange', LatLng(3.1423, 101.7206)),
+  _TransitStopNode('bukit_bintang', 'Bukit Bintang', LatLng(3.1468, 101.7113)),
+  _TransitStopNode('merdeka', 'Merdeka MRT', LatLng(3.1416, 101.7020)),
+  _TransitStopNode('maluri', 'Maluri', LatLng(3.1237, 101.7271)),
+  _TransitStopNode('titiwangsa', 'Titiwangsa', LatLng(3.1736, 101.6959)),
+  _TransitStopNode('bts', 'Bandar Tasik Selatan', LatLng(3.0766, 101.7115)),
+  _TransitStopNode('kajang', 'Kajang', LatLng(2.9833, 101.7909)),
+  _TransitStopNode('ampang', 'Ampang', LatLng(3.1490, 101.7601)),
+  _TransitStopNode('sri_petaling', 'Sri Petaling', LatLng(3.0615, 101.6876)),
+];
+
+const _klTransitEdges = [
+  _TransitEdge(
+    fromId: 'kl_sentral',
+    toId: 'pasar_seni',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Kelana Jaya',
+    minutes: 4,
+    fare: 1.30,
+  ),
+  _TransitEdge(
+    fromId: 'pasar_seni',
+    toId: 'masjid_jamek',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Kelana Jaya',
+    minutes: 3,
+    fare: .60,
+  ),
+  _TransitEdge(
+    fromId: 'masjid_jamek',
+    toId: 'dang_wangi',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Kelana Jaya',
+    minutes: 3,
+    fare: .70,
+  ),
+  _TransitEdge(
+    fromId: 'dang_wangi',
+    toId: 'klcc',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Kelana Jaya',
+    minutes: 3,
+    fare: .70,
+  ),
+  _TransitEdge(
+    fromId: 'klcc',
+    toId: 'ampang_park',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Kelana Jaya',
+    minutes: 2,
+    fare: .60,
+  ),
+  _TransitEdge(
+    fromId: 'kl_sentral',
+    toId: 'muzium',
+    mode: _TransitMode.feeder,
+    operatorName: 'Rapid KL',
+    routeName: 'Linkway',
+    minutes: 5,
+    fare: 0,
+  ),
+  _TransitEdge(
+    fromId: 'muzium',
+    toId: 'pasar_seni',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'MRT Kajang',
+    minutes: 4,
+    fare: 1.20,
+  ),
+  _TransitEdge(
+    fromId: 'pasar_seni',
+    toId: 'merdeka',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'MRT Kajang',
+    minutes: 3,
+    fare: .70,
+  ),
+  _TransitEdge(
+    fromId: 'merdeka',
+    toId: 'bukit_bintang',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'MRT Kajang',
+    minutes: 3,
+    fare: .70,
+  ),
+  _TransitEdge(
+    fromId: 'bukit_bintang',
+    toId: 'trx',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'MRT Kajang',
+    minutes: 3,
+    fare: .70,
+  ),
+  _TransitEdge(
+    fromId: 'trx',
+    toId: 'maluri',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'MRT Kajang',
+    minutes: 5,
+    fare: 1.10,
+  ),
+  _TransitEdge(
+    fromId: 'maluri',
+    toId: 'kajang',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'MRT Kajang',
+    minutes: 34,
+    fare: 4.70,
+  ),
+  _TransitEdge(
+    fromId: 'kl_sentral',
+    toId: 'bukit_nanas',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'KL Monorail',
+    minutes: 13,
+    fare: 2.50,
+  ),
+  _TransitEdge(
+    fromId: 'bukit_nanas',
+    toId: 'titiwangsa',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'KL Monorail',
+    minutes: 9,
+    fare: 1.70,
+  ),
+  _TransitEdge(
+    fromId: 'masjid_jamek',
+    toId: 'ampang',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Ampang',
+    minutes: 22,
+    fare: 3.20,
+  ),
+  _TransitEdge(
+    fromId: 'masjid_jamek',
+    toId: 'bts',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Sri Petaling',
+    minutes: 20,
+    fare: 3.00,
+  ),
+  _TransitEdge(
+    fromId: 'bts',
+    toId: 'sri_petaling',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Sri Petaling',
+    minutes: 9,
+    fare: 1.40,
+  ),
+  _TransitEdge(
+    fromId: 'kl_sentral',
+    toId: 'bts',
+    mode: _TransitMode.rail,
+    operatorName: 'KTMB',
+    routeName: 'KTM Komuter',
+    minutes: 18,
+    fare: 2.80,
+  ),
+  _TransitEdge(
+    fromId: 'bts',
+    toId: 'kajang',
+    mode: _TransitMode.rail,
+    operatorName: 'KTMB',
+    routeName: 'KTM Komuter',
+    minutes: 24,
+    fare: 3.10,
+  ),
+  _TransitEdge(
+    fromId: 'klcc',
+    toId: 'trx',
+    mode: _TransitMode.bus,
+    operatorName: 'Rapid KL',
+    routeName: 'GOKL/Rapid',
+    minutes: 16,
+    fare: 1.00,
+  ),
+  _TransitEdge(
+    fromId: 'ampang_park',
+    toId: 'ampang',
+    mode: _TransitMode.bus,
+    operatorName: 'Rapid KL',
+    routeName: 'T300',
+    minutes: 24,
+    fare: 1.00,
+  ),
+  _TransitEdge(
+    fromId: 'kajang',
+    toId: 'ampang',
+    mode: _TransitMode.bus,
+    operatorName: 'Smart Selangor',
+    routeName: 'Feeder',
+    minutes: 46,
+    fare: 0,
+  ),
+];
 
 class Driver {
   const Driver(
@@ -4685,6 +7399,26 @@ class Driver {
   final String rating;
   final Color color;
   final LatLng startLocation;
+
+  Driver copyWith({LatLng? startLocation}) {
+    return Driver(
+      name,
+      vehicle,
+      rating,
+      color,
+      startLocation ?? this.startLocation,
+    );
+  }
+}
+
+class _DriverArrival {
+  const _DriverArrival({
+    required this.driver,
+    required this.route,
+  });
+
+  final Driver driver;
+  final _DrivingRoute route;
 }
 
 class Attraction {
@@ -4699,6 +7433,7 @@ class Attraction {
     required this.priceTier,
     required this.imageAsset,
     required this.color,
+    required this.location,
   });
 
   final String name;
@@ -4711,6 +7446,7 @@ class Attraction {
   final PriceTier priceTier;
   final String imageAsset;
   final Color color;
+  final LatLng location;
 
   int costFor(PriceTier tier) {
     final multiplier = switch (tier) {
@@ -4730,6 +7466,7 @@ class ItineraryStop {
     required this.endMinute,
     required this.distanceKm,
     required this.travelMinutes,
+    required this.travelMode,
     required this.cost,
   });
 
@@ -4739,6 +7476,7 @@ class ItineraryStop {
   final int endMinute;
   final double distanceKm;
   final int travelMinutes;
+  final BlindBoxTravelMode travelMode;
   final int cost;
 }
 
@@ -4757,6 +7495,13 @@ String _formatClock(int minutes) {
   return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 }
 
+String _pointKey(LatLng? point) {
+  if (point == null) {
+    return 'none';
+  }
+  return '${point.latitude.toStringAsFixed(5)},${point.longitude.toStringAsFixed(5)}';
+}
+
 List<Attraction> _buildBlindBoxLocations() {
   final verifiedPlaces = [
     const Attraction(
@@ -4770,6 +7515,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/batu_caves.jpg',
       color: Color(0xFFFFCE3D),
+      location: LatLng(3.2379, 101.6840),
     ),
     const Attraction(
       name: 'National Mosque',
@@ -4782,6 +7528,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/national_mosque.jpg',
       color: Color(0xFF38D9FF),
+      location: LatLng(3.1412, 101.6915),
     ),
     const Attraction(
       name: 'Central Market',
@@ -4794,6 +7541,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.midRange,
       imageAsset: 'assets/attractions/central_market.jpg',
       color: Color(0xFF00E2A7),
+      location: LatLng(3.1457, 101.6953),
     ),
     const Attraction(
       name: 'Merdeka Square',
@@ -4806,6 +7554,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/merdeka_square.jpg',
       color: Color(0xFF7C5CFF),
+      location: LatLng(3.1478, 101.6937),
     ),
     const Attraction(
       name: 'Petronas Twin Towers',
@@ -4818,6 +7567,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.luxury,
       imageAsset: 'assets/attractions/petronas_twin_towers.jpg',
       color: Color(0xFF40A9FF),
+      location: LatLng(3.1579, 101.7116),
     ),
     const Attraction(
       name: 'KLCC Park',
@@ -4830,6 +7580,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/klcc_park.jpg',
       color: Color(0xFFFF7A59),
+      location: LatLng(3.1555, 101.7153),
     ),
     const Attraction(
       name: 'Aquaria KLCC',
@@ -4842,6 +7593,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.luxury,
       imageAsset: 'assets/attractions/aquaria_klcc.jpg',
       color: Color(0xFF00A9CE),
+      location: LatLng(3.1538, 101.7134),
     ),
     const Attraction(
       name: 'Perdana Botanical Garden',
@@ -4854,6 +7606,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/perdana_botanical_garden.jpg',
       color: Color(0xFF3CCB7F),
+      location: LatLng(3.1390, 101.6889),
     ),
     const Attraction(
       name: 'Thean Hou Temple',
@@ -4866,6 +7619,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/thean_hou_temple.jpg',
       color: Color(0xFFFF7A59),
+      location: LatLng(3.1219, 101.6870),
     ),
     const Attraction(
       name: 'Islamic Arts Museum Malaysia',
@@ -4878,6 +7632,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.midRange,
       imageAsset: 'assets/attractions/islamic_arts_museum.jpg',
       color: Color(0xFF38D9FF),
+      location: LatLng(3.1418, 101.6897),
     ),
     const Attraction(
       name: 'KL Tower',
@@ -4890,6 +7645,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.luxury,
       imageAsset: 'assets/attractions/kl_tower.jpg',
       color: Color(0xFF40A9FF),
+      location: LatLng(3.1528, 101.7037),
     ),
     const Attraction(
       name: 'Masjid Jamek',
@@ -4902,6 +7658,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/jamek_mosque.jpg',
       color: Color(0xFF38D9FF),
+      location: LatLng(3.1489, 101.6956),
     ),
     const Attraction(
       name: 'River of Life',
@@ -4914,6 +7671,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/river_of_life.jpg',
       color: Color(0xFF40A9FF),
+      location: LatLng(3.1483, 101.6965),
     ),
     const Attraction(
       name: 'Royal Selangor Visitor Centre',
@@ -4926,6 +7684,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.luxury,
       imageAsset: 'assets/attractions/royal_selangor.jpg',
       color: Color(0xFF8793A4),
+      location: LatLng(3.1967, 101.7246),
     ),
     const Attraction(
       name: 'Muzium Negara',
@@ -4938,6 +7697,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/museum_negara.jpg',
       color: Color(0xFF7C5CFF),
+      location: LatLng(3.1379, 101.6870),
     ),
     const Attraction(
       name: 'Little India Brickfields',
@@ -4950,6 +7710,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.midRange,
       imageAsset: 'assets/attractions/little_india_brickfields.jpg',
       color: Color(0xFFFFCE3D),
+      location: LatLng(3.1291, 101.6841),
     ),
     const Attraction(
       name: 'Jalan Alor',
@@ -4962,6 +7723,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.midRange,
       imageAsset: 'assets/attractions/jalan_alor.jpg',
       color: Color(0xFFFF7A59),
+      location: LatLng(3.1466, 101.7088),
     ),
     const Attraction(
       name: 'Kwai Chai Hong',
@@ -4974,6 +7736,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.midRange,
       imageAsset: 'assets/attractions/kwai_chai_hong.jpg',
       color: Color(0xFF7C5CFF),
+      location: LatLng(3.1415, 101.6979),
     ),
     const Attraction(
       name: 'REXKL',
@@ -4986,6 +7749,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.midRange,
       imageAsset: 'assets/attractions/rexkl.jpg',
       color: Color(0xFF00E2A7),
+      location: LatLng(3.1420, 101.6992),
     ),
     const Attraction(
       name: 'Tugu Negara',
@@ -4998,6 +7762,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/tugu_negara.jpg',
       color: Color(0xFF8793A4),
+      location: LatLng(3.1490, 101.6839),
     ),
     const Attraction(
       name: 'Berjaya Times Square',
@@ -5010,6 +7775,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.luxury,
       imageAsset: 'assets/attractions/berjaya_times_square.jpg',
       color: Color(0xFFFFCE3D),
+      location: LatLng(3.1426, 101.7106),
     ),
     const Attraction(
       name: 'Pavilion Kuala Lumpur',
@@ -5022,6 +7788,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.luxury,
       imageAsset: 'assets/attractions/pavilion_kl.jpg',
       color: Color(0xFF40A9FF),
+      location: LatLng(3.1490, 101.7132),
     ),
     const Attraction(
       name: 'Titiwangsa Lake Gardens',
@@ -5034,6 +7801,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.budget,
       imageAsset: 'assets/attractions/titiwangsa_lake_gardens.jpg',
       color: Color(0xFF3CCB7F),
+      location: LatLng(3.1781, 101.7044),
     ),
     const Attraction(
       name: 'Bank Negara Malaysia Museum',
@@ -5046,6 +7814,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: PriceTier.midRange,
       imageAsset: 'assets/attractions/bank_negara_museum.jpg',
       color: Color(0xFF7C5CFF),
+      location: LatLng(3.1592, 101.6925),
     ),
   ];
 
@@ -5062,6 +7831,7 @@ List<Attraction> _buildBlindBoxLocations() {
       priceTier: place.priceTier,
       imageAsset: place.imageAsset,
       color: place.color,
+      location: place.location,
     );
   });
 }
