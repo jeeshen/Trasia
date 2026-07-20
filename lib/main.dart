@@ -7,10 +7,53 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'mapbox_surface.dart';
 import 'package:http/http.dart' as http;
 
-void main() {
+import 'package:flutter/foundation.dart';
+import 'package:google_maps_flutter_android/google_maps_flutter_android.dart';
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    try {
+      await GoogleMapsFlutterAndroid().initializeWithRenderer(AndroidMapRenderer.latest);
+    } catch (_) {
+      // Ignored on hot restart
+    }
+  }
+  
+  _warmUpLocationEarly();
+  
   runApp(const TrasiaApp());
+}
+
+Future<void> _warmUpLocationEarly() async {
+  try {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 0,
+          timeLimit: Duration(seconds: 4),
+        ),
+      );
+      final loc = LatLng(position.latitude, position.longitude);
+      globalMapViewNotifier.value = SharedMapView(
+        signature: 'early_warmup',
+        initialTarget: loc,
+        initialZoom: 16,
+        currentLocation: loc,
+      );
+      if (globalMapController.value != null) {
+        globalMapController.value!.flyToLatLngZoom(loc, 16.0);
+      }
+    }
+  } catch (_) {}
 }
 
 enum UserRole { user, admin }
@@ -93,6 +136,9 @@ class SharedMapView {
   );
 }
 
+final globalMapViewNotifier = ValueNotifier<SharedMapView>(SharedMapView.initial);
+final globalMapController = ValueNotifier<AppMapController?>(null);
+
 class TrasiaApp extends StatelessWidget {
   const TrasiaApp({super.key});
 
@@ -111,6 +157,7 @@ class TrasiaApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
       ),
+      /* builder removed */
       home: const SplashScreen(),
     );
   }
@@ -227,7 +274,13 @@ class LoginScreen extends StatelessWidget {
 
   void _enter(BuildContext context, UserRole role) {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => DashboardScreen(role: role)),
+      PageRouteBuilder(
+        opaque: false,
+        pageBuilder: (_, __, ___) => DashboardScreen(role: role),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
     );
   }
 
@@ -305,11 +358,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _transitDestination = 'KLCC';
   int _transitRequest = 0;
   String? _ongoingDestination;
-  GoogleMapController? _mapController;
-  SharedMapView _mapView = SharedMapView.initial;
   LatLng? _sharedCurrentLocation;
   double? _sharedCurrentAccuracyMeters;
   bool _centeringOnLocation = false;
+
+  bool _hasCenteredOnInitialLocation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    globalMapController.addListener(_onMapControllerChanged);
+    if (globalMapController.value != null) {
+      _hasCenteredOnInitialLocation = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _centerSharedMapOnCurrentLocation();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    globalMapController.removeListener(_onMapControllerChanged);
+    super.dispose();
+  }
+
+  void _onMapControllerChanged() {
+    if (mounted) setState(() {});
+    if (globalMapController.value != null && !_hasCenteredOnInitialLocation) {
+      _hasCenteredOnInitialLocation = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _centerSharedMapOnCurrentLocation();
+      });
+    }
+  }
 
   void _openTransitFor(String destination) {
     setState(() {
@@ -342,26 +423,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _sharedCurrentLocation = incomingLocation;
       _sharedCurrentAccuracyMeters = view.currentAccuracyMeters;
     }
-    if (_mapView.signature == view.signature) {
+    if (globalMapViewNotifier.value.signature == view.signature) {
       return;
     }
-    final oldPrefix = _mapView.signature.split('|').first;
+    final oldPrefix = globalMapViewNotifier.value.signature.split('|').first;
     final newPrefix = view.signature.split('|').first;
-    setState(() => _mapView = view);
+    globalMapViewNotifier.value = view;
     final target = view.initialTarget;
     final zoom = view.initialZoom;
-    if (_mapController != null &&
+    if (globalMapController.value != null &&
         target != null &&
         zoom != null &&
         oldPrefix != newPrefix) {
       unawaited(
-        _mapController!.animateCamera(CameraUpdate.newLatLngZoom(target, zoom)),
+        globalMapController.value!.flyToLatLngZoom(target, zoom),
       );
     }
   }
 
   Future<void> _centerSharedMapOnCurrentLocation() async {
-    final controller = _mapController;
+    final controller = globalMapController.value;
     if (controller == null || _centeringOnLocation) {
       return;
     }
@@ -375,7 +456,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _sharedCurrentLocation = location;
         _sharedCurrentAccuracyMeters = 0;
       });
-      await controller.animateCamera(CameraUpdate.newLatLngZoom(location, 17));
+      await controller.flyToLatLngZoom(location, 17.0);
     } finally {
       if (mounted) {
         setState(() => _centeringOnLocation = false);
@@ -427,7 +508,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final pages = <Widget>[
       TransitRouterScreen(
         active: _tab == 0,
-        mapController: _mapController,
+        mapController: globalMapController.value,
         onMapViewChanged: _updateMapView,
         destination: _transitDestination,
         request: _transitRequest,
@@ -436,7 +517,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       HubPoolScreen(
         active: _tab == 1,
-        mapController: _mapController,
+        mapController: globalMapController.value,
         onMapViewChanged: _updateMapView,
         currentLocation: _sharedCurrentLocation,
         currentAccuracyMeters: _sharedCurrentAccuracyMeters,
@@ -445,7 +526,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       PelancongPlanScreen(
         active: _tab == 2,
-        mapController: _mapController,
+        mapController: globalMapController.value,
         onMapViewChanged: _updateMapView,
         currentLocation: _sharedCurrentLocation,
         currentAccuracyMeters: _sharedCurrentAccuracyMeters,
@@ -474,27 +555,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
 
     return Scaffold(
+      backgroundColor: _tab == 3 ? const Color(0xFF07131F) : Colors.transparent,
       body: Stack(
         fit: StackFit.expand,
         children: [
           if (_tab != 3)
-            _LiveGoogleMapSurface(
-              apiKeyReady: _GoogleMapsConfig.isReady,
-              currentLocation: _mapView.currentLocation,
-              currentAccuracyMeters: _mapView.currentAccuracyMeters,
-              candidate: _mapView.candidate,
-              selectedRoute: _mapView.selectedRoute,
-              navigating: _mapView.navigating,
-              vehicleLocation: _mapView.vehicleLocation,
-              vehicleColor: _mapView.vehicleColor,
-              initialTarget: _mapView.initialTarget,
-              initialZoom: _mapView.initialZoom,
-              extraMarkers: _mapView.extraMarkers,
-              extraPolylines: _mapView.extraPolylines,
-              onMapCreated: (controller) {
-                setState(() => _mapController = controller);
+            ValueListenableBuilder<SharedMapView>(
+              valueListenable: globalMapViewNotifier,
+              builder: (context, view, _) {
+                return LiveMapboxSurface(
+                  apiKeyReady: _GoogleMapsConfig.isReady,
+                  currentLocation: view.currentLocation,
+                  currentAccuracyMeters: view.currentAccuracyMeters,
+                  candidate: view.candidate,
+                  selectedRoute: view.selectedRoute,
+                  navigating: view.navigating,
+                  vehicleLocation: view.vehicleLocation,
+                  vehicleColor: view.vehicleColor,
+                  initialTarget: view.initialTarget,
+                  initialZoom: view.initialZoom,
+                  extraMarkers: view.extraMarkers,
+                  extraPolylines: view.extraPolylines,
+                  onMapCreated: (controller) {
+                    globalMapController.value = controller;
+                  },
+                  onCameraMove: () {
+                    // Update last center if needed by active tabs
+                  },
+                );
               },
-              onCameraMove: (_) {},
             ),
           IndexedStack(index: _tab, children: pages),
           if (_tab != 3)
@@ -549,7 +638,7 @@ class TransitRouterScreen extends StatefulWidget {
   });
 
   final bool active;
-  final GoogleMapController? mapController;
+  final AppMapController? mapController;
   final ValueChanged<SharedMapView> onMapViewChanged;
   final String destination;
   final int request;
@@ -563,7 +652,7 @@ class TransitRouterScreen extends StatefulWidget {
 class _TransitRouterScreenState extends State<TransitRouterScreen> {
   late final TextEditingController _fromController;
   late final TextEditingController _toController;
-  GoogleMapController? _mapController;
+  AppMapController? _mapController;
   LatLng? _currentLocation;
   double? _currentAccuracyMeters;
   LatLng? _departureLocation;
@@ -803,9 +892,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         }
       });
       if (!silent) {
-        await _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(location, 17),
-        );
+        await _mapController?.flyToLatLngZoom(location, 17.0);
       }
     } catch (error) {
       if (!silent && mounted) {
@@ -875,9 +962,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
             : null;
       });
       if (candidates.isNotEmpty) {
-        await _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(candidates.first.location, 14.5),
-        );
+        await _mapController?.flyToLatLngZoom(candidates.first.location, 14.5);
         if (autoCalculate && mounted) {
           await _calculateDirections(candidates.first);
         }
@@ -899,9 +984,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _selectedRoute = null;
       _navigating = false;
     });
-    await _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(_routingOrigin, 15),
-    );
+    await _mapController?.flyToLatLngZoom(_routingOrigin, 15);
 
     setState(() {
       _loading = true;
@@ -932,9 +1015,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         _selectedRoute = routes.isEmpty ? null : routes.first;
       });
       if (routes.isNotEmpty) {
-        await _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(_routingOrigin, 15),
-        );
+        await _mapController?.flyToLatLngZoom(_routingOrigin, 15);
       } else {
         setState(() => _statusMessage = 'No travel options found.');
       }
@@ -982,10 +1063,33 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
 
   Future<void> _focusStartLeg(TransitOption route) async {
     final firstLeg = route.legs.isEmpty ? route.points : route.legs.first.points;
-    if (firstLeg.isEmpty) {
+    if (firstLeg.isEmpty || _mapController == null) {
       return;
     }
-    await _fitRoute(firstLeg, padding: 110);
+    final start = firstLeg.first;
+    final nextPoint = firstLeg.length > 1 ? firstLeg[1] : (route.points.length > 1 ? route.points[1] : start);
+    
+    double bearing = 0.0;
+    if (start.latitude != nextPoint.latitude || start.longitude != nextPoint.longitude) {
+      bearing = Geolocator.bearingBetween(
+        start.latitude,
+        start.longitude,
+        nextPoint.latitude,
+        nextPoint.longitude,
+      );
+    }
+    if (bearing.isNaN) {
+      bearing = 0.0;
+    }
+    
+    _mapController!.flyToCameraPosition(
+CameraPosition(
+          target: start,
+          zoom: 17.5,
+          tilt: 0.0,
+          bearing: bearing,
+        )
+);
   }
 
   Future<void> _fitRoute(List<LatLng> points, {double padding = 72}) async {
@@ -1002,14 +1106,12 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       minLng = min(minLng, point.longitude);
       maxLng = max(maxLng, point.longitude);
     }
-    await _mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
-        ),
-        padding,
+    await _mapController!.flyToBounds(
+      LatLngBounds(
+        southwest: LatLng(minLat, minLng),
+        northeast: LatLng(maxLat, maxLng),
       ),
+      padding,
     );
   }
 
@@ -1025,6 +1127,16 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _departureName = null;
       _toController.clear();
     });
+    if (_currentLocation != null && _mapController != null) {
+      _mapController!.flyToCameraPosition(
+CameraPosition(
+            target: _currentLocation!,
+            zoom: 15.0,
+            tilt: 0.0,
+            bearing: 0.0,
+          )
+);
+    }
     widget.onNavigationCancelled();
   }
 
@@ -1530,7 +1642,7 @@ class HubPoolScreen extends StatefulWidget {
   });
 
   final bool active;
-  final GoogleMapController? mapController;
+  final AppMapController? mapController;
   final ValueChanged<SharedMapView> onMapViewChanged;
   final LatLng? currentLocation;
   final double? currentAccuracyMeters;
@@ -1544,7 +1656,7 @@ class HubPoolScreen extends StatefulWidget {
 class _HubPoolScreenState extends State<HubPoolScreen>
     with SingleTickerProviderStateMixin {
   final _destinationController = TextEditingController();
-  GoogleMapController? _mapController;
+  AppMapController? _mapController;
   static const _maxApproachSeconds = 60;
   final _drivers = const [
     Driver(
@@ -2340,25 +2452,30 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     if (points.isEmpty || _mapController == null) {
       return;
     }
-    var minLat = points.first.latitude;
-    var maxLat = points.first.latitude;
-    var minLng = points.first.longitude;
-    var maxLng = points.first.longitude;
-    for (final point in points) {
-      minLat = min(minLat, point.latitude);
-      maxLat = max(maxLat, point.latitude);
-      minLng = min(minLng, point.longitude);
-      maxLng = max(maxLng, point.longitude);
+    final start = points.first;
+    final nextPoint = points.length > 1 ? points[1] : start;
+    
+    double bearing = 0.0;
+    if (start.latitude != nextPoint.latitude || start.longitude != nextPoint.longitude) {
+      bearing = Geolocator.bearingBetween(
+        start.latitude,
+        start.longitude,
+        nextPoint.latitude,
+        nextPoint.longitude,
+      );
     }
-    await _mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
-        ),
-        110,
-      ),
-    );
+    if (bearing.isNaN) {
+      bearing = 0.0;
+    }
+    
+    _mapController!.flyToCameraPosition(
+CameraPosition(
+          target: start,
+          zoom: 17.5,
+          tilt: 0.0,
+          bearing: bearing,
+        )
+);
   }
 
   void _handleDestinationTextChanged() {
@@ -2403,9 +2520,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       });
       final destination = candidates.isEmpty ? null : candidates.first;
       if (destination != null) {
-        await _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(destination.location, 14.5),
-        );
+        await _mapController?.flyToLatLngZoom(destination.location, 14.5);
       }
     } catch (error) {
       if (!mounted) {
@@ -2457,9 +2572,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
                 _destinationStatusMessage = null;
               });
               unawaited(
-                _mapController?.animateCamera(
-                  CameraUpdate.newLatLngZoom(candidate.location, 14.5),
-                ),
+                _mapController?.flyToLatLngZoom(candidate.location, 14.5),
               );
             },
             onBook: destination == null ? null : _bookRide,
@@ -2804,7 +2917,7 @@ class PelancongPlanScreen extends StatefulWidget {
   });
 
   final bool active;
-  final GoogleMapController? mapController;
+  final AppMapController? mapController;
   final ValueChanged<SharedMapView> onMapViewChanged;
   final LatLng? currentLocation;
   final double? currentAccuracyMeters;
@@ -2823,7 +2936,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   BlindBoxTravelMode _travelMode = BlindBoxTravelMode.drive;
   List<ItineraryStop> _itinerary = const [];
   bool _itineraryListVisible = false;
-  GoogleMapController? _mapController;
+  AppMapController? _mapController;
   final Map<String, BitmapDescriptor> _featureCMarkerIcons = {};
   List<LatLng> _featureCRoutePoints = const [];
   int _markerIconRevision = 0;
@@ -2901,9 +3014,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   }
 
   Future<void> _focusItineraryStop(ItineraryStop stop) async {
-    await _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(stop.attraction.location, 16),
-    );
+    await _mapController?.flyToLatLngZoom(stop.attraction.location, 16);
   }
 
   ItineraryStop? get _activeTripStop {
@@ -2993,9 +3104,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     if (stop == null) {
       return;
     }
-    await _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(stop.attraction.location, 15.5),
-    );
+    await _mapController?.flyToLatLngZoom(stop.attraction.location, 15.5);
   }
 
   Future<void> _showMapStopAction(ItineraryStop stop) async {
@@ -3074,21 +3183,10 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       maxLng = max(maxLng, location.longitude);
     }
     if (minLat == maxLat && minLng == maxLng) {
-      await controller.animateCamera(
-        CameraUpdate.newLatLngZoom(_itinerary.first.attraction.location, 14.5),
-      );
+      await controller.flyToLatLngZoom(_itinerary.first.attraction.location, 14.5);
       return;
     }
-    await controller.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
-        ),
-        88,
-      ),
-    );
-  }
+    await controller.flyToBounds(LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng)), 88.0); }
 
   SharedMapView get _currentMapView {
     if (_itinerary.isEmpty) {
@@ -4170,30 +4268,35 @@ class _MapSearchWindow extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  key: const Key('feature-a-destination'),
-                  controller: toController,
-                  onChanged: (_) => onTextChanged(),
-                  onSubmitted: (_) => onSearch(),
-                  style: const TextStyle(color: Color(0xFF172033)),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: true,
-                    fillColor: const Color(0xFFF2F6FB),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(99)),
-                      borderSide: BorderSide.none,
-                    ),
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    suffixIcon: toController.text.trim().isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: 'Clear destination',
-                            onPressed: onClearDestination,
-                            icon: const Icon(Icons.close_rounded),
-                          ),
-                    hintText: 'Search and Navigate',
-                  ),
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: toController,
+                  builder: (context, value, _) {
+                    return TextField(
+                      key: const Key('feature-a-destination'),
+                      controller: toController,
+                      onChanged: (_) => onTextChanged(),
+                      onSubmitted: (_) => onSearch(),
+                      style: const TextStyle(color: Color(0xFF172033)),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        filled: true,
+                        fillColor: const Color(0xFFF2F6FB),
+                        border: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(99)),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: value.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Clear destination',
+                                onPressed: onClearDestination,
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                        hintText: 'Search and Navigate',
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 8),
@@ -4274,240 +4377,6 @@ class _MapSearchWindow extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _LiveGoogleMapSurface extends StatefulWidget {
-  const _LiveGoogleMapSurface({
-    required this.apiKeyReady,
-    required this.currentLocation,
-    required this.currentAccuracyMeters,
-    required this.candidate,
-    required this.selectedRoute,
-    required this.navigating,
-    this.vehicleLocation,
-    this.vehicleColor,
-    this.initialTarget,
-    this.initialZoom,
-    this.extraMarkers = const <Marker>{},
-    this.extraPolylines = const <Polyline>{},
-    required this.onMapCreated,
-    required this.onCameraMove,
-  });
-
-  final bool apiKeyReady;
-  final LatLng? currentLocation;
-  final double? currentAccuracyMeters;
-  final DestinationCandidate? candidate;
-  final TransitOption? selectedRoute;
-  final bool navigating;
-  final LatLng? vehicleLocation;
-  final Color? vehicleColor;
-  final LatLng? initialTarget;
-  final double? initialZoom;
-  final Set<Marker> extraMarkers;
-  final Set<Polyline> extraPolylines;
-  final ValueChanged<GoogleMapController> onMapCreated;
-  final ValueChanged<CameraPosition> onCameraMove;
-
-  static const _defaultKualaLumpur = LatLng(3.1478, 101.6953);
-
-  @override
-  State<_LiveGoogleMapSurface> createState() => _LiveGoogleMapSurfaceState();
-}
-
-class _LiveGoogleMapSurfaceState extends State<_LiveGoogleMapSurface> {
-  bool _mapReady = false;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!widget.apiKeyReady) {
-      return _MapUnavailableSurface(currentLocation: widget.currentLocation);
-    }
-
-    final route = widget.selectedRoute;
-    final currentLeg = route == null ? const <LatLng>[] : _currentLeg(route);
-    final remainingLegs = route == null
-        ? const <LatLng>[]
-        : _remainingLegs(route);
-    final firstStop = currentLeg.length > 1 ? currentLeg.last : null;
-    final currentAndVehicleTogether =
-        widget.currentLocation != null &&
-        widget.vehicleLocation != null &&
-        _pointKey(widget.currentLocation) == _pointKey(widget.vehicleLocation);
-    final firstStopIsDestination =
-        firstStop != null &&
-        widget.candidate != null &&
-        _distanceBetweenPoints(firstStop, widget.candidate!.location) < 80;
-    final polylines = <Polyline>{
-      if (route != null && currentLeg.length > 1)
-        Polyline(
-          polylineId: const PolylineId('current_leg'),
-          points: currentLeg,
-          width: widget.navigating ? 8 : 6,
-          color: const Color(0xFF22C7F4),
-          zIndex: 2,
-          jointType: JointType.round,
-          startCap: Cap.roundCap,
-          endCap: Cap.roundCap,
-        ),
-      if (route != null && remainingLegs.length > 1)
-        Polyline(
-          polylineId: const PolylineId('remaining_legs'),
-          points: remainingLegs,
-          width: widget.navigating ? 7 : 5,
-          color: const Color(0xFFE64040),
-          zIndex: 1,
-          jointType: JointType.round,
-          startCap: Cap.roundCap,
-          endCap: Cap.roundCap,
-        ),
-      ...widget.extraPolylines,
-    };
-    final markers = <Marker>{
-      if (widget.currentLocation != null && !currentAndVehicleTogether)
-        Marker(
-          markerId: const MarkerId('current_location'),
-          position: widget.currentLocation!,
-          infoWindow: const InfoWindow(title: 'Current location'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueAzure,
-          ),
-        ),
-      if (widget.candidate != null)
-        Marker(
-          markerId: const MarkerId('destination'),
-          position: widget.candidate!.location,
-          infoWindow: InfoWindow(
-            title: widget.candidate!.name,
-            snippet: widget.candidate!.address,
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ),
-      if (firstStop != null && widget.navigating && !firstStopIsDestination)
-        Marker(
-          markerId: const MarkerId('first_stop'),
-          position: firstStop,
-          infoWindow: InfoWindow(title: route?.firstStopLabel ?? 'First stop'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
-        ),
-      if (widget.vehicleLocation != null)
-        Marker(
-          markerId: const MarkerId('vehicle'),
-          position: widget.vehicleLocation!,
-          infoWindow: const InfoWindow(title: 'Driver vehicle'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            _markerHueForColor(widget.vehicleColor ?? const Color(0xFF0B7CFF)),
-          ),
-        ),
-      ...widget.extraMarkers,
-    };
-    final circles = <Circle>{
-      if (widget.currentLocation != null && widget.currentAccuracyMeters != null)
-        Circle(
-          circleId: const CircleId('current_accuracy'),
-          center: widget.currentLocation!,
-          radius: widget.currentAccuracyMeters!.clamp(12, 250).toDouble(),
-          fillColor: const Color(0x3322C7F4),
-          strokeColor: const Color(0xFF22C7F4),
-          strokeWidth: 1,
-        ),
-    };
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _MapUnavailableSurface(currentLocation: widget.currentLocation),
-        AnimatedOpacity(
-          opacity: _mapReady ? 1 : 0,
-          duration: const Duration(milliseconds: 220),
-          child: GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target:
-                  widget.initialTarget ??
-                  widget.currentLocation ??
-                  _LiveGoogleMapSurface._defaultKualaLumpur,
-              zoom:
-                  widget.initialZoom ?? (widget.currentLocation == null ? 12 : 15),
-            ),
-            onMapCreated: (controller) {
-              if (mounted) {
-                setState(() => _mapReady = true);
-              }
-              widget.onMapCreated(controller);
-            },
-            onCameraMove: widget.onCameraMove,
-            myLocationEnabled: false,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            compassEnabled: true,
-            mapToolbarEnabled: false,
-            trafficEnabled: widget.navigating,
-            markers: markers,
-            circles: circles,
-            polylines: polylines,
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<LatLng> _currentLeg(TransitOption route) {
-    if (route.legs.isNotEmpty) {
-      return route.legs.first.points;
-    }
-    final points = route.points;
-    if (points.length <= 2) {
-      return points;
-    }
-    final endIndex = route.firstLegPointCount.clamp(2, points.length).toInt();
-    return points.take(endIndex).toList();
-  }
-
-  List<LatLng> _remainingLegs(TransitOption route) {
-    if (route.legs.length > 1) {
-      final all = <LatLng>[];
-      for (final leg in route.legs.skip(1)) {
-        if (all.isNotEmpty &&
-            leg.points.isNotEmpty &&
-            all.last == leg.points.first) {
-          all.addAll(leg.points.skip(1));
-        } else {
-          all.addAll(leg.points);
-        }
-      }
-      return all;
-    }
-    final points = route.points;
-    if (points.length <= 2) {
-      return const [];
-    }
-    final startIndex = (route.firstLegPointCount - 1)
-        .clamp(1, points.length - 1)
-        .toInt();
-    return points.skip(startIndex).toList();
-  }
-
-  double _markerHueForColor(Color color) {
-    if (color == const Color(0xFFFFCE3D)) {
-      return BitmapDescriptor.hueYellow;
-    }
-    if (color == const Color(0xFF00E2A7)) {
-      return BitmapDescriptor.hueGreen;
-    }
-    if (color == const Color(0xFF40A9FF)) {
-      return BitmapDescriptor.hueAzure;
-    }
-    return BitmapDescriptor.hueBlue;
-  }
-
-  double _distanceBetweenPoints(LatLng from, LatLng to) {
-    return Geolocator.distanceBetween(
-      from.latitude,
-      from.longitude,
-      to.latitude,
-      to.longitude,
     );
   }
 }
@@ -7835,3 +7704,9 @@ List<Attraction> _buildBlindBoxLocations() {
     );
   });
 }
+
+
+
+
+
+

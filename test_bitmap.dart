@@ -1,0 +1,1 @@
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart'; import 'dart:typed_data'; void main() { final bd = BitmapDescriptor.bytes(Uint8List(10)); print(bd.toJson()); }
