@@ -514,6 +514,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         request: _transitRequest,
         ongoingDestination: _ongoingDestination,
         onNavigationCancelled: () => setState(() => _ongoingDestination = null),
+        currentLocation: _sharedCurrentLocation,
+        currentAccuracyMeters: _sharedCurrentAccuracyMeters,
       ),
       HubPoolScreen(
         active: _tab == 1,
@@ -555,6 +557,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
 
     return Scaffold(
+      extendBody: true,
       backgroundColor: _tab == 3 ? const Color(0xFF07131F) : Colors.transparent,
       body: Stack(
         fit: StackFit.expand,
@@ -587,39 +590,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           IndexedStack(index: _tab, children: pages),
           if (_tab != 3)
-            Positioned(
-              right: 16,
-              bottom: 18,
-              child: _MapLocationButton(
-                loading: _centeringOnLocation,
-                onPressed: _centerSharedMapOnCurrentLocation,
-              ),
+            ValueListenableBuilder<SharedMapView>(
+              valueListenable: globalMapViewNotifier,
+              builder: (context, view, _) {
+                final isPlanEmpty = _tab == 2 && view.signature.startsWith('plan-empty');
+                if (isPlanEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return Positioned(
+                  right: 16,
+                  bottom: 128,
+                  child: _MapLocationButton(
+                    loading: _centeringOnLocation,
+                    onPressed: _centerSharedMapOnCurrentLocation,
+                  ),
+                );
+              },
             ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        backgroundColor: const Color(0xF2091828),
-        indicatorColor: const Color(0xFF0B7CFF),
-        onDestinationSelected: (index) => setState(() => _tab = index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.train_rounded),
-            label: 'Transit',
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 48, right: 48, bottom: 24),
+          child: Container(
+            height: 64,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(Icons.map_rounded, 0),
+                _buildNavItem(Icons.directions_car_rounded, 1),
+                _buildNavItem(Icons.backpack_rounded, 2),
+                _buildNavItem(Icons.grid_view_rounded, 3),
+              ],
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.directions_car_rounded),
-            label: 'Hub-Pool',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.travel_explore_rounded),
-            label: 'Plan',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_circle_rounded),
-            label: 'Account',
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, int index) {
+    final isSelected = _tab == index;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return GestureDetector(
+      onTap: () => setState(() => _tab = index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        height: 48,
+        width: 64,
+        decoration: BoxDecoration(
+          color: isSelected ? colorScheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Icon(
+          icon,
+          color: isSelected ? colorScheme.onPrimary : const Color(0xFF1F2937),
+          size: 28,
+        ),
       ),
     );
   }
@@ -634,6 +677,8 @@ class TransitRouterScreen extends StatefulWidget {
     required this.request,
     required this.ongoingDestination,
     required this.onNavigationCancelled,
+    this.currentLocation,
+    this.currentAccuracyMeters,
     super.key,
   });
 
@@ -644,6 +689,8 @@ class TransitRouterScreen extends StatefulWidget {
   final int request;
   final String? ongoingDestination;
   final VoidCallback onNavigationCancelled;
+  final LatLng? currentLocation;
+  final double? currentAccuracyMeters;
 
   @override
   State<TransitRouterScreen> createState() => _TransitRouterScreenState();
@@ -653,8 +700,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   late final TextEditingController _fromController;
   late final TextEditingController _toController;
   AppMapController? _mapController;
-  LatLng? _currentLocation;
-  double? _currentAccuracyMeters;
   LatLng? _departureLocation;
   String? _departureName;
   LatLng _lastMapCenter = const LatLng(3.1478, 101.6953);
@@ -670,9 +715,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     super.initState();
     _fromController = TextEditingController(text: 'Current location');
     _toController = TextEditingController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_warmCurrentLocation());
-    });
   }
 
   @override
@@ -702,14 +744,14 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
 
   SharedMapView get _currentMapView => SharedMapView(
         signature:
-            'transit|${_pointKey(_currentLocation)}|${_currentAccuracyMeters?.round()}|${_candidate?.placeId}|${_selectedRoute?.label}|$_navigating|${_routes.length}',
-        currentLocation: _currentLocation,
-        currentAccuracyMeters: _currentAccuracyMeters,
+            'transit|${_pointKey(widget.currentLocation)}|${widget.currentAccuracyMeters?.round()}|${_candidate?.placeId}|${_selectedRoute?.label}|$_navigating|${_routes.length}',
+        currentLocation: widget.currentLocation,
+        currentAccuracyMeters: widget.currentAccuracyMeters,
         candidate: _candidate,
         selectedRoute: _selectedRoute,
         navigating: _navigating,
-        initialTarget: _currentLocation ?? _lastMapCenter,
-        initialZoom: _currentLocation == null ? 12 : 15,
+        initialTarget: widget.currentLocation ?? _lastMapCenter,
+        initialZoom: widget.currentLocation == null ? 12 : 15,
       );
 
   void _publishMapView() {
@@ -752,23 +794,10 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
               onSelectRoute: _startPlannedRoute,
             ),
           ),
-        Positioned(
-          right: 14,
-          bottom: 18,
-          child: Column(
-            children: [
-              _RoundMapButton(
-                icon: Icons.layers_rounded,
-                tooltip: 'Map layers',
-                onPressed: () {},
-              ),
-            ],
-          ),
-        ),
+
         if (_loading)
-          const Positioned(
-            left: 22,
-            bottom: 24,
+          const Align(
+            alignment: Alignment.center,
             child: _MapLoadingPill(),
           ),
         if (_navigating && _selectedRoute != null)
@@ -801,110 +830,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _departureLocation = null;
       _departureName = null;
     });
-  }
-
-  Future<void> _warmCurrentLocation() async {
-    await Future<void>.delayed(const Duration(milliseconds: 350));
-    if (!mounted || !_hasGoogleMapsKey || _currentLocation != null) {
-      return;
-    }
-    await _loadCurrentLocation(silent: true);
-  }
-
-  Future<void> _loadCurrentLocation({bool silent = false}) async {
-    if (!_hasGoogleMapsKey) {
-      if (!silent) {
-        setState(() {
-          _statusMessage = null;
-        });
-      }
-      return;
-    }
-    if (!silent) {
-      setState(() => _loading = true);
-    }
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!silent && mounted) {
-          setState(() {
-            _statusMessage =
-                'Turn on location services to show your position.';
-          });
-        }
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        if (silent) {
-          return;
-        }
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        if (!silent && mounted) {
-          setState(() {
-            _statusMessage =
-                'Location permission is needed to start from your current position.';
-          });
-        }
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.bestForNavigation,
-          distanceFilter: 0,
-          timeLimit: Duration(seconds: 8),
-        ),
-      );
-      final location = LatLng(position.latitude, position.longitude);
-      if (!mounted) {
-        return;
-      }
-      if (!_isGreaterKlLocation(location)) {
-        if (!silent) {
-          setState(() {
-            _statusMessage =
-                'Device GPS is reporting a location outside Greater KL. Check emulator/mock location or precise location settings.';
-          });
-        }
-        return;
-      }
-      if (position.accuracy > 120 ||
-          (_currentLocation != null && position.accuracy > 80)) {
-        if (!silent) {
-          setState(() {
-            _statusMessage =
-                'Location accuracy is still low. Turn on precise location, then try again.';
-          });
-        }
-        return;
-      }
-      setState(() {
-        _currentLocation = location;
-        _currentAccuracyMeters = position.accuracy;
-        _lastMapCenter = location;
-        if (!silent) {
-          _statusMessage = null;
-        }
-      });
-      if (!silent) {
-        await _mapController?.flyToLatLngZoom(location, 17.0);
-      }
-    } catch (error) {
-      if (!silent && mounted) {
-        setState(
-          () => _statusMessage = 'Unable to read current location: $error',
-        );
-      }
-    } finally {
-      if (!silent && mounted) {
-        setState(() => _loading = false);
-      }
-    }
   }
 
   Future<void> _searchDestination({bool autoCalculate = false}) async {
@@ -947,8 +872,12 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     });
 
     try {
-      if (_currentLocation == null) {
-        await _loadCurrentLocation(silent: true);
+      if (widget.currentLocation == null) {
+        setState(() {
+          _statusMessage = 'Location not available. Tap the location button on the map first.';
+          _loading = false;
+        });
+        return;
       }
       final candidates = await _GoogleMapsApi.findPlaces(
         query: query,
@@ -977,7 +906,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   }
 
   Future<void> _calculateDirections(DestinationCandidate destination) async {
-    await _loadCurrentLocation(silent: true);
     setState(() {
       _candidate = destination;
       _routes = const [];
@@ -1127,10 +1055,10 @@ CameraPosition(
       _departureName = null;
       _toController.clear();
     });
-    if (_currentLocation != null && _mapController != null) {
+    if (widget.currentLocation != null && _mapController != null) {
       _mapController!.flyToCameraPosition(
 CameraPosition(
-            target: _currentLocation!,
+            target: widget.currentLocation!,
             zoom: 15.0,
             tilt: 0.0,
             bearing: 0.0,
@@ -1547,7 +1475,7 @@ CameraPosition(
   }
 
   LatLng get _routingOrigin {
-    final location = _currentLocation;
+    final location = widget.currentLocation;
     if (location != null && _isGreaterKlLocation(location)) {
       return location;
     }
@@ -1562,7 +1490,7 @@ CameraPosition(
   }
 
   String get _routingOriginName {
-    final location = _currentLocation;
+    final location = widget.currentLocation;
     if (location != null && _isGreaterKlLocation(location)) {
       return 'Current location';
     }
@@ -1577,7 +1505,7 @@ CameraPosition(
   }
 
   bool get _usingFallbackDeparture {
-    final location = _currentLocation;
+    final location = widget.currentLocation;
     return location == null || !_isGreaterKlLocation(location);
   }
 
@@ -4392,24 +4320,29 @@ class _MapLocationButton extends StatelessWidget {
     return Material(
       key: const Key('map-current-location'),
       color: Colors.white,
-      shape: const CircleBorder(),
-      elevation: 4,
-      shadowColor: const Color(0x33001844),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 8,
+      shadowColor: Colors.black26,
       child: InkWell(
-        customBorder: const CircleBorder(),
+        borderRadius: BorderRadius.circular(16),
         onTap: loading ? null : onPressed,
         child: SizedBox.square(
-          dimension: 44,
+          dimension: 48,
           child: Center(
             child: loading
                 ? const SizedBox.square(
                     dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: Colors.black87,
+                    ),
                   )
                 : const Icon(
                     Icons.my_location_rounded,
-                    color: Color(0xFF0B7CFF),
-                    size: 23,
+                    color: Colors.black87,
+                    size: 24,
                   ),
           ),
         ),
@@ -5008,46 +4941,103 @@ class _RoundMapButton extends StatelessWidget {
   }
 }
 
-class _MapLoadingPill extends StatelessWidget {
+class _MapLoadingPill extends StatefulWidget {
   const _MapLoadingPill();
 
   @override
+  State<_MapLoadingPill> createState() => _MapLoadingPillState();
+}
+
+class _MapLoadingPillState extends State<_MapLoadingPill> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(99),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x22001844),
-            blurRadius: 18,
-            offset: Offset(0, 8),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return CustomPaint(
+              size: const Size(64, 64),
+              painter: _SegmentedSpinnerPainter(_controller.value),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'LOADING',
+          style: TextStyle(
+            color: Color(0xFF8AC7E5),
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2.0,
           ),
-        ],
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.4,
-              color: Color(0xFF0B7CFF),
-            ),
-          ),
-          SizedBox(width: 8),
-          Text(
-            'Loading',
-            style: TextStyle(
-              color: Color(0xFF172033),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
+  }
+}
+
+class _SegmentedSpinnerPainter extends CustomPainter {
+  _SegmentedSpinnerPainter(this.progress);
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final strokeWidth = size.width * 0.16;
+    final radius = size.width / 2 - strokeWidth / 2;
+    
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    const segmentCount = 12;
+    const sweepAngle = (2 * pi / segmentCount) * 0.75;
+    
+    final step = (progress * segmentCount).floor();
+    
+    for (int i = 0; i < segmentCount; i++) {
+      final startAngle = (i * 2 * pi / segmentCount) - pi / 2;
+      
+      int distance = (step - i) % segmentCount;
+      if (distance < 0) distance += segmentCount;
+      
+      final opacity = 1.0 - (distance / segmentCount);
+      
+      paint.color = const Color(0xFF26648E).withOpacity(opacity);
+      
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SegmentedSpinnerPainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }
 
@@ -5184,8 +5174,8 @@ class _DriverCard extends StatelessWidget {
     return Row(
       children: [
         CircleAvatar(
-          backgroundColor: driver.color,
-          child: Text(driver.name.substring(0, 1)),
+          backgroundColor: driver.color.withOpacity(0.15),
+          child: Icon(Icons.directions_car_filled_rounded, color: driver.color),
         ),
         const SizedBox(width: 12),
         Expanded(

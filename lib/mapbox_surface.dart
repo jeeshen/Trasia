@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
+import 'package:flutter/gestures.dart';
 import 'main.dart' show DestinationCandidate, TransitOption, RouteLeg;
 
 class AppMapController {
@@ -114,32 +115,48 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
 
     return Stack(
       children: [
-        mapbox.MapWidget(
-          key: const ValueKey('mapWidget'),
-          
-          cameraOptions: mapbox.CameraOptions(
-            center: mapbox.Point(coordinates: mapbox.Position(target.longitude, target.latitude)),
-            zoom: widget.initialZoom ?? 14.5,
+        Listener(
+          onPointerSignal: (pointerSignal) {
+            if (pointerSignal is PointerScrollEvent) {
+              if (_mapboxMap != null) {
+                _mapboxMap!.getCameraState().then((cameraState) {
+                  final zoomDelta = pointerSignal.scrollDelta.dy > 0 ? -0.5 : 0.5;
+                  _mapboxMap!.setCamera(
+                    mapbox.CameraOptions(
+                      zoom: cameraState.zoom + zoomDelta,
+                    ),
+                  );
+                });
+              }
+            }
+          },
+          child: mapbox.MapWidget(
+            key: const ValueKey('mapWidget'),
+            
+            cameraOptions: mapbox.CameraOptions(
+              center: mapbox.Point(coordinates: mapbox.Position(target.longitude, target.latitude)),
+              zoom: widget.initialZoom ?? 14.5,
+            ),
+            styleUri: mapbox.MapboxStyles.LIGHT,
+            onMapCreated: _onMapCreated,
+            onCameraChangeListener: (cameraChangedEventData) {
+              widget.onCameraMove();
+            },
+            onStyleLoadedListener: (styleLoadedEventData) {
+              if (!_isMapLoaded && mounted) {
+                setState(() {
+                  _isMapLoaded = true;
+                });
+              }
+            },
+            onMapLoadedListener: (mapLoadedEventData) {
+              if (!_isMapLoaded && mounted) {
+                setState(() {
+                  _isMapLoaded = true;
+                });
+              }
+            },
           ),
-          styleUri: mapbox.MapboxStyles.LIGHT,
-          onMapCreated: _onMapCreated,
-          onCameraChangeListener: (cameraChangedEventData) {
-            widget.onCameraMove();
-          },
-          onStyleLoadedListener: (styleLoadedEventData) {
-            if (!_isMapLoaded && mounted) {
-              setState(() {
-                _isMapLoaded = true;
-              });
-            }
-          },
-          onMapLoadedListener: (mapLoadedEventData) {
-            if (!_isMapLoaded && mounted) {
-              setState(() {
-                _isMapLoaded = true;
-              });
-            }
-          },
         ),
         if (!_isMapLoaded)
           Container(
