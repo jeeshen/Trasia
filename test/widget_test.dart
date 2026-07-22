@@ -9,10 +9,8 @@ void main() {
 
     expect(find.text('TRASIA'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('start-now')));
-    await tester.pumpAndSettle();
-
     expect(find.byKey(const Key('login-user')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('login-user')));
     await tester.tap(find.byKey(const Key('login-user')));
     await tester.pump();
     await tester.pump(const Duration(seconds: 2));
@@ -27,23 +25,22 @@ void main() {
   ) async {
     await tester.pumpWidget(const TrasiaApp());
 
-    await tester.tap(find.byKey(const Key('start-now')));
-    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('login-user')));
     await tester.tap(find.byKey(const Key('login-user')));
     await tester.pump();
     await tester.pump(const Duration(seconds: 2));
 
     await tester.tap(find.text('Plan'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byKey(const Key('generate-route')));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('feature-c-results-map')), findsOneWidget);
     expect(find.byKey(const Key('feature-c-results-toggle')), findsOneWidget);
     expect(find.byKey(const Key('feature-c-results-list')), findsNothing);
 
     await tester.tap(find.byKey(const Key('feature-c-results-toggle')));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('feature-c-results-list')), findsOneWidget);
   });

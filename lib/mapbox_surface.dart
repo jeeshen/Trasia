@@ -1,19 +1,104 @@
+// ignore_for_file: deprecated_member_use
+
+import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
-import 'package:flutter/gestures.dart';
-import 'main.dart' show DestinationCandidate, TransitOption, RouteLeg;
+
+import 'main.dart' show DestinationCandidate, TransitOption, TrasiaColors;
+
+const _mapboxAccessToken =
+    'pk.eyJ1IjoiamVlc2hlbiIsImEiOiJjbW9uNGIzYjMwYXg1MnBwc214ZmM0dTFjIn0.VHq4AAucdQxUz865oPSwYg';
+const _mapboxStyleUri = mapbox.MapboxStyles.LIGHT;
+bool _mapboxCacheStarted = false;
+
+Future<void> warmUpMapboxCache() async {
+  if (_mapboxCacheStarted) {
+    return;
+  }
+  _mapboxCacheStarted = true;
+
+  try {
+    mapbox.MapboxOptions.setAccessToken(_mapboxAccessToken);
+    mapbox.MapboxMapsOptions.setTileStoreUsageMode(
+      mapbox.TileStoreUsageMode.READ_ONLY,
+    );
+
+    final offlineManager = await mapbox.OfflineManager.create();
+    final tileStore = await mapbox.TileStore.createDefault();
+    tileStore.setDiskQuota(250 * 1024 * 1024);
+
+    try {
+      await offlineManager.stylePack(_mapboxStyleUri);
+    } catch (_) {
+      await offlineManager.loadStylePack(
+        _mapboxStyleUri,
+        mapbox.StylePackLoadOptions(
+          glyphsRasterizationMode:
+              mapbox.GlyphsRasterizationMode.IDEOGRAPHS_RASTERIZED_LOCALLY,
+          metadata: const {'region': 'kl-default'},
+          acceptExpired: true,
+        ),
+        null,
+      );
+    }
+
+    try {
+      await tileStore.tileRegion('kl-default');
+    } catch (_) {
+      await tileStore.loadTileRegion(
+        'kl-default',
+        mapbox.TileRegionLoadOptions(
+          geometry: const {
+            'type': 'Polygon',
+            'coordinates': [
+              [
+                [101.60, 3.05],
+                [101.78, 3.05],
+                [101.78, 3.24],
+                [101.60, 3.24],
+                [101.60, 3.05],
+              ],
+            ],
+          },
+          descriptorsOptions: [
+            mapbox.TilesetDescriptorOptions(
+              styleURI: _mapboxStyleUri,
+              minZoom: 11,
+              maxZoom: 16,
+            ),
+          ],
+          metadata: const {'region': 'kl-default'},
+          acceptExpired: true,
+          networkRestriction: mapbox.NetworkRestriction.NONE,
+        ),
+        null,
+      );
+    }
+  } catch (error) {
+    debugPrint('Mapbox cache warm-up skipped: $error');
+  }
+}
 
 class AppMapController {
-  final mapbox.MapboxMap mapboxMap;
   AppMapController(this.mapboxMap);
 
-  Future<void> flyToCameraPosition(gmaps.CameraPosition position) async {
-    await mapboxMap.flyTo(
+  final mapbox.MapboxMap mapboxMap;
+
+  Future<void> flyToCameraPosition(gmaps.CameraPosition position) {
+    return mapboxMap.flyTo(
       mapbox.CameraOptions(
-        center: mapbox.Point(coordinates: mapbox.Position(position.target.longitude, position.target.latitude)),
+        center: mapbox.Point(
+          coordinates: mapbox.Position(
+            position.target.longitude,
+            position.target.latitude,
+          ),
+        ),
         zoom: position.zoom,
         pitch: position.tilt,
         bearing: position.bearing,
@@ -22,10 +107,15 @@ class AppMapController {
     );
   }
 
-  Future<void> setCameraPosition(gmaps.CameraPosition position) async {
-    await mapboxMap.setCamera(
+  Future<void> setCameraPosition(gmaps.CameraPosition position) {
+    return mapboxMap.setCamera(
       mapbox.CameraOptions(
-        center: mapbox.Point(coordinates: mapbox.Position(position.target.longitude, position.target.latitude)),
+        center: mapbox.Point(
+          coordinates: mapbox.Position(
+            position.target.longitude,
+            position.target.latitude,
+          ),
+        ),
         zoom: position.zoom,
         pitch: position.tilt,
         bearing: position.bearing,
@@ -33,10 +123,12 @@ class AppMapController {
     );
   }
 
-  Future<void> flyToLatLngZoom(gmaps.LatLng location, double zoom) async {
-    await mapboxMap.flyTo(
+  Future<void> flyToLatLngZoom(gmaps.LatLng location, double zoom) {
+    return mapboxMap.flyTo(
       mapbox.CameraOptions(
-        center: mapbox.Point(coordinates: mapbox.Position(location.longitude, location.latitude)),
+        center: mapbox.Point(
+          coordinates: mapbox.Position(location.longitude, location.latitude),
+        ),
         zoom: zoom,
       ),
       mapbox.MapAnimationOptions(duration: 1000),
@@ -46,12 +138,31 @@ class AppMapController {
   Future<void> flyToBounds(gmaps.LatLngBounds bounds, double padding) async {
     final camera = await mapboxMap.cameraForCoordinateBounds(
       mapbox.CoordinateBounds(
-        southwest: mapbox.Point(coordinates: mapbox.Position(bounds.southwest.longitude, bounds.southwest.latitude)),
-        northeast: mapbox.Point(coordinates: mapbox.Position(bounds.northeast.longitude, bounds.northeast.latitude)),
+        southwest: mapbox.Point(
+          coordinates: mapbox.Position(
+            bounds.southwest.longitude,
+            bounds.southwest.latitude,
+          ),
+        ),
+        northeast: mapbox.Point(
+          coordinates: mapbox.Position(
+            bounds.northeast.longitude,
+            bounds.northeast.latitude,
+          ),
+        ),
         infiniteBounds: true,
       ),
-      mapbox.MbxEdgeInsets(top: padding, left: padding, bottom: padding, right: padding),
-      null, null, null, null);
+      mapbox.MbxEdgeInsets(
+        top: padding,
+        left: padding,
+        bottom: padding,
+        right: padding,
+      ),
+      null,
+      null,
+      null,
+      null,
+    );
     await mapboxMap.flyTo(camera, mapbox.MapAnimationOptions(duration: 1000));
   }
 }
@@ -99,242 +210,325 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   mapbox.PointAnnotationManager? _pointManager;
   mapbox.PolylineAnnotationManager? _polylineManager;
   mapbox.CircleAnnotationManager? _circleManager;
+  Future<void>? _annotationSetup;
+  Future<Uint8List>? _selfMarkerBytes;
   bool _isMapLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    mapbox.MapboxOptions.setAccessToken('pk.eyJ1IjoiamVlc2hlbiIsImEiOiJjbW9uNGIzYjMwYXg1MnBwc214ZmM0dTFjIn0.VHq4AAucdQxUz865oPSwYg');
+    mapbox.MapboxOptions.setAccessToken(_mapboxAccessToken);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Removed apiKeyReady wait as Mapbox uses its own token and can initialize immediately.
-
-    final target = widget.initialTarget ?? widget.currentLocation ?? const gmaps.LatLng(3.1478, 101.6953);
+    final target =
+        widget.initialTarget ??
+        widget.currentLocation ??
+        const gmaps.LatLng(3.1478, 101.6953);
 
     return Stack(
       children: [
         Listener(
           onPointerSignal: (pointerSignal) {
             if (pointerSignal is PointerScrollEvent) {
-              if (_mapboxMap != null) {
-                _mapboxMap!.getCameraState().then((cameraState) {
-                  final zoomDelta = pointerSignal.scrollDelta.dy > 0 ? -0.5 : 0.5;
-                  _mapboxMap!.setCamera(
-                    mapbox.CameraOptions(
-                      zoom: cameraState.zoom + zoomDelta,
-                    ),
-                  );
-                });
-              }
+              _mapboxMap?.getCameraState().then((cameraState) {
+                final zoomDelta = pointerSignal.scrollDelta.dy > 0 ? -0.5 : 0.5;
+                _mapboxMap?.setCamera(
+                  mapbox.CameraOptions(zoom: cameraState.zoom + zoomDelta),
+                );
+              });
             }
           },
           child: mapbox.MapWidget(
             key: const ValueKey('mapWidget'),
-            
             cameraOptions: mapbox.CameraOptions(
-              center: mapbox.Point(coordinates: mapbox.Position(target.longitude, target.latitude)),
+              center: mapbox.Point(
+                coordinates: mapbox.Position(target.longitude, target.latitude),
+              ),
               zoom: widget.initialZoom ?? 14.5,
             ),
-            styleUri: mapbox.MapboxStyles.LIGHT,
+            styleUri: _mapboxStyleUri,
             onMapCreated: _onMapCreated,
-            onCameraChangeListener: (cameraChangedEventData) {
-              widget.onCameraMove();
-            },
-            onStyleLoadedListener: (styleLoadedEventData) {
-              if (!_isMapLoaded && mounted) {
-                setState(() {
-                  _isMapLoaded = true;
-                });
-              }
-            },
-            onMapLoadedListener: (mapLoadedEventData) {
-              if (!_isMapLoaded && mounted) {
-                setState(() {
-                  _isMapLoaded = true;
-                });
-              }
-            },
+            onCameraChangeListener: (_) => widget.onCameraMove(),
+            onStyleLoadedListener: (_) => _markLoaded(),
+            onMapLoadedListener: (_) => _markLoaded(),
           ),
         ),
         if (!_isMapLoaded)
           Container(
-            color: const Color(0xFFF1F3F4), // Light map background color
-            child: const Center(
-              child: CircularProgressIndicator(),
-            ),
+            color: const Color(0xFFF1F3F4),
+            child: const Center(child: CircularProgressIndicator()),
           ),
       ],
     );
   }
 
-  void _onMapCreated(mapbox.MapboxMap mapboxMap) async {
+  Future<void> _onMapCreated(mapbox.MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
-    
-    // Create annotation managers in order of z-index (bottom to top)
-    _polylineManager = await mapboxMap.annotations.createPolylineAnnotationManager();
-    _circleManager = await mapboxMap.annotations.createCircleAnnotationManager();
-    _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
-
+    await _hideMapOrnaments(mapboxMap);
     widget.onMapCreated(AppMapController(mapboxMap));
-    
-    _updateAnnotations();
+  }
+
+  Future<void> _hideMapOrnaments(mapbox.MapboxMap mapboxMap) async {
+    await mapboxMap.compass.updateSettings(
+      mapbox.CompassSettings(enabled: false, visibility: false),
+    );
+    await mapboxMap.scaleBar.updateSettings(
+      mapbox.ScaleBarSettings(enabled: false),
+    );
+    await mapboxMap.logo.updateSettings(mapbox.LogoSettings(enabled: false));
+    await mapboxMap.attribution.updateSettings(
+      mapbox.AttributionSettings(enabled: false, clickable: false),
+    );
+  }
+
+  void _markLoaded() {
+    if (!_isMapLoaded && mounted) {
+      setState(() => _isMapLoaded = true);
+    }
+    unawaited(_ensureAnnotationManagers());
   }
 
   @override
   void didUpdateWidget(covariant LiveMapboxSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (_mapboxMap != null) {
-      _updateAnnotations();
+      unawaited(_ensureAnnotationManagers());
     }
   }
 
-  void _updateAnnotations() async {
-    if (_pointManager == null || _polylineManager == null || _circleManager == null) return;
+  Future<void> _ensureAnnotationManagers() {
+    return _annotationSetup ??= _createAnnotationManagers();
+  }
 
-    // Clear existing
+  Future<void> _createAnnotationManagers() async {
+    final mapboxMap = _mapboxMap;
+    if (mapboxMap == null) {
+      return;
+    }
+    _polylineManager = await mapboxMap.annotations
+        .createPolylineAnnotationManager();
+    _circleManager = await mapboxMap.annotations
+        .createCircleAnnotationManager();
+    _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
+    await _updateAnnotations();
+  }
+
+  Future<void> _updateAnnotations() async {
+    if (_pointManager == null ||
+        _polylineManager == null ||
+        _circleManager == null) {
+      return;
+    }
+
     await _pointManager!.deleteAll();
     await _polylineManager!.deleteAll();
     await _circleManager!.deleteAll();
 
-    // 1. Polylines (Rendered first, so they are at the bottom)
     for (final polyline in widget.extraPolylines) {
       await _polylineManager!.create(
         mapbox.PolylineAnnotationOptions(
-          geometry: mapbox.LineString(coordinates: polyline.points.map((p) => mapbox.Position(p.longitude, p.latitude)).toList()),
+          geometry: mapbox.LineString(
+            coordinates: polyline.points
+                .map((p) => mapbox.Position(p.longitude, p.latitude))
+                .toList(),
+          ),
           lineColor: polyline.color.value,
           lineWidth: polyline.width.toDouble(),
-        )
+        ),
       );
-    }
-    
-    if (widget.selectedRoute != null) {
-      for (final leg in widget.selectedRoute!.legs) {
-        if (leg.points.isNotEmpty) {
-          await _polylineManager!.create(
-            mapbox.PolylineAnnotationOptions(
-              geometry: mapbox.LineString(coordinates: leg.points.map((p) => mapbox.Position(p.longitude, p.latitude)).toList()),
-              lineColor: widget.selectedRoute!.color.value,
-              lineWidth: 5.0,
-            )
-          );
-        }
-      }
     }
 
-    // 2. Circles (Rendered in the middle)
-    if (widget.currentLocation != null) {
-      await _circleManager!.create(
-        mapbox.CircleAnnotationOptions(
-          geometry: mapbox.Point(coordinates: mapbox.Position(widget.currentLocation!.longitude, widget.currentLocation!.latitude)),
-          circleRadius: 8.0,
-          circleColor: Colors.blue.value,
-          circleStrokeWidth: 2.0,
-          circleStrokeColor: Colors.white.value,
-        )
-      );
-      if (widget.currentAccuracyMeters != null && widget.currentAccuracyMeters! > 0) {
-        await _circleManager!.create(
-          mapbox.CircleAnnotationOptions(
-            geometry: mapbox.Point(coordinates: mapbox.Position(widget.currentLocation!.longitude, widget.currentLocation!.latitude)),
-            circleRadius: max(16.0, widget.currentAccuracyMeters! * 0.5), // Approximate radius
-            circleColor: Colors.blue.withOpacity(0.15).value,
-            circleStrokeWidth: 0.0,
-          )
+    final route = widget.selectedRoute;
+    if (route != null) {
+      for (final leg in route.legs) {
+        if (leg.points.isEmpty) {
+          continue;
+        }
+        await _polylineManager!.create(
+          mapbox.PolylineAnnotationOptions(
+            geometry: mapbox.LineString(
+              coordinates: leg.points
+                  .map((p) => mapbox.Position(p.longitude, p.latitude))
+                  .toList(),
+            ),
+            lineColor: route.color.value,
+            lineWidth: 5.0,
+          ),
         );
       }
     }
 
+    if (widget.currentLocation != null) {
+      if (widget.currentAccuracyMeters != null &&
+          widget.currentAccuracyMeters! > 0) {
+        await _createCircle(
+          widget.currentLocation!,
+          radius: max(16.0, widget.currentAccuracyMeters! * 0.5),
+          color: Colors.blue.withValues(alpha: 0.15),
+          strokeWidth: 0,
+        );
+      }
+      await _pointManager!.create(
+        mapbox.PointAnnotationOptions(
+          geometry: _point(widget.currentLocation!),
+          image: await _selfMarker(),
+          iconSize: 1.0,
+        ),
+      );
+    }
+
     if (widget.candidate != null) {
-      await _circleManager!.create(
-        mapbox.CircleAnnotationOptions(
-          geometry: mapbox.Point(coordinates: mapbox.Position(widget.candidate!.location.longitude, widget.candidate!.location.latitude)),
-          circleRadius: 8.0,
-          circleColor: Colors.red.value,
-          circleStrokeWidth: 2.0,
-          circleStrokeColor: Colors.white.value,
-        )
+      await _createCircle(
+        widget.candidate!.location,
+        radius: 8,
+        color: Colors.red,
+        strokeColor: Colors.white,
       );
     }
 
     if (widget.vehicleLocation != null) {
-      await _circleManager!.create(
-        mapbox.CircleAnnotationOptions(
-          geometry: mapbox.Point(coordinates: mapbox.Position(widget.vehicleLocation!.longitude, widget.vehicleLocation!.latitude)),
-          circleRadius: 8.0,
-          circleColor: (widget.vehicleColor ?? Colors.black).value,
-          circleStrokeWidth: 2.0,
-          circleStrokeColor: Colors.white.value,
-        )
-      );
-    }
-    
-    if (widget.selectedRoute != null && widget.selectedRoute!.legs.isNotEmpty) {
-      final firstPoint = widget.selectedRoute!.legs.first.points.first;
-      final lastPoint = widget.selectedRoute!.legs.last.points.last;
-      
-      // Start point (Green)
-      await _circleManager!.create(
-        mapbox.CircleAnnotationOptions(
-          geometry: mapbox.Point(coordinates: mapbox.Position(firstPoint.longitude, firstPoint.latitude)),
-          circleRadius: 8.0,
-          circleColor: Colors.green.value,
-          circleStrokeWidth: 2.0,
-          circleStrokeColor: Colors.white.value,
-        )
-      );
-      
-      // End point (Red)
-      await _circleManager!.create(
-        mapbox.CircleAnnotationOptions(
-          geometry: mapbox.Point(coordinates: mapbox.Position(lastPoint.longitude, lastPoint.latitude)),
-          circleRadius: 8.0,
-          circleColor: Colors.red.value,
-          circleStrokeWidth: 2.0,
-          circleStrokeColor: Colors.white.value,
-        )
+      await _createCircle(
+        widget.vehicleLocation!,
+        radius: 8,
+        color: widget.vehicleColor ?? Colors.black,
+        strokeColor: Colors.white,
       );
     }
 
-    // 3. Points (Markers, Rendered last so they are on top)
+    final routePoints =
+        widget.selectedRoute?.legs.expand((leg) => leg.points).toList() ??
+        const <gmaps.LatLng>[];
+    if (routePoints.isNotEmpty) {
+      await _createCircle(
+        routePoints.first,
+        radius: 8,
+        color: Colors.green,
+        strokeColor: Colors.white,
+      );
+      await _createCircle(
+        routePoints.last,
+        radius: 8,
+        color: Colors.red,
+        strokeColor: Colors.white,
+      );
+    }
+
     for (final marker in widget.extraMarkers) {
-      Uint8List? imageBytes;
-      try {
-        final iconJson = marker.icon.toJson() as List<dynamic>;
-        if (iconJson.isNotEmpty) {
-          if (iconJson[0] == 'bytes') {
-            final map = iconJson[1] as Map<dynamic, dynamic>;
-            final bytesList = map['byteData'] as List<dynamic>;
-            imageBytes = Uint8List.fromList(bytesList.cast<int>());
-          } else if (iconJson[0] == 'fromBytes') {
-            imageBytes = iconJson[1] as Uint8List;
-          }
-        }
-      } catch (e) {
-        print('Failed to load marker image: $e');
-      }
-
-      if (imageBytes != null) {
-        await _pointManager!.create(
-          mapbox.PointAnnotationOptions(
-            geometry: mapbox.Point(coordinates: mapbox.Position(marker.position.longitude, marker.position.latitude)),
-            image: imageBytes,
-            iconSize: 2.5, // Increased size for visibility
-          )
+      final imageBytes = _markerBytes(marker);
+      if (imageBytes == null) {
+        await _createCircle(
+          marker.position,
+          radius: 8,
+          color: Colors.red,
+          strokeColor: Colors.white,
         );
-      } else {
-        // Fallback to circle
-        await _circleManager!.create(
-          mapbox.CircleAnnotationOptions(
-            geometry: mapbox.Point(coordinates: mapbox.Position(marker.position.longitude, marker.position.latitude)),
-            circleRadius: 8.0,
-            circleColor: Colors.red.value,
-            circleStrokeWidth: 2.0,
-            circleStrokeColor: Colors.white.value,
-          )
-        );
+        continue;
       }
+      await _pointManager!.create(
+        mapbox.PointAnnotationOptions(
+          geometry: _point(marker.position),
+          image: imageBytes,
+          iconSize: 2.5,
+        ),
+      );
     }
+  }
+
+  Future<void> _createCircle(
+    gmaps.LatLng location, {
+    required double radius,
+    required Color color,
+    Color? strokeColor,
+    double strokeWidth = 2,
+  }) {
+    return _circleManager!.create(
+      mapbox.CircleAnnotationOptions(
+        geometry: _point(location),
+        circleRadius: radius,
+        circleColor: color.value,
+        circleStrokeWidth: strokeWidth,
+        circleStrokeColor: (strokeColor ?? Colors.transparent).value,
+      ),
+    );
+  }
+
+  mapbox.Point _point(gmaps.LatLng location) {
+    return mapbox.Point(
+      coordinates: mapbox.Position(location.longitude, location.latitude),
+    );
+  }
+
+  Future<Uint8List> _selfMarker() {
+    return _selfMarkerBytes ??= _drawSelfMarker();
+  }
+
+  Future<Uint8List> _drawSelfMarker() async {
+    const size = 96.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final center = Offset(size / 2, size / 2);
+
+    final shadow = Paint()
+      ..color = const Color(0x33001844)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 5);
+    canvas.drawCircle(center.translate(0, 5), 31, shadow);
+
+    final hood = Paint()..color = TrasiaColors.primary;
+    canvas.drawCircle(center, 32, hood);
+    canvas.drawCircle(const Offset(27, 25), 12, hood);
+    canvas.drawCircle(const Offset(69, 25), 12, hood);
+
+    final face = Paint()..color = const Color(0xFFFFE4C7);
+    canvas.drawCircle(center.translate(0, 1), 23, face);
+
+    final eye = Paint()..color = const Color(0xFF102033);
+    canvas.drawCircle(const Offset(40, 47), 3.2, eye);
+    canvas.drawCircle(const Offset(56, 47), 3.2, eye);
+
+    final smile = Paint()
+      ..color = const Color(0xFF102033)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      const Rect.fromLTRB(39, 48, 57, 64),
+      .25,
+      pi - .5,
+      false,
+      smile,
+    );
+
+    final border = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5;
+    canvas.drawCircle(center, 34, border);
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return bytes!.buffer.asUint8List();
+  }
+
+  Uint8List? _markerBytes(gmaps.Marker marker) {
+    try {
+      final iconJson = marker.icon.toJson() as List<dynamic>;
+      if (iconJson.isEmpty) {
+        return null;
+      }
+      if (iconJson[0] == 'bytes') {
+        final map = iconJson[1] as Map<dynamic, dynamic>;
+        final bytesList = map['byteData'] as List<dynamic>;
+        return Uint8List.fromList(bytesList.cast<int>());
+      }
+      if (iconJson[0] == 'fromBytes') {
+        return iconJson[1] as Uint8List;
+      }
+    } catch (e) {
+      debugPrint('Failed to load marker image: $e');
+    }
+    return null;
   }
 }

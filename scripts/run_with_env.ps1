@@ -21,12 +21,28 @@ Get-Content -LiteralPath $envFile | ForEach-Object {
   }
 }
 
-if (-not $env:GOOGLE_MAPS_API_KEY) {
-  Write-Host "GOOGLE_MAPS_API_KEY is missing in .env.local"
+if (-not $env:SUPABASE_URL) {
+  Write-Host "SUPABASE_URL is missing in .env.local"
   exit 1
 }
 
-flutter run `
-  --dart-define=GOOGLE_MAPS_API_KEY=$env:GOOGLE_MAPS_API_KEY `
-  --dart-define=SUPABASE_URL=$env:SUPABASE_URL `
-  --dart-define=SUPABASE_ANON_KEY=$env:SUPABASE_ANON_KEY
+if (-not $env:SUPABASE_ANON_KEY) {
+  Write-Host "SUPABASE_ANON_KEY is missing in .env.local"
+  exit 1
+}
+
+$flutter = "C:\flutter\bin\flutter.bat"
+
+$args = @(
+  "run",
+  "-t",
+  "lib\main.dart",
+  "--dart-define=SUPABASE_URL=$env:SUPABASE_URL",
+  "--dart-define=SUPABASE_ANON_KEY=$env:SUPABASE_ANON_KEY"
+)
+
+if ($env:GOOGLE_MAPS_API_KEY) {
+  $args += "--dart-define=GOOGLE_MAPS_API_KEY=$env:GOOGLE_MAPS_API_KEY"
+}
+
+& $flutter @args

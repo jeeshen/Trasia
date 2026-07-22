@@ -35,9 +35,13 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_maps_flutter: ^2.17.1
+  google_maps_flutter_android: ^2.18.5
+  google_maps_flutter_platform_interface: ^2.14.0
   geolocator: ^14.0.3
   http: ^1.6.0
-  mapbox_maps_flutter: ^2.26.0
+  mapbox_maps_flutter:
+    path: vendor/mapbox_maps_flutter
+  supabase_flutter: ^2.16.0
 
 dev_dependencies:
   flutter_test:
@@ -63,6 +67,7 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
+    - .env.local
     - assets/attractions/
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
