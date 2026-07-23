@@ -43,5 +43,57 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('feature-c-results-list')), findsOneWidget);
+    await tester.tap(find.text('Start Trip'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byIcon(Icons.alt_route_rounded), findsNothing);
+    await tester.tap(find.text('Arrived'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.drag(
+      find.byKey(const Key('feature-c-results-list')),
+      const Offset(0, -700),
+    );
+    await tester.pump();
+
+    expect(find.text('Done'), findsOneWidget);
+    await tester.drag(
+      find.byKey(const Key('feature-c-results-list')),
+      const Offset(0, 700),
+    );
+    await tester.pump();
+
+    expect(find.text('Going'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Going'));
+    await tester.pump();
+    await tester.tap(find.text('Going'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Search and Navigate'), findsOneWidget);
+  });
+
+  testWidgets('Profile shows the account and requested settings', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const TrasiaApp());
+
+    await tester.ensureVisible(find.byKey(const Key('login-user')));
+    await tester.tap(find.byKey(const Key('login-user')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.text('Account'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('preview-user@trasia.local'), findsOneWidget);
+    expect(find.text('Wallet'), findsOneWidget);
+    expect(find.text('History'), findsOneWidget);
+    expect(find.text('Terms & Conditions'), findsOneWidget);
+    await tester.drag(find.text('Terms & Conditions'), const Offset(0, -160));
+    await tester.pump();
+    expect(find.text('Logout'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

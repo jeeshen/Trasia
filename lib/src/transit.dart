@@ -7,6 +7,7 @@ class TransitRouterScreen extends StatefulWidget {
     required this.onMapViewChanged,
     required this.destination,
     required this.request,
+    required this.requestedMode,
     required this.ongoingDestination,
     required this.onNavigationCancelled,
     required this.onTransitRouteSaved,
@@ -20,6 +21,7 @@ class TransitRouterScreen extends StatefulWidget {
   final ValueChanged<SharedMapView> onMapViewChanged;
   final String destination;
   final int request;
+  final BlindBoxTravelMode? requestedMode;
   final String? ongoingDestination;
   final VoidCallback onNavigationCancelled;
   final VoidCallback onTransitRouteSaved;
@@ -161,6 +163,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _departureLocation = null;
       _departureName = null;
     });
+    widget.onNavigationCancelled();
   }
 
   Future<void> _searchDestination({bool autoCalculate = false}) async {
@@ -251,16 +254,23 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _statusMessage = null;
     });
     final transitRoutes = _multimodalTransitRoutes(destination);
-    final roadAlignedTransitRoutes = transitRoutes.isEmpty
-        ? transitRoutes
-        : await _roadAlignAccessTransitRoutes(transitRoutes);
+    final roadAlignedTransitRoutesFuture = transitRoutes.isEmpty
+        ? Future<List<TransitOption>>.value(transitRoutes)
+        : _roadAlignAccessTransitRoutes(transitRoutes);
+    final drivingOptionFuture = _buildDrivingOption(destination);
+    final roadAlignedTransitRoutes = await roadAlignedTransitRoutesFuture;
+    final drivingOption = await drivingOptionFuture;
+    final liveRoutes = _filterRoutesForRequestedMode([
+      ...roadAlignedTransitRoutes,
+      drivingOption,
+    ]);
     if (!_hasGoogleMapsKey) {
-      final routes = roadAlignedTransitRoutes.isEmpty
-          ? _previewRoutes(destination)
-          : roadAlignedTransitRoutes;
+      final routes = liveRoutes.isEmpty
+          ? _filterRoutesForRequestedMode(_previewRoutes(destination))
+          : liveRoutes;
       setState(() {
         _routes = routes;
-        _selectedRoute = routes.isEmpty ? null : routes.first;
+        _selectedRoute = null;
         _statusMessage = _usingFallbackDeparture
             ? 'Device GPS looks unreliable, so planning starts from the Kuala Lumpur map area until a precise current location is available.'
             : 'Preview routes shown. Connect Google Maps API for real travel time and path interpolation.';
@@ -269,10 +279,10 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       return;
     }
     try {
-      final routes = roadAlignedTransitRoutes;
+      final routes = liveRoutes;
       setState(() {
         _routes = routes;
-        _selectedRoute = routes.isEmpty ? null : routes.first;
+        _selectedRoute = null;
       });
       if (routes.isNotEmpty) {
         await _mapController?.flyToLatLngZoom(_routingOrigin, 15);
@@ -281,12 +291,12 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       }
     } catch (error) {
       if (_isGoogleRoutesUnavailable(error)) {
-        final routes = roadAlignedTransitRoutes.isEmpty
-            ? _previewRoutes(destination)
-            : roadAlignedTransitRoutes;
+        final routes = liveRoutes.isEmpty
+            ? _filterRoutesForRequestedMode(_previewRoutes(destination))
+            : liveRoutes;
         setState(() {
           _routes = routes;
-          _selectedRoute = routes.isEmpty ? null : routes.first;
+          _selectedRoute = null;
           _statusMessage = _usingFallbackDeparture
               ? 'Device GPS looks unreliable, so planning starts from the Kuala Lumpur map area until a precise current location is available.'
               : 'Live road routing is unavailable, so estimated travel options are shown.';
@@ -298,6 +308,85 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       if (mounted) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  List<TransitOption> _filterRoutesForRequestedMode(
+    List<TransitOption> routes,
+  ) {
+    return switch (widget.requestedMode) {
+      BlindBoxTravelMode.drive =>
+        routes.where((route) => route.label == 'Drive').toList(),
+      BlindBoxTravelMode.transit =>
+        routes
+            .where((route) => route.label != 'Drive' && route.label != 'Walk')
+            .toList(),
+      null => routes,
+    };
+  }
+
+  Future<TransitOption> _buildDrivingOption(
+    DestinationCandidate destination,
+  ) async {
+    try {
+      final route = await _GoogleMapsApi.fetchDrivingRoute(
+        origin: _routingOrigin,
+        destination: destination.location,
+        apiKey: _GoogleMapsConfig.apiKey,
+      );
+      return TransitOption(
+        label: 'Drive',
+        chain: 'Drive directly to ${destination.name}',
+        time: route.time,
+        distance: route.distance,
+        fare: 'Fuel varies',
+        transfers: 'Direct',
+        crowd: .18,
+        color: TrasiaColors.primary,
+        legs: [
+          _leg(
+            _routingOriginName,
+            destination.name,
+            'Drive',
+            route.time,
+            route.distance,
+            Icons.directions_car_rounded,
+            route.points,
+          ),
+        ],
+        firstLegPointCount: route.points.length,
+        firstStopLabel: destination.name,
+        nextInstruction: 'Drive toward ${destination.name}',
+      );
+    } catch (_) {
+      final distanceMeters = _metersBetween(
+        _routingOrigin,
+        destination.location,
+      );
+      final estimatedMinutes = max(4, (distanceMeters / 400).round());
+      return TransitOption(
+        label: 'Drive',
+        chain: 'Drive directly to ${destination.name}',
+        time: _formatLegMinutes(estimatedMinutes),
+        distance: _formatLegDistance(distanceMeters),
+        fare: 'Fuel varies',
+        transfers: 'Direct',
+        crowd: .18,
+        color: TrasiaColors.primary,
+        legs: [
+          _leg(
+            _routingOriginName,
+            destination.name,
+            'Drive',
+            _formatLegMinutes(estimatedMinutes),
+            _formatLegDistance(distanceMeters),
+            Icons.directions_car_rounded,
+            const [],
+          ),
+        ],
+        firstStopLabel: destination.name,
+        nextInstruction: 'Road directions will update when service returns',
+      );
     }
   }
 
@@ -722,29 +811,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     final transitFare = (1.20 + distanceKm * .55).clamp(1.20, 8.00);
     return [
       TransitOption(
-        label: 'Drive',
-        chain: 'Car route',
-        time: _formatLegMinutes(driveMinutes),
-        distance: _formatLegDistance(distanceMeters),
-        fare: 'Fare varies',
-        transfers: 'Direct',
-        crowd: .52,
-        color: const Color(0xFF22B8F2),
-        legs: [
-          _leg(
-            originName,
-            _candidate?.name ?? 'Destination',
-            'Drive',
-            _formatLegMinutes(driveMinutes),
-            _formatLegDistance(distanceMeters),
-            Icons.directions_car_rounded,
-            const [],
-          ),
-        ],
-        firstStopLabel: _candidate?.name ?? 'Destination',
-        nextInstruction: 'Connect Google driving routes to show the road path',
-      ),
-      TransitOption(
         label: 'Transit',
         chain: 'Walk -> Rail/Bus -> Walk',
         time: _formatLegMinutes(transitMinutes),
@@ -789,6 +855,29 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         ],
         firstStopLabel: _candidate?.name ?? 'Destination',
         nextInstruction: 'Walk toward ${_candidate?.name ?? 'destination'}',
+      ),
+      TransitOption(
+        label: 'Drive',
+        chain: 'Car route',
+        time: _formatLegMinutes(driveMinutes),
+        distance: _formatLegDistance(distanceMeters),
+        fare: 'Fare varies',
+        transfers: 'Direct',
+        crowd: .52,
+        color: const Color(0xFF22B8F2),
+        legs: [
+          _leg(
+            originName,
+            _candidate?.name ?? 'Destination',
+            'Drive',
+            _formatLegMinutes(driveMinutes),
+            _formatLegDistance(distanceMeters),
+            Icons.directions_car_rounded,
+            const [],
+          ),
+        ],
+        firstStopLabel: _candidate?.name ?? 'Destination',
+        nextInstruction: 'Connect Google driving routes to show the road path',
       ),
     ];
   }

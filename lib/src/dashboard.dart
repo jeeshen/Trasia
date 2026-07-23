@@ -32,6 +32,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late double _carbonSavedKg;
   String _transitDestination = 'KLCC';
   int _transitRequest = 0;
+  BlindBoxTravelMode? _transitRequestedMode;
   String? _ongoingDestination;
   LatLng? _sharedCurrentLocation;
   double? _sharedCurrentAccuracyMeters;
@@ -47,6 +48,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _hubPoolTransactions = widget.hubPoolTransactions;
     _carbonSavedKg = widget.carbonSavedKg;
     globalMapController.addListener(_onMapControllerChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_loadInitialLocation());
+      }
+    });
   }
 
   @override
@@ -57,15 +63,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _onMapControllerChanged() {
     if (mounted) setState(() {});
-    if (globalMapController.value != null && !_hasCenteredOnInitialLocation) {
+    final controller = globalMapController.value;
+    final location =
+        _sharedCurrentLocation ?? globalMapViewNotifier.value.currentLocation;
+    if (controller != null &&
+        location != null &&
+        !_hasCenteredOnInitialLocation) {
       _hasCenteredOnInitialLocation = true;
+      unawaited(controller.flyToLatLngZoom(location, 17.0));
     }
   }
 
-  void _openTransitFor(String destination) {
+  void _openTransitFor(String destination, BlindBoxTravelMode travelMode) {
     setState(() {
       _transitDestination = destination;
       _transitRequest++;
+      _transitRequestedMode = travelMode;
       _ongoingDestination = destination;
       _tab = 0;
     });
@@ -154,6 +167,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _loadInitialLocation() async {
+    if (_centeringOnLocation) {
+      return;
+    }
+    _centeringOnLocation = true;
+    try {
+      final location = await _readDeviceLocation();
+      if (!mounted || location == null) {
+        return;
+      }
+      _setSharedSelfLocation(location, 0, centerMap: true);
+    } finally {
+      _centeringOnLocation = false;
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
   Future<LatLng?> _readDeviceLocation() async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -214,11 +246,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _setSharedSelfLocation(
         LatLng(position.latitude, position.longitude),
         position.accuracy,
+        centerMap: true,
       );
     } catch (_) {}
   }
 
-  void _setSharedSelfLocation(LatLng location, double? accuracyMeters) {
+  void _setSharedSelfLocation(
+    LatLng location,
+    double? accuracyMeters, {
+    bool centerMap = false,
+  }) {
     setState(() {
       _sharedCurrentLocation = location;
       _sharedCurrentAccuracyMeters = accuracyMeters;
@@ -235,11 +272,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       navigating: current.navigating,
       vehicleLocation: current.vehicleLocation,
       vehicleColor: current.vehicleColor,
-      initialTarget: current.initialTarget,
-      initialZoom: current.initialZoom,
+      initialTarget: centerMap ? location : current.initialTarget,
+      initialZoom: centerMap ? 17.0 : current.initialZoom,
       extraMarkers: current.extraMarkers,
       extraPolylines: current.extraPolylines,
     );
+    final controller = globalMapController.value;
+    if (centerMap && controller != null) {
+      _hasCenteredOnInitialLocation = true;
+      unawaited(controller.flyToLatLngZoom(location, 17.0));
+    }
   }
 
   @override
@@ -251,8 +293,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onMapViewChanged: _updateMapView,
         destination: _transitDestination,
         request: _transitRequest,
+        requestedMode: _transitRequestedMode,
         ongoingDestination: _ongoingDestination,
-        onNavigationCancelled: () => setState(() => _ongoingDestination = null),
+        onNavigationCancelled: () => setState(() {
+          _ongoingDestination = null;
+          _transitRequestedMode = null;
+        }),
         onTransitRouteSaved: _saveTransitRoute,
         currentLocation: _sharedCurrentLocation,
         currentAccuracyMeters: _sharedCurrentAccuracyMeters,
@@ -277,28 +323,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onCancelDestination: _cancelDestination,
       ),
       ColoredBox(
-        color: TrasiaColors.background,
+        color: Colors.white,
         child: SafeArea(
-          child: Column(
-            children: [
-              _DashboardHeader(
-                role: widget.role,
-                wallet: _wallet,
-                showWallet: true,
-              ),
-              Expanded(
-                child: AccountConsoleScreen(
-                  role: widget.role,
-                  email: widget.email,
-                  wallet: _wallet,
-                  savedTransitRoutes: _savedTransitRoutes,
-                  hubPoolTransactions: _hubPoolTransactions,
-                  carbonSavedKg: _carbonSavedKg,
-                  onTopUp: _topUp,
-                  onLogout: () => widget.onLogout(context),
-                ),
-              ),
-            ],
+          child: AccountConsoleScreen(
+            role: widget.role,
+            email: widget.email,
+            wallet: _wallet,
+            savedTransitRoutes: _savedTransitRoutes,
+            hubPoolTransactions: _hubPoolTransactions,
+            carbonSavedKg: _carbonSavedKg,
+            onTopUp: _topUp,
+            onLogout: () => widget.onLogout(context),
           ),
         ),
       ),
@@ -306,7 +341,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       extendBody: true,
-      backgroundColor: _tab == 3 ? TrasiaColors.background : Colors.transparent,
+      backgroundColor: _tab == 3 ? Colors.white : Colors.transparent,
       body: Stack(
         fit: StackFit.expand,
         children: [

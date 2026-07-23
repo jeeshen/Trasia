@@ -2,9 +2,9 @@
 
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -15,75 +15,6 @@ import 'main.dart' show DestinationCandidate, TransitOption, TrasiaColors;
 const _mapboxAccessToken =
     'pk.eyJ1IjoiamVlc2hlbiIsImEiOiJjbW9uNGIzYjMwYXg1MnBwc214ZmM0dTFjIn0.VHq4AAucdQxUz865oPSwYg';
 const _mapboxStyleUri = mapbox.MapboxStyles.LIGHT;
-bool _mapboxCacheStarted = false;
-
-Future<void> warmUpMapboxCache() async {
-  if (_mapboxCacheStarted) {
-    return;
-  }
-  _mapboxCacheStarted = true;
-
-  try {
-    mapbox.MapboxOptions.setAccessToken(_mapboxAccessToken);
-    mapbox.MapboxMapsOptions.setTileStoreUsageMode(
-      mapbox.TileStoreUsageMode.READ_ONLY,
-    );
-
-    final offlineManager = await mapbox.OfflineManager.create();
-    final tileStore = await mapbox.TileStore.createDefault();
-    tileStore.setDiskQuota(250 * 1024 * 1024);
-
-    try {
-      await offlineManager.stylePack(_mapboxStyleUri);
-    } catch (_) {
-      await offlineManager.loadStylePack(
-        _mapboxStyleUri,
-        mapbox.StylePackLoadOptions(
-          glyphsRasterizationMode:
-              mapbox.GlyphsRasterizationMode.IDEOGRAPHS_RASTERIZED_LOCALLY,
-          metadata: const {'region': 'kl-default'},
-          acceptExpired: true,
-        ),
-        null,
-      );
-    }
-
-    try {
-      await tileStore.tileRegion('kl-default');
-    } catch (_) {
-      await tileStore.loadTileRegion(
-        'kl-default',
-        mapbox.TileRegionLoadOptions(
-          geometry: const {
-            'type': 'Polygon',
-            'coordinates': [
-              [
-                [101.60, 3.05],
-                [101.78, 3.05],
-                [101.78, 3.24],
-                [101.60, 3.24],
-                [101.60, 3.05],
-              ],
-            ],
-          },
-          descriptorsOptions: [
-            mapbox.TilesetDescriptorOptions(
-              styleURI: _mapboxStyleUri,
-              minZoom: 11,
-              maxZoom: 16,
-            ),
-          ],
-          metadata: const {'region': 'kl-default'},
-          acceptExpired: true,
-          networkRestriction: mapbox.NetworkRestriction.NONE,
-        ),
-        null,
-      );
-    }
-  } catch (error) {
-    debugPrint('Mapbox cache warm-up skipped: $error');
-  }
-}
 
 class AppMapController {
   AppMapController(this.mapboxMap);
@@ -211,6 +142,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   mapbox.PolylineAnnotationManager? _polylineManager;
   mapbox.CircleAnnotationManager? _circleManager;
   Future<void>? _annotationSetup;
+  Future<void> _annotationUpdates = Future<void>.value();
   Future<Uint8List>? _selfMarkerBytes;
   bool _isMapLoaded = false;
 
@@ -287,15 +219,28 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     if (!_isMapLoaded && mounted) {
       setState(() => _isMapLoaded = true);
     }
-    unawaited(_ensureAnnotationManagers());
+    _scheduleAnnotationUpdate();
   }
 
   @override
   void didUpdateWidget(covariant LiveMapboxSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (_mapboxMap != null) {
-      unawaited(_ensureAnnotationManagers());
+      _scheduleAnnotationUpdate();
     }
+  }
+
+  void _scheduleAnnotationUpdate() {
+    _annotationUpdates = _annotationUpdates
+        .then((_) async {
+          await _ensureAnnotationManagers();
+          if (mounted) {
+            await _updateAnnotations();
+          }
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrint('Map annotation update failed: $error');
+        });
   }
 
   Future<void> _ensureAnnotationManagers() {
@@ -312,7 +257,6 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     _circleManager = await mapboxMap.annotations
         .createCircleAnnotationManager();
     _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
-    await _updateAnnotations();
   }
 
   Future<void> _updateAnnotations() async {

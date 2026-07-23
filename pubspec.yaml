@@ -42,6 +42,8 @@ dependencies:
   mapbox_maps_flutter:
     path: vendor/mapbox_maps_flutter
   supabase_flutter: ^2.16.0
+  image_picker: ^1.2.3
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

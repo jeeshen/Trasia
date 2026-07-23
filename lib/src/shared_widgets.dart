@@ -1,5 +1,6 @@
 part of '../main.dart';
 
+// ignore: unused_element
 class _DashboardHeader extends StatelessWidget {
   const _DashboardHeader({
     required this.role,
@@ -55,6 +56,7 @@ class _DashboardHeader extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _BlueShell extends StatelessWidget {
   const _BlueShell({required this.child});
 
@@ -75,6 +77,7 @@ class _BlueShell extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _GlassPanel extends StatelessWidget {
   const _GlassPanel({required this.child});
 
@@ -94,6 +97,7 @@ class _GlassPanel extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({
     required this.icon,
@@ -522,7 +526,11 @@ class _RouteChoiceCard extends StatelessWidget {
                 CircleAvatar(
                   backgroundColor: route.color,
                   foregroundColor: Colors.white,
-                  child: const Icon(Icons.alt_route_rounded),
+                  child: Icon(
+                    route.label == 'Drive'
+                        ? Icons.directions_car_rounded
+                        : Icons.alt_route_rounded,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1085,6 +1093,87 @@ class _PlanSlider extends StatelessWidget {
   }
 }
 
+class _PlanSectionTitle extends StatelessWidget {
+  const _PlanSectionTitle({
+    required this.icon,
+    required this.title,
+    required this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .96),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFDCE9F8)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120B7CFF),
+            blurRadius: 14,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: TrasiaColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Color(0xFF102033),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          Text(
+            trailing,
+            style: const TextStyle(
+              color: Color(0xFF68788C),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanPanel extends StatelessWidget {
+  const _PlanPanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFDCE9F8)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F174A7E),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
 class _BlindBoxTravelModeSelector extends StatelessWidget {
   const _BlindBoxTravelModeSelector({
     required this.value,
@@ -1236,6 +1325,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
     required this.activeStopIndex,
     required this.tripTotalStops,
     required this.completedStopCount,
+    required this.completedStopNames,
     required this.onClose,
     required this.onCancel,
     required this.onFocusStop,
@@ -1253,6 +1343,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
   final int activeStopIndex;
   final int tripTotalStops;
   final int completedStopCount;
+  final Set<String> completedStopNames;
   final VoidCallback onClose;
   final Future<bool> Function(ItineraryStop stop) onCancel;
   final ValueChanged<ItineraryStop> onFocusStop;
@@ -1275,19 +1366,19 @@ class _FeatureCResultsSheet extends StatelessWidget {
           ),
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           decoration: BoxDecoration(
-            color: const Color(0xEE102D4A),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: .14)),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFDCE9F8)),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x44001844),
+                color: Color(0x24174A7E),
                 blurRadius: 26,
                 offset: Offset(0, 12),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(8),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               shrinkWrap: true,
@@ -1322,7 +1413,6 @@ class _FeatureCResultsSheet extends StatelessWidget {
                   activeStopIndex: activeStopIndex,
                   totalStops: tripTotalStops,
                   completedStops: completedStopCount,
-                  onChooseRoute: onChooseRoute,
                   onStartTrip: onStartTrip,
                   onArrived: onArrived,
                   onNextPlace: onNextPlace,
@@ -1350,15 +1440,19 @@ class _FeatureCResultsSheet extends StatelessWidget {
                       stop: stops[i],
                       active:
                           i == activeStopIndex &&
+                          !completedStopNames.contains(
+                            stops[i].attraction.name,
+                          ) &&
                           tripStatus != FeatureCTripStatus.notStarted,
-                      completed:
-                          tripStatus == FeatureCTripStatus.completed ||
-                          i < activeStopIndex,
+                      completed: completedStopNames.contains(
+                        stops[i].attraction.name,
+                      ),
                       arrived:
                           i == activeStopIndex &&
                           tripStatus == FeatureCTripStatus.arrived,
                       ongoing: ongoingDestination == stops[i].attraction.name,
                       onFocus: () => onFocusStop(stops[i]),
+                      onNavigate: () => onChooseRoute(stops[i].attraction.name),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1472,7 +1566,6 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
     required this.activeStopIndex,
     required this.totalStops,
     required this.completedStops,
-    required this.onChooseRoute,
     required this.onStartTrip,
     required this.onArrived,
     required this.onNextPlace,
@@ -1484,7 +1577,6 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
   final int activeStopIndex;
   final int totalStops;
   final int completedStops;
-  final ValueChanged<String> onChooseRoute;
   final VoidCallback onStartTrip;
   final VoidCallback onArrived;
   final VoidCallback onNextPlace;
@@ -1550,9 +1642,9 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0x3322C7F4),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x6638D9FF)),
+        color: const Color(0xFFEAF3FF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFBFD9FA)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1562,51 +1654,25 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
               const Icon(Icons.timeline_rounded, color: Color(0xFF40A9FF)),
               const SizedBox(width: 8),
               Expanded(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap:
-                      status == FeatureCTripStatus.traveling &&
-                          activeStop != null
-                      ? () => onChooseRoute(activeStop.attraction.name)
-                      : null,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                            if (status == FeatureCTripStatus.traveling &&
-                                activeStop != null)
-                              const Padding(
-                                padding: EdgeInsets.only(left: 6),
-                                child: Icon(
-                                  Icons.alt_route_rounded,
-                                  size: 16,
-                                  color: Color(0xFF40A9FF),
-                                ),
-                              ),
-                          ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: Color(0xFF607086),
+                          fontSize: 12,
                         ),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: .72),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1647,6 +1713,7 @@ class _ItineraryStopCard extends StatelessWidget {
     required this.arrived,
     required this.ongoing,
     required this.onFocus,
+    required this.onNavigate,
   });
 
   final ItineraryStop stop;
@@ -1655,11 +1722,12 @@ class _ItineraryStopCard extends StatelessWidget {
   final bool arrived;
   final bool ongoing;
   final VoidCallback onFocus;
+  final VoidCallback onNavigate;
 
   @override
   Widget build(BuildContext context) {
     final statusLabel = completed
-        ? 'Completed'
+        ? 'Done'
         : arrived
         ? 'Arrived'
         : active
@@ -1675,7 +1743,7 @@ class _ItineraryStopCard extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onFocus,
-      child: _GlassPanel(
+      child: _PlanPanel(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1735,7 +1803,9 @@ class _ItineraryStopCard extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.tonalIcon(
-                      onPressed: onFocus,
+                      onPressed: active && !arrived && !completed
+                          ? onNavigate
+                          : onFocus,
                       icon: Icon(statusIcon),
                       label: Text(ongoing ? 'On Going' : statusLabel),
                     ),
@@ -1762,13 +1832,10 @@ class _ItineraryDetailRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: Colors.white.withValues(alpha: .72)),
+          Icon(icon, size: 16, color: TrasiaColors.primary),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              text,
-              style: TextStyle(color: Colors.white.withValues(alpha: .76)),
-            ),
+            child: Text(text, style: const TextStyle(color: Color(0xFF607086))),
           ),
         ],
       ),
@@ -1776,6 +1843,7 @@ class _ItineraryDetailRow extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _LedgerRow extends StatelessWidget {
   const _LedgerRow(this.label, this.value);
 

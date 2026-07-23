@@ -19,7 +19,8 @@ class PelancongPlanScreen extends StatefulWidget {
   final LatLng? currentLocation;
   final double? currentAccuracyMeters;
   final String? ongoingDestination;
-  final ValueChanged<String> onGoNow;
+  final void Function(String destination, BlindBoxTravelMode travelMode)
+  onGoNow;
   final ValueChanged<String> onCancelDestination;
 
   @override
@@ -42,6 +43,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   int _activeStopIndex = 0;
   int _tripTotalStops = 0;
   int _completedStopCount = 0;
+  final Set<String> _completedStopNames = <String>{};
   late final List<Attraction> _blindBoxLocations = _buildBlindBoxLocations();
   PriceTier get _priceTier => PriceTier.values[_priceIndex.round()];
 
@@ -80,6 +82,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       _activeStopIndex = 0;
       _tripTotalStops = _itinerary.length;
       _completedStopCount = 0;
+      _completedStopNames.clear();
       _routeRevision++;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -93,23 +96,32 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     widget.onCancelDestination(stop.attraction.name);
     final removedIndex = _itinerary.indexOf(stop);
     setState(() {
+      _completedStopNames.remove(stop.attraction.name);
       _itinerary = [
         for (final item in _itinerary)
           if (item != stop) item,
       ];
       _tripTotalStops = max(0, _tripTotalStops - 1);
+      _completedStopCount = _completedStopNames.length;
       if (_itinerary.isEmpty) {
         _itineraryListVisible = false;
         _tripStatus = FeatureCTripStatus.notStarted;
         _activeStopIndex = 0;
         _tripTotalStops = 0;
         _completedStopCount = 0;
+        _completedStopNames.clear();
+      } else if (_completedStopCount == _itinerary.length) {
+        _tripStatus = FeatureCTripStatus.completed;
+        _activeStopIndex = 0;
+        _featureCRoutePoints = const [];
+        _routeRevision++;
       } else if (removedIndex >= 0 && removedIndex < _activeStopIndex) {
         _activeStopIndex--;
       } else if (_activeStopIndex >= _itinerary.length) {
         _activeStopIndex = _itinerary.length - 1;
       }
     });
+    unawaited(_loadFeatureCDrivingRoute());
   }
 
   Future<void> _focusItineraryStop(ItineraryStop stop) async {
@@ -117,12 +129,15 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   }
 
   ItineraryStop? get _activeTripStop {
-    if (_itinerary.isEmpty ||
+    final pendingStops = _itinerary
+        .where((stop) => !_completedStopNames.contains(stop.attraction.name))
+        .toList();
+    if (pendingStops.isEmpty ||
         _activeStopIndex < 0 ||
-        _activeStopIndex >= _itinerary.length) {
+        _activeStopIndex >= pendingStops.length) {
       return null;
     }
-    return _itinerary[_activeStopIndex];
+    return pendingStops[_activeStopIndex];
   }
 
   void _startFeatureCTrip() {
@@ -144,32 +159,38 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     }
     widget.onCancelDestination(stop.attraction.name);
     setState(() {
+      _completedStopNames.add(stop.attraction.name);
       _itinerary = [
         for (final item in _itinerary)
-          if (item != stop) item,
+          if (!_completedStopNames.contains(item.attraction.name)) item,
+        for (final item in _itinerary)
+          if (_completedStopNames.contains(item.attraction.name)) item,
       ];
-      _completedStopCount = min(_tripTotalStops, _completedStopCount + 1);
-      if (_itinerary.isEmpty) {
+      _completedStopCount = _completedStopNames.length;
+      final pendingCount = _itinerary.length - _completedStopCount;
+      if (pendingCount == 0) {
         _tripStatus = FeatureCTripStatus.completed;
         _activeStopIndex = 0;
         _featureCRoutePoints = const [];
         _routeRevision++;
         return;
       }
-      if (_activeStopIndex >= _itinerary.length) {
-        _activeStopIndex = _itinerary.length - 1;
-      }
+      _activeStopIndex = 0;
       _tripStatus = FeatureCTripStatus.traveling;
       _routeRevision++;
     });
+    unawaited(_loadFeatureCDrivingRoute());
     unawaited(_focusActiveTripStop());
   }
 
   void _goToNextFeatureCStop() {
-    if (_itinerary.isEmpty) {
+    final pendingCount = _itinerary
+        .where((stop) => !_completedStopNames.contains(stop.attraction.name))
+        .length;
+    if (pendingCount == 0) {
       return;
     }
-    if (_activeStopIndex >= _itinerary.length - 1) {
+    if (_activeStopIndex >= pendingCount - 1) {
       setState(() => _tripStatus = FeatureCTripStatus.completed);
       return;
     }
@@ -193,6 +214,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       _activeStopIndex = 0;
       _tripTotalStops = 0;
       _completedStopCount = 0;
+      _completedStopNames.clear();
       _routeRevision++;
     });
   }
@@ -345,12 +367,24 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       });
       return;
     }
-    if (!_GoogleMapsConfig.isReady || _itinerary.length < 2) {
+    final pendingStops = _itinerary
+        .where((stop) => !_completedStopNames.contains(stop.attraction.name))
+        .toList();
+    if (pendingStops.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _featureCRoutePoints = const [];
+          _routeRevision++;
+        });
+      }
+      return;
+    }
+    if (!_GoogleMapsConfig.isReady) {
       return;
     }
     final routeTargets = [
       if (widget.currentLocation != null) widget.currentLocation!,
-      for (final stop in _itinerary) stop.attraction.location,
+      for (final stop in pendingStops) stop.attraction.location,
     ];
     if (routeTargets.length < 2) {
       return;
@@ -728,160 +762,179 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   Widget build(BuildContext context) {
     _mapController = widget.mapController ?? _mapController;
     _publishMapView();
+    final planTheme = ThemeData(
+      brightness: Brightness.light,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: TrasiaColors.primary,
+        brightness: Brightness.light,
+      ),
+      useMaterial3: true,
+    );
     if (_itinerary.isNotEmpty || _tripStatus == FeatureCTripStatus.completed) {
-      return Stack(
-        key: const Key('feature-c-results-map'),
-        fit: StackFit.expand,
-        children: [
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
-              child: Column(
-                children: [
-                  const _SectionTitle(
-                    icon: Icons.explore_rounded,
-                    title: 'KL Blind Box',
-                    trailing: 'Map results',
-                  ),
-                  const Spacer(),
-                  if (_itinerary.isNotEmpty)
-                    Align(
-                      alignment: Alignment.bottomLeft,
-                      child: _FeatureCResultsToggle(
-                        count: _itinerary.length,
-                        expanded: _itineraryListVisible,
-                        onTap: () => setState(
-                          () => _itineraryListVisible = !_itineraryListVisible,
-                        ),
-                      ),
-                    )
-                  else
-                    _FeatureCTripCompletedBanner(
-                      onPlanAnotherTrip: _resetFeatureCPlanner,
+      return Theme(
+        data: planTheme,
+        child: Stack(
+          key: const Key('feature-c-results-map'),
+          fit: StackFit.expand,
+          children: [
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                child: Column(
+                  children: [
+                    const _PlanSectionTitle(
+                      icon: Icons.explore_rounded,
+                      title: 'KL Blind Box',
+                      trailing: 'Map results',
                     ),
-                ],
+                    const Spacer(),
+                    if (_itinerary.isNotEmpty)
+                      Align(
+                        alignment: Alignment.bottomLeft,
+                        child: _FeatureCResultsToggle(
+                          count: _itinerary.length,
+                          expanded: _itineraryListVisible,
+                          onTap: () => setState(
+                            () =>
+                                _itineraryListVisible = !_itineraryListVisible,
+                          ),
+                        ),
+                      )
+                    else
+                      _FeatureCTripCompletedBanner(
+                        onPlanAnotherTrip: _resetFeatureCPlanner,
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-          if (_itineraryListVisible && _itinerary.isNotEmpty)
-            _FeatureCResultsSheet(
-              stops: _itinerary,
-              priceTier: _priceTier,
-              ongoingDestination: widget.ongoingDestination,
-              tripStatus: _tripStatus,
-              activeStopIndex: _activeStopIndex,
-              tripTotalStops: _tripTotalStops,
-              completedStopCount: _completedStopCount,
-              onClose: () => setState(() => _itineraryListVisible = false),
-              onCancel: _confirmCancel,
-              onFocusStop: _focusItineraryStop,
-              onChooseRoute: widget.onGoNow,
-              onStartTrip: _startFeatureCTrip,
-              onArrived: _markActiveStopArrived,
-              onNextPlace: _goToNextFeatureCStop,
-              onFinishTrip: _finishFeatureCTrip,
-            ),
-        ],
+            if (_itineraryListVisible && _itinerary.isNotEmpty)
+              _FeatureCResultsSheet(
+                stops: _itinerary,
+                priceTier: _priceTier,
+                ongoingDestination: widget.ongoingDestination,
+                tripStatus: _tripStatus,
+                activeStopIndex: _activeStopIndex,
+                tripTotalStops: _tripTotalStops,
+                completedStopCount: _completedStopCount,
+                completedStopNames: _completedStopNames,
+                onClose: () => setState(() => _itineraryListVisible = false),
+                onCancel: _confirmCancel,
+                onFocusStop: _focusItineraryStop,
+                onChooseRoute: (destination) =>
+                    widget.onGoNow(destination, _travelMode),
+                onStartTrip: _startFeatureCTrip,
+                onArrived: _markActiveStopArrived,
+                onNextPlace: _goToNextFeatureCStop,
+                onFinishTrip: _finishFeatureCTrip,
+              ),
+          ],
+        ),
       );
     }
 
-    return _BlueShell(
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(
-          18,
-          MediaQuery.paddingOf(context).top + 8,
-          18,
-          22,
-        ),
-        children: [
-          const _SectionTitle(
-            icon: Icons.explore_rounded,
-            title: 'KL Blind Box',
-            trailing: '1000 places',
+    return Theme(
+      data: planTheme,
+      child: ColoredBox(
+        color: const Color(0xFFF7FAFE),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            MediaQuery.paddingOf(context).top + 8,
+            18,
+            110,
           ),
-          _GlassPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _PlanSlider(
-                  icon: Icons.place_rounded,
-                  label: 'Attractions',
-                  valueLabel: '${_attractionCount.round()} stops',
-                  value: _attractionCount,
-                  min: 3,
-                  max: 6,
-                  divisions: 3,
-                  onChanged: (value) => setState(() {
-                    _attractionCount = value;
-                    _itinerary = const [];
-                  }),
-                ),
-                _PlanSlider(
-                  icon: Icons.route_rounded,
-                  label: 'Trip distance',
-                  valueLabel: '${_distanceKm.round()} km',
-                  value: _distanceKm,
-                  min: 1,
-                  max: 50,
-                  divisions: 49,
-                  onChanged: (value) => setState(() {
-                    _distanceKm = value;
-                    _itinerary = const [];
-                  }),
-                ),
-                _BlindBoxTravelModeSelector(
-                  value: _travelMode,
-                  onChanged: (value) => setState(() {
-                    _travelMode = value;
-                    _itinerary = const [];
-                    _featureCRoutePoints = const [];
-                  }),
-                ),
-                const SizedBox(height: 8),
-                _PlanSlider(
-                  icon: Icons.payments_rounded,
-                  label: 'Pricing',
-                  valueLabel: _priceTier.label,
-                  value: _priceIndex,
-                  min: 0,
-                  max: 2,
-                  divisions: 2,
-                  onChanged: (value) => setState(() {
-                    _priceIndex = value;
-                    _itinerary = const [];
-                  }),
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    key: const Key('generate-route'),
-                    onPressed: _generate,
-                    icon: const Icon(Icons.auto_awesome_rounded),
-                    label: const Text('Open Blind Box'),
-                  ),
-                ),
-              ],
+          children: [
+            const _PlanSectionTitle(
+              icon: Icons.explore_rounded,
+              title: 'KL Blind Box',
+              trailing: '1000 places',
             ),
-          ),
-          const SizedBox(height: 16),
-          _GlassPanel(
-            child: Row(
-              children: [
-                const Icon(Icons.event_note_rounded, color: Color(0xFF40A9FF)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Choose attraction count, distance, and pricing, then open a blind box from 1000 KL locations.',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: .78),
+            _PlanPanel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _PlanSlider(
+                    icon: Icons.place_rounded,
+                    label: 'Attractions',
+                    valueLabel: '${_attractionCount.round()} stops',
+                    value: _attractionCount,
+                    min: 3,
+                    max: 6,
+                    divisions: 3,
+                    onChanged: (value) => setState(() {
+                      _attractionCount = value;
+                      _itinerary = const [];
+                    }),
+                  ),
+                  _PlanSlider(
+                    icon: Icons.route_rounded,
+                    label: 'Trip distance',
+                    valueLabel: '${_distanceKm.round()} km',
+                    value: _distanceKm,
+                    min: 1,
+                    max: 50,
+                    divisions: 49,
+                    onChanged: (value) => setState(() {
+                      _distanceKm = value;
+                      _itinerary = const [];
+                    }),
+                  ),
+                  _BlindBoxTravelModeSelector(
+                    value: _travelMode,
+                    onChanged: (value) => setState(() {
+                      _travelMode = value;
+                      _itinerary = const [];
+                      _featureCRoutePoints = const [];
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  _PlanSlider(
+                    icon: Icons.payments_rounded,
+                    label: 'Pricing',
+                    valueLabel: _priceTier.label,
+                    value: _priceIndex,
+                    min: 0,
+                    max: 2,
+                    divisions: 2,
+                    onChanged: (value) => setState(() {
+                      _priceIndex = value;
+                      _itinerary = const [];
+                    }),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      key: const Key('generate-route'),
+                      onPressed: _generate,
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: const Text('Open Blind Box'),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 14),
+            _PlanPanel(
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.event_note_rounded,
+                    color: TrasiaColors.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Choose attraction count, distance, and pricing, then open a blind box from 1000 KL locations.',
+                      style: TextStyle(color: Color(0xFF607086), height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
