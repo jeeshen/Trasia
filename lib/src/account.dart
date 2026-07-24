@@ -182,6 +182,24 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
     );
   }
 
+  void _showGovernmentData() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .78,
+        minChildSize: .46,
+        maxChildSize: .92,
+        builder: (context, scrollController) => _GovernmentDataSheet(
+          scrollController: scrollController,
+        ),
+      ),
+    );
+  }
+
   void _showTerms() {
     showModalBottomSheet<void>(
       context: context,
@@ -357,6 +375,12 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
               onTap: _showHistory,
             ),
             _ProfileSettingRow(
+              icon: Icons.dataset_rounded,
+              title: 'Government Data',
+              subtitle: 'data.gov.my, OpenDOSM, MYSA, World Bank',
+              onTap: _showGovernmentData,
+            ),
+            _ProfileSettingRow(
               icon: Icons.description_outlined,
               title: 'Terms & Conditions',
               onTap: _showTerms,
@@ -376,6 +400,252 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _GovernmentDataSheet extends StatelessWidget {
+  const _GovernmentDataSheet({required this.scrollController});
+
+  final ScrollController scrollController;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: ListView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(22, 4, 22, 28),
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.dataset_rounded, color: TrasiaColors.primary),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Government Data',
+                  style: TextStyle(
+                    color: Color(0xFF102033),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Key Initiatives & Portals used to support Trasia route planning, tourism discovery, and assignment data justification.',
+            style: TextStyle(
+              color: Color(0xFF536477),
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 18),
+          const _GovernmentDataSummary(),
+          const SizedBox(height: 16),
+          for (final source in governmentDataSources) ...[
+            _GovernmentDataCard(source: source),
+            const SizedBox(height: 12),
+          ],
+          const SizedBox(height: 6),
+          const _OfficialEndpointPanel(),
+        ],
+      ),
+    );
+  }
+}
+
+class _GovernmentDataSummary extends StatelessWidget {
+  const _GovernmentDataSummary();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF3FF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFBFD9FA)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.verified_rounded, color: TrasiaColors.primary),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Assignment angle: Trasia is a data-driven Malaysian mobility planner built around official open data, public transport standards, and national statistics.',
+              style: TextStyle(
+                color: Color(0xFF102033),
+                fontWeight: FontWeight.w700,
+                height: 1.38,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GovernmentDataCard extends StatelessWidget {
+  const _GovernmentDataCard({required this.source});
+
+  final GovernmentDataSource source;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1EAF5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: source.color.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(source.icon, color: source.color, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      source.name,
+                      style: const TextStyle(
+                        color: Color(0xFF102033),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      source.portal,
+                      style: const TextStyle(
+                        color: Color(0xFF68788C),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _DataDetailBlock(title: 'Data focus', text: source.focus),
+          const SizedBox(height: 10),
+          _DataDetailBlock(title: 'How Trasia uses it', text: source.projectUse),
+          const SizedBox(height: 12),
+          SelectableText(
+            source.url,
+            style: const TextStyle(
+              color: TrasiaColors.primary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DataDetailBlock extends StatelessWidget {
+  const _DataDetailBlock({required this.title, required this.text});
+
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Color(0xFF102033),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Color(0xFF536477),
+            fontSize: 13,
+            height: 1.38,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OfficialEndpointPanel extends StatelessWidget {
+  const _OfficialEndpointPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF102033),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.directions_transit_rounded, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Official transit API endpoints',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'These endpoints are already referenced in Trasia for Malaysia public transport data.',
+            style: TextStyle(color: Color(0xFFBFD0E5), height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          for (final endpoint in officialTransitDataEndpoints) ...[
+            SelectableText(
+              endpoint,
+              style: const TextStyle(
+                color: Color(0xFF9DFFCB),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 7),
+          ],
+        ],
       ),
     );
   }

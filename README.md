@@ -2,6 +2,23 @@
 
 A new Flutter project.
 
+## Government Data Used
+
+Trasia includes a Government Data section in the Profile screen. It documents
+the official data portals used to support the assignment:
+
+- data.gov.my: Malaysia's official open data portal, used for public transport
+  open data and GTFS API references.
+- OpenDOSM NextGen: DOSM's open statistics platform, used for demographic,
+  economic, price, labour, and social statistics context.
+- MYSA Open Government Data: Malaysia Space Agency open data resources, used to
+  support the open-data and geospatial-data rationale.
+- World Bank Malaysia Data: international benchmark indicators for Malaysia,
+  used to compare mobility, environment, population, and development trends.
+
+The app references official Malaysia transit endpoints from data.gov.my for
+Rapid KL rail, Rapid KL bus, MRT feeder, and KTMB data.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

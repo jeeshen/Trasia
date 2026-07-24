@@ -109,6 +109,9 @@ class LiveMapboxSurface extends StatefulWidget {
     required this.navigating,
     this.vehicleLocation,
     this.vehicleColor,
+    this.vehicleBearing = 0,
+    this.showCurrentLocationMarker = true,
+    this.showRouteEndpoints = true,
     this.initialTarget,
     this.initialZoom,
     this.extraMarkers = const <gmaps.Marker>{},
@@ -125,6 +128,9 @@ class LiveMapboxSurface extends StatefulWidget {
   final bool navigating;
   final gmaps.LatLng? vehicleLocation;
   final Color? vehicleColor;
+  final double vehicleBearing;
+  final bool showCurrentLocationMarker;
+  final bool showRouteEndpoints;
   final gmaps.LatLng? initialTarget;
   final double? initialZoom;
   final Set<gmaps.Marker> extraMarkers;
@@ -142,8 +148,10 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   mapbox.PolylineAnnotationManager? _polylineManager;
   mapbox.CircleAnnotationManager? _circleManager;
   Future<void>? _annotationSetup;
-  Future<void> _annotationUpdates = Future<void>.value();
+  bool _annotationUpdateRunning = false;
+  bool _annotationUpdateRequested = false;
   Future<Uint8List>? _selfMarkerBytes;
+  final Map<int, Future<Uint8List>> _vehicleMarkerBytes = {};
   bool _isMapLoaded = false;
 
   @override
@@ -231,16 +239,30 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   }
 
   void _scheduleAnnotationUpdate() {
-    _annotationUpdates = _annotationUpdates
-        .then((_) async {
-          await _ensureAnnotationManagers();
-          if (mounted) {
-            await _updateAnnotations();
-          }
-        })
-        .catchError((Object error, StackTrace stackTrace) {
-          debugPrint('Map annotation update failed: $error');
-        });
+    _annotationUpdateRequested = true;
+    if (_annotationUpdateRunning) {
+      return;
+    }
+    _annotationUpdateRunning = true;
+    unawaited(_drainAnnotationUpdates());
+  }
+
+  Future<void> _drainAnnotationUpdates() async {
+    while (mounted && _annotationUpdateRequested) {
+      _annotationUpdateRequested = false;
+      try {
+        await _ensureAnnotationManagers();
+        if (mounted) {
+          await _updateAnnotations();
+        }
+      } catch (error) {
+        debugPrint('Map annotation update failed: $error');
+      }
+    }
+    _annotationUpdateRunning = false;
+    if (mounted && _annotationUpdateRequested) {
+      _scheduleAnnotationUpdate();
+    }
   }
 
   Future<void> _ensureAnnotationManagers() {
@@ -304,7 +326,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       }
     }
 
-    if (widget.currentLocation != null) {
+    if (widget.currentLocation != null && widget.showCurrentLocationMarker) {
       if (widget.currentAccuracyMeters != null &&
           widget.currentAccuracyMeters! > 0) {
         await _createCircle(
@@ -333,18 +355,20 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     }
 
     if (widget.vehicleLocation != null) {
-      await _createCircle(
-        widget.vehicleLocation!,
-        radius: 8,
-        color: widget.vehicleColor ?? Colors.black,
-        strokeColor: Colors.white,
+      await _pointManager!.create(
+        mapbox.PointAnnotationOptions(
+          geometry: _point(widget.vehicleLocation!),
+          image: await _vehicleMarker(widget.vehicleColor ?? Colors.black),
+          iconSize: .62,
+          iconRotate: widget.vehicleBearing,
+        ),
       );
     }
 
     final routePoints =
         widget.selectedRoute?.legs.expand((leg) => leg.points).toList() ??
         const <gmaps.LatLng>[];
-    if (routePoints.isNotEmpty) {
+    if (routePoints.isNotEmpty && widget.showRouteEndpoints) {
       await _createCircle(
         routePoints.first,
         radius: 8,
@@ -406,6 +430,98 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
 
   Future<Uint8List> _selfMarker() {
     return _selfMarkerBytes ??= _drawSelfMarker();
+  }
+
+  Future<Uint8List> _vehicleMarker(Color color) {
+    return _vehicleMarkerBytes.putIfAbsent(
+      color.value,
+      () => _drawVehicleMarker(color),
+    );
+  }
+
+  Future<Uint8List> _drawVehicleMarker(Color color) async {
+    const size = 112.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    final shadow = Paint()
+      ..color = const Color(0x44001844)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 6);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(27, 16, 58, 84).shift(const Offset(0, 4)),
+        const Radius.circular(24),
+      ),
+      shadow,
+    );
+
+    final tirePaint = Paint()..color = const Color(0xFF17202A);
+    for (final rect in const [
+      Rect.fromLTWH(20, 35, 10, 22),
+      Rect.fromLTWH(82, 35, 10, 22),
+      Rect.fromLTWH(20, 70, 10, 22),
+      Rect.fromLTWH(82, 70, 10, 22),
+    ]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(5)),
+        tirePaint,
+      );
+    }
+
+    final body = Paint()..color = color;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(26, 12, 60, 88),
+        const Radius.circular(25),
+      ),
+      body,
+    );
+
+    final highlight = Paint()
+      ..color = Colors.white.withValues(alpha: .42)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(29, 15, 54, 82),
+        const Radius.circular(22),
+      ),
+      highlight,
+    );
+
+    final glass = Paint()..color = const Color(0xFF1E3950);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(34, 31, 44, 25),
+        const Radius.circular(8),
+      ),
+      glass,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(36, 65, 40, 18),
+        const Radius.circular(7),
+      ),
+      glass,
+    );
+
+    final glassShine = Paint()..color = const Color(0xFF8ED8F8);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(39, 35, 8, 17),
+        const Radius.circular(4),
+      ),
+      glassShine,
+    );
+
+    final light = Paint()..color = const Color(0xFFFFF3A3);
+    canvas.drawCircle(const Offset(39, 20), 5, light);
+    canvas.drawCircle(const Offset(73, 20), 5, light);
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return bytes!.buffer.asUint8List();
   }
 
   Future<Uint8List> _drawSelfMarker() async {

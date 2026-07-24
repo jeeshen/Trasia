@@ -69,6 +69,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   bool _loadingPickupLocation = false;
   LatLng? _hubCurrentLocation;
   double? _hubCurrentAccuracyMeters;
+  LatLng? _snappedRideLocation;
   static const _origin = LatLng(3.1478, 101.6953);
   static const _originName = 'Current pickup point';
   LatLng get _pickupLocation =>
@@ -273,6 +274,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _route = null;
       _destinationStatusMessage = null;
       _fareDeducted = false;
+      _snappedRideLocation = null;
     });
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_seconds <= 1) {
@@ -347,9 +349,13 @@ class _HubPoolScreenState extends State<HubPoolScreen>
         if (!_fareDeducted) {
           widget.onFareDeducted(fare);
         }
+        final pickupRoadPoint = _route?.points.isNotEmpty ?? false
+            ? _route!.points.last
+            : _pickupLocation;
         setState(() {
           _seconds = 0;
           _stage = RideStage.onboard;
+          _snappedRideLocation = pickupRoadPoint;
           _route = _destinationRoute(destination);
           _approachAnimationPoints = const [];
           _fareDeducted = true;
@@ -372,6 +378,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _seconds = 0;
       _route = null;
       _approachAnimationPoints = const [];
+      _snappedRideLocation = null;
     });
   }
 
@@ -405,9 +412,61 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           : _pointAlongPath(animationPoints, _carController.value);
     }
     if (_stage == RideStage.onboard) {
-      return _rideCurrentLocation;
+      return _snappedRideLocation ?? _rideCurrentLocation;
     }
     return driver.startLocation;
+  }
+
+  TransitOption? get _visibleRoute {
+    final route = _route;
+    if (route == null ||
+        _stage != RideStage.tracking ||
+        route.legs.isEmpty ||
+        route.points.length < 2) {
+      return route;
+    }
+    final remainingPoints = _remainingPath(route.points, _carController.value);
+    final leg = route.legs.first;
+    return route.copyWith(
+      legs: [
+        RouteLeg(
+          fromName: leg.fromName,
+          toName: leg.toName,
+          mode: leg.mode,
+          time: leg.time,
+          distance: leg.distance,
+          icon: leg.icon,
+          points: remainingPoints,
+        ),
+        ...route.legs.skip(1),
+      ],
+    );
+  }
+
+  double get _vehicleBearing {
+    final points = _stage == RideStage.tracking
+        ? (_route?.points.isNotEmpty ?? false)
+              ? _route!.points
+              : _approachAnimationPoints
+        : _route?.points ?? const <LatLng>[];
+    if (points.length < 2) {
+      return 0;
+    }
+    final progress = _stage == RideStage.tracking ? _carController.value : 0.0;
+    final from = _pointAlongPath(points, progress);
+    final to = _pointAlongPath(points, min(1, progress + .01));
+    if (from == null ||
+        to == null ||
+        (from.latitude == to.latitude && from.longitude == to.longitude)) {
+      return 0;
+    }
+    final bearing = Geolocator.bearingBetween(
+      from.latitude,
+      from.longitude,
+      to.latitude,
+      to.longitude,
+    );
+    return bearing.isNaN ? 0 : bearing;
   }
 
   double get _selectedDistanceKm =>
@@ -420,11 +479,15 @@ class _HubPoolScreenState extends State<HubPoolScreen>
         'hub|${_pointKey(_pickupLocation)}|${_destination?.placeId}|${_route?.label}|${_route?.time}|${_route?.distance}|${_route?.points.length}|$_stage|${_driver?.name}|${_pointKey(_vehicleLocation)}|${_destinationCandidates.length}',
     currentLocation: _pickupLocation,
     currentAccuracyMeters: _pickupAccuracyMeters,
-    candidate: _destination,
-    selectedRoute: _route,
+    candidate: _stage == RideStage.tracking ? null : _destination,
+    selectedRoute: _visibleRoute,
     navigating: _stage == RideStage.tracking || _stage == RideStage.onboard,
     vehicleLocation: _vehicleLocation,
     vehicleColor: _driver?.color,
+    vehicleBearing: _vehicleBearing,
+    showCurrentLocationMarker: _stage != RideStage.onboard,
+    showRouteEndpoints:
+        _stage != RideStage.tracking && _stage != RideStage.onboard,
     initialTarget: _destination?.location ?? _pickupLocation,
     initialZoom: _destination == null ? 13 : 14.5,
   );
@@ -740,7 +803,12 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           ),
         ],
       );
-      setState(() => _route = drivingRoute);
+      setState(() {
+        _route = drivingRoute;
+        if (route.points.isNotEmpty) {
+          _snappedRideLocation = route.points.first;
+        }
+      });
       _publishMapView();
       await _fitRoute(drivingRoute.points);
     } catch (_) {
@@ -784,6 +852,36 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       );
     }
     return points.last;
+  }
+
+  List<LatLng> _remainingPath(List<LatLng> points, double progress) {
+    if (points.length < 2) {
+      return points;
+    }
+    final current = _pointAlongPath(points, progress);
+    if (current == null) {
+      return points;
+    }
+    final clamped = progress.clamp(0, 1).toDouble();
+    final segmentLengths = <double>[];
+    var totalMeters = 0.0;
+    for (var i = 0; i < points.length - 1; i++) {
+      final length = _distanceMeters(points[i], points[i + 1]);
+      segmentLengths.add(length);
+      totalMeters += length;
+    }
+    if (totalMeters == 0) {
+      return [current, points.last];
+    }
+
+    var travelledMeters = totalMeters * clamped;
+    var segmentIndex = 0;
+    while (segmentIndex < segmentLengths.length - 1 &&
+        travelledMeters > segmentLengths[segmentIndex]) {
+      travelledMeters -= segmentLengths[segmentIndex];
+      segmentIndex++;
+    }
+    return [current, ...points.skip(segmentIndex + 1)];
   }
 
   double _distanceMeters(LatLng from, LatLng to) {
@@ -954,6 +1052,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _destinationCandidates = const [];
       _route = null;
       _approachAnimationPoints = const [];
+      _snappedRideLocation = null;
       _destinationStatusMessage = null;
       _fareDeducted = false;
     });

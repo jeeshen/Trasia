@@ -249,6 +249,9 @@ class SharedMapView {
     this.navigating = false,
     this.vehicleLocation,
     this.vehicleColor,
+    this.vehicleBearing = 0,
+    this.showCurrentLocationMarker = true,
+    this.showRouteEndpoints = true,
     this.initialTarget,
     this.initialZoom,
     this.extraMarkers = const <Marker>{},
@@ -263,6 +266,9 @@ class SharedMapView {
   final bool navigating;
   final LatLng? vehicleLocation;
   final Color? vehicleColor;
+  final double vehicleBearing;
+  final bool showCurrentLocationMarker;
+  final bool showRouteEndpoints;
   final LatLng? initialTarget;
   final double? initialZoom;
   final Set<Marker> extraMarkers;

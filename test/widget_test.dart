@@ -90,9 +90,13 @@ void main() {
     expect(find.text('preview-user@trasia.local'), findsOneWidget);
     expect(find.text('Wallet'), findsOneWidget);
     expect(find.text('History'), findsOneWidget);
+    final profileList = find.ancestor(
+      of: find.text('Profile'),
+      matching: find.byType(ListView),
+    );
+    await tester.drag(profileList, const Offset(0, -260));
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Terms & Conditions'), findsOneWidget);
-    await tester.drag(find.text('Terms & Conditions'), const Offset(0, -160));
-    await tester.pump();
     expect(find.text('Logout'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

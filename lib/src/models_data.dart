@@ -642,6 +642,80 @@ const gtfsStaticMrtFeederEndpoint =
     'https://api.data.gov.my/gtfs-static/prasarana?category=rapid-bus-mrtfeeder';
 const gtfsStaticKtmbEndpoint = 'https://api.data.gov.my/gtfs-static/ktmb';
 
+class GovernmentDataSource {
+  const GovernmentDataSource({
+    required this.name,
+    required this.portal,
+    required this.url,
+    required this.focus,
+    required this.projectUse,
+    required this.icon,
+    required this.color,
+  });
+
+  final String name;
+  final String portal;
+  final String url;
+  final String focus;
+  final String projectUse;
+  final IconData icon;
+  final Color color;
+}
+
+const governmentDataSources = [
+  GovernmentDataSource(
+    name: 'data.gov.my',
+    portal: 'Malaysia central open data portal',
+    url: 'https://data.gov.my/',
+    focus:
+        'High-frequency open datasets, dashboards, catalogue search, and developer API access from Malaysian public agencies.',
+    projectUse:
+        'Trasia uses Malaysia open transport data as the foundation for public transport routing. The app references official GTFS endpoints for Rapid KL rail, Rapid KL bus, MRT feeder, and KTMB services.',
+    icon: Icons.dataset_rounded,
+    color: Color(0xFF0B7CFF),
+  ),
+  GovernmentDataSource(
+    name: 'OpenDOSM NextGen',
+    portal: 'Department of Statistics Malaysia',
+    url: 'https://open.dosm.gov.my/',
+    focus:
+        'Official economic, demographic, labour, price, and social statistics through dashboards, catalogues, publications, and APIs.',
+    projectUse:
+        'Used as the trusted context layer for assignment discussion, especially population, tourism demand, cost of living, and urban mobility justification.',
+    icon: Icons.query_stats_rounded,
+    color: Color(0xFF00A9CE),
+  ),
+  GovernmentDataSource(
+    name: 'MYSA Open Government Data',
+    portal: 'Malaysian Space Agency',
+    url: 'https://www.mysa.gov.my/open-government-data/',
+    focus:
+        'Open government data principles and geospatial or remote sensing data access from Malaysia Space Agency resources.',
+    projectUse:
+        'Supports the open-data rationale for location-aware planning, map-based tourism discovery, and reuse of public geospatial information.',
+    icon: Icons.public_rounded,
+    color: Color(0xFF3CCB7F),
+  ),
+  GovernmentDataSource(
+    name: 'World Bank Malaysia Data',
+    portal: 'International development indicators',
+    url: 'https://data.worldbank.org/country/malaysia',
+    focus:
+        'Internationally comparable Malaysia indicators across economy, population, transport, environment, and development.',
+    projectUse:
+        'Provides external benchmark data for explaining Malaysia trends and comparing Trasia benefits such as lower travel cost and carbon-conscious mobility.',
+    icon: Icons.language_rounded,
+    color: Color(0xFFFFA800),
+  ),
+];
+
+const officialTransitDataEndpoints = [
+  gtfsStaticRapidRailKlEndpoint,
+  gtfsStaticRapidBusKlEndpoint,
+  gtfsStaticMrtFeederEndpoint,
+  gtfsStaticKtmbEndpoint,
+];
+
 const _klTransitStops = [
   _TransitStopNode('kl_sentral', 'KL Sentral', LatLng(3.1340, 101.6869)),
   _TransitStopNode('muzium', 'Muzium Negara MRT', LatLng(3.1379, 101.6870)),
