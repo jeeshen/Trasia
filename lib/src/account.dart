@@ -8,7 +8,12 @@ class AccountConsoleScreen extends StatefulWidget {
     required this.savedTransitRoutes,
     required this.hubPoolTransactions,
     required this.carbonSavedKg,
+    required this.favoritePlaces,
+    required this.tripHistory,
     required this.onTopUp,
+    required this.onRemoveFavorite,
+    required this.onRevisitFavorite,
+    required this.onRevisitHistory,
     required this.onLogout,
     super.key,
   });
@@ -19,7 +24,12 @@ class AccountConsoleScreen extends StatefulWidget {
   final int savedTransitRoutes;
   final int hubPoolTransactions;
   final double carbonSavedKg;
+  final List<FavoritePlace> favoritePlaces;
+  final List<TripHistoryEntry> tripHistory;
   final ValueChanged<double> onTopUp;
+  final ValueChanged<FavoritePlace> onRemoveFavorite;
+  final ValueChanged<FavoritePlace> onRevisitFavorite;
+  final ValueChanged<TripHistoryEntry> onRevisitHistory;
   final VoidCallback onLogout;
 
   @override
@@ -157,26 +167,50 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
-      builder: (context) => _ProfileSheet(
-        title: 'History',
-        icon: Icons.history_rounded,
-        child: Column(
-          children: [
-            _HistoryRow(
-              label: 'Saved transit routes',
-              value: '${widget.savedTransitRoutes}',
-            ),
-            _HistoryRow(
-              label: 'Hub-Pool transactions',
-              value: '${widget.hubPoolTransactions}',
-            ),
-            _HistoryRow(
-              label: 'Carbon saved',
-              value: '${widget.carbonSavedKg.toStringAsFixed(1)} kg',
-              showDivider: false,
-            ),
-          ],
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .72,
+        minChildSize: .42,
+        maxChildSize: .92,
+        builder: (context, scrollController) => _HistorySheet(
+          entries: widget.tripHistory,
+          scrollController: scrollController,
+          onRevisit: _confirmRevisit,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmRevisit(TripHistoryEntry entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _RevisitConfirmDialog(placeName: entry.placeName),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    Navigator.of(context).pop();
+    widget.onRevisitHistory(entry);
+  }
+
+  void _showFavorites() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .72,
+        minChildSize: .42,
+        maxChildSize: .92,
+        builder: (context, scrollController) => _FavoritesSheet(
+          places: widget.favoritePlaces,
+          scrollController: scrollController,
+          onRemove: widget.onRemoveFavorite,
+          onRevisit: widget.onRevisitFavorite,
         ),
       ),
     );
@@ -193,9 +227,8 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
         initialChildSize: .78,
         minChildSize: .46,
         maxChildSize: .92,
-        builder: (context, scrollController) => _GovernmentDataSheet(
-          scrollController: scrollController,
-        ),
+        builder: (context, scrollController) =>
+            _GovernmentDataSheet(scrollController: scrollController),
       ),
     );
   }
@@ -370,9 +403,18 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
             _ProfileSettingRow(
               icon: Icons.history_rounded,
               title: 'History',
-              subtitle:
-                  '${widget.savedTransitRoutes} saved routes · ${widget.hubPoolTransactions} rides',
+              subtitle: widget.tripHistory.isEmpty
+                  ? 'Completed places will appear here'
+                  : '${widget.tripHistory.length} completed places',
               onTap: _showHistory,
+            ),
+            _ProfileSettingRow(
+              icon: Icons.favorite_border_rounded,
+              title: 'Favorites',
+              subtitle: widget.favoritePlaces.isEmpty
+                  ? 'Save places from search or KL Blind Box'
+                  : '${widget.favoritePlaces.length} saved places',
+              onTap: _showFavorites,
             ),
             _ProfileSettingRow(
               icon: Icons.dataset_rounded,
@@ -400,6 +442,579 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RevisitConfirmDialog extends StatelessWidget {
+  const _RevisitConfirmDialog({required this.placeName});
+
+  final String placeName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.near_me_rounded, color: TrasiaColors.primary),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Go again?',
+                    style: TextStyle(
+                      color: Color(0xFF102033),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Do you want to go to $placeName again?',
+              style: const TextStyle(
+                color: Color(0xFF536477),
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('No'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Yes'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HistorySheet extends StatelessWidget {
+  const _HistorySheet({
+    required this.entries,
+    required this.scrollController,
+    required this.onRevisit,
+  });
+
+  final List<TripHistoryEntry> entries;
+  final ScrollController scrollController;
+  final ValueChanged<TripHistoryEntry> onRevisit;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: ListView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(22, 4, 22, 28),
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.history_rounded, color: TrasiaColors.primary),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'History',
+                  style: TextStyle(
+                    color: Color(0xFF102033),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            entries.isEmpty
+                ? 'Completed trips will appear here.'
+                : '${entries.length} completed places',
+            style: const TextStyle(
+              color: Color(0xFF536477),
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (entries.isEmpty)
+            const _HistoryEmptyState()
+          else
+            for (final entry in entries) ...[
+              _HistoryEntryCard(entry: entry, onTap: () => onRevisit(entry)),
+              const SizedBox(height: 12),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryEmptyState extends StatelessWidget {
+  const _HistoryEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FAFE),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1EAF5)),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.flag_outlined, color: TrasiaColors.primary, size: 36),
+          SizedBox(height: 10),
+          Text(
+            'No completed places yet',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF102033),
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Start a Transit, Ride, or Plan trip and tap the arrival button.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF68788C), height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryEntryCard extends StatelessWidget {
+  const _HistoryEntryCard({required this.entry, required this.onTap});
+
+  final TripHistoryEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (entry.category) {
+      'Transit' => TrasiaColors.primary,
+      'Ride' => const Color(0xFF00A86B),
+      'Plan' => const Color(0xFFFFA800),
+      _ => const Color(0xFF68788C),
+    };
+    final icon = switch (entry.category) {
+      'Transit' => Icons.directions_transit_rounded,
+      'Ride' => Icons.directions_car_rounded,
+      'Plan' => Icons.backpack_rounded,
+      _ => Icons.place_rounded,
+    };
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE1EAF5)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 21),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.placeName,
+                          style: const TextStyle(
+                            color: Color(0xFF102033),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      _HistoryCategoryPill(label: entry.category, color: color),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _historyTimestamp(entry.completedAt),
+                    style: const TextStyle(
+                      color: Color(0xFF8A98AA),
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (entry.category == 'Ride' && entry.amountPaid != null) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.payments_outlined,
+                          size: 15,
+                          color: Color(0xFF536477),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Paid RM ${entry.amountPaid!.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Color(0xFF536477),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryCategoryPill extends StatelessWidget {
+  const _HistoryCategoryPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+String _historyTimestamp(DateTime dateTime) {
+  final local = dateTime.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$day/$month/${local.year} $hour:$minute';
+}
+
+class _FavoritesSheet extends StatefulWidget {
+  const _FavoritesSheet({
+    required this.places,
+    required this.scrollController,
+    required this.onRemove,
+    required this.onRevisit,
+  });
+
+  final List<FavoritePlace> places;
+  final ScrollController scrollController;
+  final ValueChanged<FavoritePlace> onRemove;
+  final ValueChanged<FavoritePlace> onRevisit;
+
+  @override
+  State<_FavoritesSheet> createState() => _FavoritesSheetState();
+}
+
+class _FavoritesSheetState extends State<_FavoritesSheet> {
+  late List<FavoritePlace> _places;
+
+  @override
+  void initState() {
+    super.initState();
+    _places = List<FavoritePlace>.of(widget.places);
+  }
+
+  void _remove(FavoritePlace place) {
+    setState(() {
+      _places = [
+        for (final favorite in _places)
+          if (favorite.key != place.key) favorite,
+      ];
+    });
+    widget.onRemove(place);
+  }
+
+  Future<void> _revisit(FavoritePlace place) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _RevisitConfirmDialog(placeName: place.name),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    Navigator.of(context).pop();
+    widget.onRevisit(place);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: ListView(
+        controller: widget.scrollController,
+        padding: const EdgeInsets.fromLTRB(22, 4, 22, 28),
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.favorite_rounded, color: Color(0xFFE04470)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Favorites',
+                  style: TextStyle(
+                    color: Color(0xFF102033),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _places.isEmpty
+                ? 'Places you save in Trasia will appear here.'
+                : '${_places.length} saved places',
+            style: const TextStyle(
+              color: Color(0xFF536477),
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (_places.isEmpty)
+            const _FavoritesEmptyState()
+          else
+            for (final place in _places) ...[
+              _FavoritePlaceCard(
+                place: place,
+                onRemove: () => _remove(place),
+                onRevisit: () => _revisit(place),
+              ),
+              const SizedBox(height: 12),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FavoritesEmptyState extends StatelessWidget {
+  const _FavoritesEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FAFE),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1EAF5)),
+      ),
+      child: const Column(
+        children: [
+          Icon(
+            Icons.favorite_border_rounded,
+            color: TrasiaColors.primary,
+            size: 36,
+          ),
+          SizedBox(height: 10),
+          Text(
+            'No favorite places yet',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF102033),
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Tap the heart on any destination or Blind Box place.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF68788C), height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FavoritePlaceCard extends StatelessWidget {
+  const _FavoritePlaceCard({
+    required this.place,
+    required this.onRemove,
+    required this.onRevisit,
+  });
+
+  final FavoritePlace place;
+  final VoidCallback onRemove;
+  final VoidCallback onRevisit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: Color(0xFFE1EAF5)),
+      ),
+      child: InkWell(
+        onTap: onRevisit,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: place.imageAsset.isEmpty
+                    ? Container(
+                        width: 72,
+                        height: 72,
+                        color: place.color.withValues(alpha: .14),
+                        alignment: Alignment.center,
+                        child: Icon(Icons.place_rounded, color: place.color),
+                      )
+                    : Image.asset(
+                        place.imageAsset,
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 72,
+                          height: 72,
+                          color: place.color,
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.image_not_supported_rounded),
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      place.name,
+                      style: const TextStyle(
+                        color: Color(0xFF102033),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    if (place.address.isNotEmpty)
+                      _FavoritePlaceMeta(
+                        icon: Icons.place_rounded,
+                        text: place.address,
+                      ),
+                    _FavoritePlaceMeta(
+                      icon: Icons.schedule_rounded,
+                      text: place.hours,
+                    ),
+                    if (place.suggestedDistanceKm > 0)
+                      _FavoritePlaceMeta(
+                        icon: Icons.route_rounded,
+                        text:
+                            '${place.suggestedDistanceKm.toStringAsFixed(1)} km suggested distance',
+                      ),
+                    if (place.baseCost > 0)
+                      _FavoritePlaceMeta(
+                        icon: Icons.payments_rounded,
+                        text: 'From RM ${place.baseCost}',
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Remove from Favorites',
+                onPressed: onRemove,
+                color: const Color(0xFFE04470),
+                icon: const Icon(Icons.favorite_rounded),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FavoritePlaceMeta extends StatelessWidget {
+  const _FavoritePlaceMeta({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: TrasiaColors.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFF68788C), fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -550,7 +1165,10 @@ class _GovernmentDataCard extends StatelessWidget {
           const SizedBox(height: 12),
           _DataDetailBlock(title: 'Data focus', text: source.focus),
           const SizedBox(height: 10),
-          _DataDetailBlock(title: 'How Trasia uses it', text: source.projectUse),
+          _DataDetailBlock(
+            title: 'How Trasia uses it',
+            text: source.projectUse,
+          ),
           const SizedBox(height: 12),
           SelectableText(
             source.url,
@@ -786,50 +1404,6 @@ class _ProfileSheet extends StatelessWidget {
             child,
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _HistoryRow extends StatelessWidget {
-  const _HistoryRow({
-    required this.label,
-    required this.value,
-    this.showDivider = true,
-  });
-
-  final String label;
-  final String value;
-  final bool showDivider;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 15),
-      decoration: BoxDecoration(
-        border: showDivider
-            ? const Border(bottom: BorderSide(color: Color(0xFFE8EEF5)))
-            : null,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Color(0xFF536477),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Color(0xFF102033),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ),
     );
   }

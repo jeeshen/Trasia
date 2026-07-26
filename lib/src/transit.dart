@@ -11,6 +11,9 @@ class TransitRouterScreen extends StatefulWidget {
     required this.ongoingDestination,
     required this.onNavigationCancelled,
     required this.onTransitRouteSaved,
+    required this.demoArrivalRequest,
+    required this.favoritePlaceNames,
+    required this.onToggleFavorite,
     this.currentLocation,
     this.currentAccuracyMeters,
     super.key,
@@ -24,7 +27,10 @@ class TransitRouterScreen extends StatefulWidget {
   final BlindBoxTravelMode? requestedMode;
   final String? ongoingDestination;
   final VoidCallback onNavigationCancelled;
-  final VoidCallback onTransitRouteSaved;
+  final ValueChanged<DestinationCandidate?> onTransitRouteSaved;
+  final int demoArrivalRequest;
+  final Set<String> favoritePlaceNames;
+  final ValueChanged<DestinationCandidate> onToggleFavorite;
   final LatLng? currentLocation;
   final double? currentAccuracyMeters;
 
@@ -37,6 +43,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   late final TextEditingController _toController;
   AppMapController? _mapController;
   LatLng? _departureLocation;
+  LatLng? _navigationStartLocation;
   String? _departureName;
   LatLng _lastMapCenter = const LatLng(3.1478, 101.6953);
   DestinationCandidate? _candidate;
@@ -45,6 +52,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   TransitOption? _selectedRoute;
   String? _statusMessage;
   bool _loading = false;
+  bool _searchingDestination = false;
   bool _navigating = false;
   @override
   void initState() {
@@ -66,8 +74,12 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _selectedRoute = null;
       _navigating = false;
       _departureLocation = null;
+      _navigationStartLocation = null;
       _departureName = null;
       unawaited(_searchDestination(autoCalculate: true));
+    }
+    if (oldWidget.demoArrivalRequest != widget.demoArrivalRequest) {
+      _completeDemoArrival();
     }
   }
 
@@ -78,17 +90,39 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     super.dispose();
   }
 
-  SharedMapView get _currentMapView => SharedMapView(
-    signature:
-        'transit|${_pointKey(widget.currentLocation)}|${widget.currentAccuracyMeters?.round()}|${_candidate?.placeId}|${_selectedRoute?.label}|$_navigating|${_routes.length}',
-    currentLocation: widget.currentLocation,
-    currentAccuracyMeters: widget.currentAccuracyMeters,
-    candidate: _candidate,
-    selectedRoute: _selectedRoute,
-    navigating: _navigating,
-    initialTarget: widget.currentLocation ?? _lastMapCenter,
-    initialZoom: widget.currentLocation == null ? 12 : 15,
-  );
+  LatLng? get _displayCurrentLocation {
+    if (_navigating) {
+      final startLocation = _navigationStartLocation;
+      if (startLocation != null &&
+          widget.currentLocation != null &&
+          _pointKey(widget.currentLocation) != _pointKey(startLocation)) {
+        return widget.currentLocation;
+      }
+      if (_departureLocation != null) {
+        return _departureLocation;
+      }
+      final routePoints = _selectedRoute?.points ?? const <LatLng>[];
+      if (routePoints.isNotEmpty) {
+        return routePoints.first;
+      }
+    }
+    return widget.currentLocation;
+  }
+
+  SharedMapView get _currentMapView {
+    final displayCurrentLocation = _displayCurrentLocation;
+    return SharedMapView(
+      signature:
+          'transit|${_pointKey(displayCurrentLocation)}|${_navigating ? 'nav' : widget.currentAccuracyMeters?.round()}|${_candidate?.placeId}|${_selectedRoute?.label}|$_navigating|${_routes.length}',
+      currentLocation: displayCurrentLocation,
+      currentAccuracyMeters: _navigating ? null : widget.currentAccuracyMeters,
+      candidate: _candidate,
+      selectedRoute: _selectedRoute,
+      navigating: _navigating,
+      initialTarget: displayCurrentLocation ?? _lastMapCenter,
+      initialZoom: displayCurrentLocation == null ? 12 : 15,
+    );
+  }
 
   void _publishMapView() {
     if (!widget.active) {
@@ -123,11 +157,14 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
               routes: _routes,
               selectedRoute: _selectedRoute,
               navigating: _navigating,
+              searchingDestination: _searchingDestination,
+              favoritePlaceNames: widget.favoritePlaceNames,
               onTextChanged: () => setState(() {}),
               onSearch: _searchDestination,
               onClearDestination: _clearTransitDestination,
               onConfirmDestination: _calculateDirections,
               onSelectRoute: _startPlannedRoute,
+              onToggleFavorite: widget.onToggleFavorite,
             ),
           ),
 
@@ -159,8 +196,10 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _routes = const [];
       _selectedRoute = null;
       _statusMessage = null;
+      _searchingDestination = false;
       _navigating = false;
       _departureLocation = null;
+      _navigationStartLocation = null;
       _departureName = null;
     });
     widget.onNavigationCancelled();
@@ -175,6 +214,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         _routes = const [];
         _selectedRoute = null;
         _statusMessage = null;
+        _searchingDestination = false;
       });
       return;
     }
@@ -187,6 +227,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         _selectedRoute = null;
         _statusMessage =
             'Preview mode. Add a Google Maps API key for live place results and directions.';
+        _searchingDestination = false;
         _navigating = false;
       });
       if (autoCalculate && candidates.isNotEmpty) {
@@ -196,7 +237,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     }
 
     setState(() {
-      _loading = true;
+      _searchingDestination = true;
       _statusMessage = null;
       _candidate = null;
       _candidates = const [];
@@ -210,7 +251,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         setState(() {
           _statusMessage =
               'Location not available. Tap the location button on the map first.';
-          _loading = false;
+          _searchingDestination = false;
         });
         return;
       }
@@ -235,7 +276,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       setState(() => _statusMessage = 'Place search failed: $error');
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() => _searchingDestination = false);
       }
     }
   }
@@ -391,7 +432,6 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   }
 
   void _startPlannedRoute(TransitOption route) {
-    widget.onTransitRouteSaved();
     final departure =
         route.legs.isNotEmpty && route.legs.first.points.isNotEmpty
         ? route.legs.first.points.first
@@ -403,6 +443,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         : _routingOriginName;
     setState(() {
       _departureLocation = departure;
+      _navigationStartLocation = widget.currentLocation;
       _departureName = departureName;
       _lastMapCenter = departure;
       _selectedRoute = route;
@@ -410,6 +451,36 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _statusMessage = null;
     });
     unawaited(_focusStartLeg(route));
+  }
+
+  void _completeDemoArrival() {
+    if (!_navigating) {
+      return;
+    }
+    final completedDestination = _candidate;
+    final destination = completedDestination?.name ?? 'Destination';
+    setState(() {
+      _candidate = null;
+      _candidates = const [];
+      _routes = const [];
+      _selectedRoute = null;
+      _statusMessage = null;
+      _searchingDestination = false;
+      _navigating = false;
+      _departureLocation = null;
+      _navigationStartLocation = null;
+      _departureName = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      widget.onTransitRouteSaved(completedDestination);
+      widget.onNavigationCancelled();
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text('$destination reached.')),
+      );
+    });
   }
 
   Future<void> _focusStartLeg(TransitOption route) async {
@@ -452,6 +523,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _statusMessage = null;
       _navigating = false;
       _departureLocation = null;
+      _navigationStartLocation = null;
       _departureName = null;
       _toController.clear();
     });
@@ -517,7 +589,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     final variants = [
       _TransitRouteVariant(
         label: 'Fastest Transit',
-        color: const Color(0xFF22B8F2),
+        color: const Color(0xFF0B7CFF),
         crowdBias: .70,
         costFor: (edge) =>
             edge.minutes.toDouble() +
@@ -525,13 +597,13 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       ),
       _TransitRouteVariant(
         label: 'Cheapest Route',
-        color: const Color(0xFF00C48C),
+        color: const Color(0xFF2F9BFF),
         crowdBias: .48,
         costFor: (edge) => edge.fare * 20 + edge.minutes * .25,
       ),
       _TransitRouteVariant(
         label: 'Minimum Transfers',
-        color: const Color(0xFFFFB000),
+        color: const Color(0xFF005BD8),
         crowdBias: .36,
         costFor: (edge) =>
             edge.minutes.toDouble() +
@@ -818,7 +890,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         fare: 'RM ${transitFare.toStringAsFixed(2)}',
         transfers: distanceKm > 7 ? '2 transfers' : '1 transfer',
         crowd: .58,
-        color: const Color(0xFF00C48C),
+        color: const Color(0xFF2F9BFF),
         legs: [
           _leg(
             originName,
@@ -841,7 +913,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         fare: 'Free',
         transfers: 'No transfer',
         crowd: .12,
-        color: const Color(0xFFFFB000),
+        color: const Color(0xFF6BB8FF),
         legs: [
           _leg(
             originName,
@@ -864,7 +936,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         fare: 'Fare varies',
         transfers: 'Direct',
         crowd: .52,
-        color: const Color(0xFF22B8F2),
+        color: const Color(0xFF005BD8),
         legs: [
           _leg(
             originName,

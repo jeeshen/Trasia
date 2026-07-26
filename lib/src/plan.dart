@@ -8,6 +8,10 @@ class PelancongPlanScreen extends StatefulWidget {
     required this.currentLocation,
     required this.currentAccuracyMeters,
     required this.ongoingDestination,
+    required this.favoritePlaceNames,
+    required this.onToggleFavorite,
+    required this.demoArrivalRequest,
+    required this.onDemoArrivalCompleted,
     required this.onGoNow,
     required this.onCancelDestination,
     super.key,
@@ -19,6 +23,10 @@ class PelancongPlanScreen extends StatefulWidget {
   final LatLng? currentLocation;
   final double? currentAccuracyMeters;
   final String? ongoingDestination;
+  final Set<String> favoritePlaceNames;
+  final ValueChanged<Attraction> onToggleFavorite;
+  final int demoArrivalRequest;
+  final Future<void> Function(List<ItineraryStop>) onDemoArrivalCompleted;
   final void Function(String destination, BlindBoxTravelMode travelMode)
   onGoNow;
   final ValueChanged<String> onCancelDestination;
@@ -44,6 +52,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   int _tripTotalStops = 0;
   int _completedStopCount = 0;
   final Set<String> _completedStopNames = <String>{};
+  bool _completionInProgress = false;
   late final List<Attraction> _blindBoxLocations = _buildBlindBoxLocations();
   PriceTier get _priceTier => PriceTier.values[_priceIndex.round()];
 
@@ -65,6 +74,9 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         _pointKey(oldWidget.currentLocation) !=
             _pointKey(widget.currentLocation)) {
       unawaited(_loadFeatureCDrivingRoute());
+    }
+    if (oldWidget.demoArrivalRequest != widget.demoArrivalRequest) {
+      _completeDemoArrival();
     }
   }
 
@@ -158,6 +170,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       return;
     }
     widget.onCancelDestination(stop.attraction.name);
+    var tripCompleted = false;
     setState(() {
       _completedStopNames.add(stop.attraction.name);
       _itinerary = [
@@ -173,12 +186,17 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         _activeStopIndex = 0;
         _featureCRoutePoints = const [];
         _routeRevision++;
+        tripCompleted = true;
         return;
       }
       _activeStopIndex = 0;
       _tripStatus = FeatureCTripStatus.traveling;
       _routeRevision++;
     });
+    if (tripCompleted) {
+      unawaited(_completeFeatureCTrip());
+      return;
+    }
     unawaited(_loadFeatureCDrivingRoute());
     unawaited(_focusActiveTripStop());
   }
@@ -188,10 +206,11 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         .where((stop) => !_completedStopNames.contains(stop.attraction.name))
         .length;
     if (pendingCount == 0) {
+      unawaited(_completeFeatureCTrip());
       return;
     }
     if (_activeStopIndex >= pendingCount - 1) {
-      setState(() => _tripStatus = FeatureCTripStatus.completed);
+      unawaited(_completeFeatureCTrip());
       return;
     }
     setState(() {
@@ -202,7 +221,57 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   }
 
   void _finishFeatureCTrip() {
-    setState(() => _tripStatus = FeatureCTripStatus.completed);
+    unawaited(_completeFeatureCTrip());
+  }
+
+  void _completeDemoArrival() {
+    if (_itinerary.isEmpty ||
+        (_tripStatus != FeatureCTripStatus.traveling &&
+            _tripStatus != FeatureCTripStatus.arrived)) {
+      return;
+    }
+    setState(() {
+      _completedStopNames
+        ..clear()
+        ..addAll(_itinerary.map((stop) => stop.attraction.name));
+      _completedStopCount = _itinerary.length;
+      _activeStopIndex = 0;
+      _tripStatus = FeatureCTripStatus.completed;
+      _featureCRoutePoints = const [];
+      _routeRevision++;
+    });
+    unawaited(_completeFeatureCTrip());
+  }
+
+  Future<void> _completeFeatureCTrip() async {
+    if (_itinerary.isEmpty || _completionInProgress) {
+      return;
+    }
+    final completedItinerary = List<ItineraryStop>.of(_itinerary);
+    _completionInProgress = true;
+    if (_tripStatus != FeatureCTripStatus.completed) {
+      setState(() => _tripStatus = FeatureCTripStatus.completed);
+    }
+    for (final stop in completedItinerary) {
+      widget.onCancelDestination(stop.attraction.name);
+    }
+    try {
+      await widget.onDemoArrivalCompleted(completedItinerary);
+    } catch (_) {
+      _completionInProgress = false;
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Unable to save this trip. Please try again.'),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    _resetFeatureCPlanner();
   }
 
   void _resetFeatureCPlanner() {
@@ -215,6 +284,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       _tripTotalStops = 0;
       _completedStopCount = 0;
       _completedStopNames.clear();
+      _completionInProgress = false;
       _routeRevision++;
     });
   }
@@ -818,11 +888,13 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
                 tripTotalStops: _tripTotalStops,
                 completedStopCount: _completedStopCount,
                 completedStopNames: _completedStopNames,
+                favoritePlaceNames: widget.favoritePlaceNames,
                 onClose: () => setState(() => _itineraryListVisible = false),
                 onCancel: _confirmCancel,
                 onFocusStop: _focusItineraryStop,
                 onChooseRoute: (destination) =>
                     widget.onGoNow(destination, _travelMode),
+                onToggleFavorite: widget.onToggleFavorite,
                 onStartTrip: _startFeatureCTrip,
                 onArrived: _markActiveStopArrived,
                 onNextPlace: _goToNextFeatureCStop,
@@ -848,7 +920,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
             const _PlanSectionTitle(
               icon: Icons.explore_rounded,
               title: 'KL Blind Box',
-              trailing: '1000 places',
+              trailing: '150 places',
             ),
             _PlanPanel(
               child: Column(
@@ -926,7 +998,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
-                      'Choose attraction count, distance, and pricing, then open a blind box from 1000 KL locations.',
+                      'Choose attraction count, distance, and pricing, then open a blind box from 150 KL locations.',
                       style: TextStyle(color: Color(0xFF607086), height: 1.4),
                     ),
                   ),

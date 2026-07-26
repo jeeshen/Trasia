@@ -143,11 +143,14 @@ class _MapSearchWindow extends StatelessWidget {
     required this.routes,
     required this.selectedRoute,
     required this.navigating,
+    required this.searchingDestination,
+    required this.favoritePlaceNames,
     required this.onTextChanged,
     required this.onSearch,
     required this.onClearDestination,
     required this.onConfirmDestination,
     required this.onSelectRoute,
+    required this.onToggleFavorite,
   });
 
   final TextEditingController fromController;
@@ -158,11 +161,14 @@ class _MapSearchWindow extends StatelessWidget {
   final List<TransitOption> routes;
   final TransitOption? selectedRoute;
   final bool navigating;
+  final bool searchingDestination;
+  final Set<String> favoritePlaceNames;
   final VoidCallback onTextChanged;
   final VoidCallback onSearch;
   final VoidCallback onClearDestination;
   final ValueChanged<DestinationCandidate> onConfirmDestination;
   final ValueChanged<TransitOption> onSelectRoute;
+  final ValueChanged<DestinationCandidate> onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +177,7 @@ class _MapSearchWindow extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * .62,
+        maxHeight: MediaQuery.sizeOf(context).height * .76,
       ),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
@@ -260,12 +266,22 @@ class _MapSearchWindow extends StatelessWidget {
               const SizedBox(width: 8),
               IconButton.filled(
                 tooltip: 'Search route options',
-                onPressed: onSearch,
+                onPressed: searchingDestination ? null : onSearch,
                 style: IconButton.styleFrom(
                   backgroundColor: TrasiaColors.primary,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFFB9D7FF),
+                  disabledForegroundColor: Colors.white,
                 ),
-                icon: const Icon(Icons.near_me_rounded),
+                icon: searchingDestination
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.near_me_rounded),
               ),
             ],
           ),
@@ -294,7 +310,11 @@ class _MapSearchWindow extends StatelessWidget {
                         candidate: option,
                         selected: option == candidate,
                         actionLabel: 'Calculate Distance',
+                        favorite: favoritePlaceNames.contains(
+                          option.name.toLowerCase(),
+                        ),
                         onConfirm: () => onConfirmDestination(option),
+                        onToggleFavorite: () => onToggleFavorite(option),
                       ),
                       const SizedBox(height: 10),
                     ],
@@ -304,7 +324,11 @@ class _MapSearchWindow extends StatelessWidget {
                       candidate: candidate!,
                       selected: true,
                       actionLabel: 'Destination Selected',
+                      favorite: favoritePlaceNames.contains(
+                        candidate!.name.toLowerCase(),
+                      ),
                       onConfirm: null,
+                      onToggleFavorite: () => onToggleFavorite(candidate!),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -379,6 +403,71 @@ class _MapLocationButton extends StatelessWidget {
   }
 }
 
+class _DemoArrivalButton extends StatelessWidget {
+  const _DemoArrivalButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('demo-arrival'),
+      color: TrasiaColors.primary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 8,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onPressed,
+        child: const SizedBox.square(
+          dimension: 48,
+          child: Center(
+            child: Icon(
+              Icons.flag_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapFavoritesButton extends StatelessWidget {
+  const _MapFavoritesButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('map-favorites'),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 8,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onPressed,
+        child: const Tooltip(
+          message: 'Favorites',
+          child: SizedBox.square(
+            dimension: 48,
+            child: Center(
+              child: Icon(
+                Icons.favorite_rounded,
+                color: Color(0xFFE04470),
+                size: 24,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SheetNotice extends StatelessWidget {
   const _SheetNotice({required this.message});
 
@@ -419,14 +508,18 @@ class _DestinationConfirmCard extends StatelessWidget {
   const _DestinationConfirmCard({
     required this.candidate,
     required this.selected,
-    required this.actionLabel,
+    required this.favorite,
     required this.onConfirm,
+    required this.onToggleFavorite,
+    this.actionLabel,
   });
 
   final DestinationCandidate candidate;
   final bool selected;
-  final String actionLabel;
+  final bool favorite;
   final VoidCallback? onConfirm;
+  final VoidCallback onToggleFavorite;
+  final String? actionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -445,7 +538,7 @@ class _DestinationConfirmCard extends StatelessWidget {
           Row(
             children: [
               const CircleAvatar(
-                backgroundColor: Color(0xFFFF4B43),
+                backgroundColor: TrasiaColors.primary,
                 foregroundColor: Colors.white,
                 child: Icon(Icons.place_rounded),
               ),
@@ -471,17 +564,33 @@ class _DestinationConfirmCard extends StatelessWidget {
                   ],
                 ),
               ),
+              IconButton(
+                tooltip: favorite
+                    ? 'Remove from Favorites'
+                    : 'Save to Favorites',
+                onPressed: onToggleFavorite,
+                color: favorite
+                    ? const Color(0xFFE04470)
+                    : TrasiaColors.primary,
+                icon: Icon(
+                  favorite
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onConfirm,
-              icon: const Icon(Icons.alt_route_rounded),
-              label: Text(actionLabel),
+          if (actionLabel != null && onConfirm != null) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onConfirm,
+                icon: const Icon(Icons.alt_route_rounded),
+                label: Text(actionLabel!),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -839,7 +948,7 @@ class _TripLegRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? const Color(0xFF22C7F4) : const Color(0xFFE64040);
+    final color = active ? const Color(0xFF22C7F4) : const Color(0xFF8FB7E8);
     return Padding(
       padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
       child: Row(
@@ -1326,10 +1435,12 @@ class _FeatureCResultsSheet extends StatelessWidget {
     required this.tripTotalStops,
     required this.completedStopCount,
     required this.completedStopNames,
+    required this.favoritePlaceNames,
     required this.onClose,
     required this.onCancel,
     required this.onFocusStop,
     required this.onChooseRoute,
+    required this.onToggleFavorite,
     required this.onStartTrip,
     required this.onArrived,
     required this.onNextPlace,
@@ -1344,10 +1455,12 @@ class _FeatureCResultsSheet extends StatelessWidget {
   final int tripTotalStops;
   final int completedStopCount;
   final Set<String> completedStopNames;
+  final Set<String> favoritePlaceNames;
   final VoidCallback onClose;
   final Future<bool> Function(ItineraryStop stop) onCancel;
   final ValueChanged<ItineraryStop> onFocusStop;
   final ValueChanged<String> onChooseRoute;
+  final ValueChanged<Attraction> onToggleFavorite;
   final VoidCallback onStartTrip;
   final VoidCallback onArrived;
   final VoidCallback onNextPlace;
@@ -1428,7 +1541,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.only(right: 18),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF4B43),
+                        color: TrasiaColors.primary,
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: const Icon(
@@ -1451,8 +1564,13 @@ class _FeatureCResultsSheet extends StatelessWidget {
                           i == activeStopIndex &&
                           tripStatus == FeatureCTripStatus.arrived,
                       ongoing: ongoingDestination == stops[i].attraction.name,
+                      favorite: favoritePlaceNames.contains(
+                        stops[i].attraction.name.toLowerCase(),
+                      ),
                       onFocus: () => onFocusStop(stops[i]),
                       onNavigate: () => onChooseRoute(stops[i].attraction.name),
+                      onToggleFavorite: () =>
+                          onToggleFavorite(stops[i].attraction),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1712,8 +1830,10 @@ class _ItineraryStopCard extends StatelessWidget {
     required this.completed,
     required this.arrived,
     required this.ongoing,
+    required this.favorite,
     required this.onFocus,
     required this.onNavigate,
+    required this.onToggleFavorite,
   });
 
   final ItineraryStop stop;
@@ -1721,8 +1841,10 @@ class _ItineraryStopCard extends StatelessWidget {
   final bool completed;
   final bool arrived;
   final bool ongoing;
+  final bool favorite;
   final VoidCallback onFocus;
   final VoidCallback onNavigate;
+  final VoidCallback onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -1768,12 +1890,37 @@ class _ItineraryStopCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    stop.attraction.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          stop.attraction.name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: favorite
+                            ? 'Remove from Favorites'
+                            : 'Save to Favorites',
+                        onPressed: onToggleFavorite,
+                        style: IconButton.styleFrom(
+                          foregroundColor: favorite
+                              ? const Color(0xFFE04470)
+                              : TrasiaColors.primary,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          minimumSize: const Size(36, 36),
+                        ),
+                        icon: Icon(
+                          favorite
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   _ItineraryDetailRow(

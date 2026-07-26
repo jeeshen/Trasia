@@ -1007,6 +1007,136 @@ class Attraction {
   }
 }
 
+class FavoritePlace {
+  const FavoritePlace({
+    required this.name,
+    required this.address,
+    required this.hours,
+    required this.baseCost,
+    required this.suggestedDistanceKm,
+    required this.priceTier,
+    required this.imageAsset,
+    required this.color,
+    required this.location,
+  });
+
+  final String name;
+  final String address;
+  final String hours;
+  final int baseCost;
+  final double suggestedDistanceKm;
+  final PriceTier priceTier;
+  final String imageAsset;
+  final Color color;
+  final LatLng location;
+
+  String get key => name.toLowerCase();
+
+  factory FavoritePlace.fromAttraction(Attraction attraction) {
+    return FavoritePlace(
+      name: attraction.name,
+      address: '',
+      hours: attraction.hours,
+      baseCost: attraction.baseCost,
+      suggestedDistanceKm: attraction.suggestedDistanceKm,
+      priceTier: attraction.priceTier,
+      imageAsset: attraction.imageAsset,
+      color: attraction.color,
+      location: attraction.location,
+    );
+  }
+
+  factory FavoritePlace.fromDestinationCandidate(
+    DestinationCandidate destination,
+  ) {
+    return FavoritePlace(
+      name: destination.name,
+      address: destination.address,
+      hours: 'Place details saved from search',
+      baseCost: 0,
+      suggestedDistanceKm: 0,
+      priceTier: PriceTier.midRange,
+      imageAsset: '',
+      color: TrasiaColors.primary,
+      location: destination.location,
+    );
+  }
+
+  factory FavoritePlace.fromJson(Map<String, dynamic> json) {
+    return FavoritePlace(
+      name: (json['name'] as String?) ?? 'Unknown place',
+      address: (json['address'] as String?) ?? '',
+      hours: (json['hours'] as String?) ?? 'Hours unavailable',
+      baseCost: ((json['baseCost'] as num?) ?? 0).toInt(),
+      suggestedDistanceKm: ((json['suggestedDistanceKm'] as num?) ?? 0)
+          .toDouble(),
+      priceTier: PriceTier.values.firstWhere(
+        (tier) => tier.name == json['priceTier'],
+        orElse: () => PriceTier.midRange,
+      ),
+      imageAsset: (json['imageAsset'] as String?) ?? '',
+      color: Color(((json['color'] as num?) ?? 0xFF0B7CFF).toInt()),
+      location: LatLng(
+        ((json['latitude'] as num?) ?? 3.1478).toDouble(),
+        ((json['longitude'] as num?) ?? 101.6953).toDouble(),
+      ),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'address': address,
+      'hours': hours,
+      'baseCost': baseCost,
+      'suggestedDistanceKm': suggestedDistanceKm,
+      'priceTier': priceTier.name,
+      'imageAsset': imageAsset,
+      'color': color.toARGB32(),
+      'latitude': location.latitude,
+      'longitude': location.longitude,
+    };
+  }
+}
+
+class TripHistoryEntry {
+  const TripHistoryEntry({
+    required this.placeName,
+    required this.category,
+    required this.completedAt,
+    this.detail = '',
+    this.amountPaid,
+  });
+
+  final String placeName;
+  final String category;
+  final DateTime completedAt;
+  final String detail;
+  final double? amountPaid;
+
+  factory TripHistoryEntry.fromJson(Map<String, dynamic> json) {
+    return TripHistoryEntry(
+      placeName: (json['placeName'] as String?) ?? 'Unknown place',
+      category: (json['category'] as String?) ?? 'Trip',
+      completedAt:
+          DateTime.tryParse((json['completedAt'] as String?) ?? '') ??
+          DateTime.now(),
+      detail: (json['detail'] as String?) ?? '',
+      amountPaid: (json['amountPaid'] as num?)?.toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'placeName': placeName,
+      'category': category,
+      'completedAt': completedAt.toIso8601String(),
+      'detail': detail,
+      'amountPaid': amountPaid,
+    };
+  }
+}
+
 class ItineraryStop {
   const ItineraryStop({
     required this.order,
@@ -1049,6 +1179,35 @@ String _pointKey(LatLng? point) {
     return 'none';
   }
   return '${point.latitude.toStringAsFixed(5)},${point.longitude.toStringAsFixed(5)}';
+}
+
+class _BlindBoxArea {
+  const _BlindBoxArea(this.name, this.location);
+
+  final String name;
+  final LatLng location;
+}
+
+class _BlindBoxTheme {
+  const _BlindBoxTheme({
+    required this.name,
+    required this.hours,
+    required this.openMinute,
+    required this.closeMinute,
+    required this.baseCost,
+    required this.stayMinutes,
+    required this.priceTier,
+    required this.color,
+  });
+
+  final String name;
+  final String hours;
+  final int openMinute;
+  final int closeMinute;
+  final int baseCost;
+  final int stayMinutes;
+  final PriceTier priceTier;
+  final Color color;
 }
 
 List<Attraction> _buildBlindBoxLocations() {
@@ -1367,20 +1526,123 @@ List<Attraction> _buildBlindBoxLocations() {
     ),
   ];
 
-  return List<Attraction>.generate(1000, (index) {
-    final place = verifiedPlaces[index % verifiedPlaces.length];
-    return Attraction(
-      name: place.name,
-      hours: place.hours,
-      openMinute: place.openMinute,
-      closeMinute: place.closeMinute,
-      baseCost: place.baseCost,
-      stayMinutes: place.stayMinutes,
-      suggestedDistanceKm: place.suggestedDistanceKm,
-      priceTier: place.priceTier,
-      imageAsset: place.imageAsset,
-      color: place.color,
-      location: place.location,
-    );
-  });
+  const areas = [
+    _BlindBoxArea('Bukit Bintang', LatLng(3.1468, 101.7113)),
+    _BlindBoxArea('Chinatown', LatLng(3.1421, 101.6964)),
+    _BlindBoxArea('KLCC', LatLng(3.1579, 101.7123)),
+    _BlindBoxArea('Brickfields', LatLng(3.1291, 101.6841)),
+    _BlindBoxArea('Chow Kit', LatLng(3.1675, 101.6980)),
+    _BlindBoxArea('Kampung Baru', LatLng(3.1641, 101.7068)),
+    _BlindBoxArea('Bangsar', LatLng(3.1292, 101.6784)),
+    _BlindBoxArea('Mont Kiara', LatLng(3.1700, 101.6529)),
+    _BlindBoxArea('TTDI', LatLng(3.1413, 101.6297)),
+    _BlindBoxArea('Cheras', LatLng(3.1068, 101.7259)),
+    _BlindBoxArea('Ampang', LatLng(3.1502, 101.7600)),
+    _BlindBoxArea('Setapak', LatLng(3.1881, 101.7106)),
+    _BlindBoxArea('Sentul', LatLng(3.1838, 101.6923)),
+    _BlindBoxArea('Titiwangsa', LatLng(3.1804, 101.7037)),
+    _BlindBoxArea('Petaling Jaya', LatLng(3.1073, 101.6067)),
+    _BlindBoxArea('Subang Jaya', LatLng(3.0567, 101.5851)),
+    _BlindBoxArea('Shah Alam', LatLng(3.0738, 101.5183)),
+    _BlindBoxArea('Puchong', LatLng(3.0327, 101.6188)),
+    _BlindBoxArea('Sri Petaling', LatLng(3.0715, 101.6947)),
+    _BlindBoxArea('Kepong', LatLng(3.2140, 101.6356)),
+    _BlindBoxArea('Batu Caves', LatLng(3.2379, 101.6840)),
+  ];
+  const themes = [
+    _BlindBoxTheme(
+      name: 'Food Discovery',
+      hours: '10:00 - 22:00',
+      openMinute: 10 * 60,
+      closeMinute: 22 * 60,
+      baseCost: 35,
+      stayMinutes: 60,
+      priceTier: PriceTier.midRange,
+      color: Color(0xFFFF7A59),
+    ),
+    _BlindBoxTheme(
+      name: 'Cafe Corner',
+      hours: '09:00 - 21:00',
+      openMinute: 9 * 60,
+      closeMinute: 21 * 60,
+      baseCost: 28,
+      stayMinutes: 55,
+      priceTier: PriceTier.midRange,
+      color: Color(0xFF40A9FF),
+    ),
+    _BlindBoxTheme(
+      name: 'Night Market',
+      hours: '17:00 - 00:00',
+      openMinute: 17 * 60,
+      closeMinute: 24 * 60,
+      baseCost: 22,
+      stayMinutes: 70,
+      priceTier: PriceTier.budget,
+      color: Color(0xFFFFCE3D),
+    ),
+    _BlindBoxTheme(
+      name: 'Heritage Walk',
+      hours: '09:00 - 19:00',
+      openMinute: 9 * 60,
+      closeMinute: 19 * 60,
+      baseCost: 12,
+      stayMinutes: 65,
+      priceTier: PriceTier.budget,
+      color: Color(0xFF7C5CFF),
+    ),
+    _BlindBoxTheme(
+      name: 'Green Escape',
+      hours: '06:00 - 20:00',
+      openMinute: 6 * 60,
+      closeMinute: 20 * 60,
+      baseCost: 0,
+      stayMinutes: 60,
+      priceTier: PriceTier.budget,
+      color: Color(0xFF3CCB7F),
+    ),
+    _BlindBoxTheme(
+      name: 'Family Stop',
+      hours: '10:00 - 20:00',
+      openMinute: 10 * 60,
+      closeMinute: 20 * 60,
+      baseCost: 65,
+      stayMinutes: 80,
+      priceTier: PriceTier.luxury,
+      color: Color(0xFF00A9CE),
+    ),
+  ];
+
+  final demoPlaces = <Attraction>[
+    for (var areaIndex = 0; areaIndex < areas.length; areaIndex++)
+      for (var themeIndex = 0; themeIndex < themes.length; themeIndex++)
+        () {
+          final area = areas[areaIndex];
+          final theme = themes[themeIndex];
+          final image =
+              verifiedPlaces[(areaIndex * themes.length + themeIndex) %
+                  verifiedPlaces.length];
+          final offset = (themeIndex - 2.5) * 0.0012;
+          return Attraction(
+            name: '${area.name} ${theme.name}',
+            hours: theme.hours,
+            openMinute: theme.openMinute,
+            closeMinute: theme.closeMinute,
+            baseCost: theme.baseCost,
+            stayMinutes: theme.stayMinutes,
+            suggestedDistanceKm: 3 + ((areaIndex * 5 + themeIndex * 3) % 38),
+            priceTier: theme.priceTier,
+            imageAsset: image.imageAsset,
+            color: theme.color,
+            location: LatLng(
+              area.location.latitude + offset,
+              area.location.longitude - offset,
+            ),
+          );
+        }(),
+  ];
+
+  final places = [...verifiedPlaces, ...demoPlaces];
+  assert(places.length == 150);
+  assert(places.map((place) => place.name).toSet().length == places.length);
+  return places;
 }

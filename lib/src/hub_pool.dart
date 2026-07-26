@@ -9,6 +9,10 @@ class HubPoolScreen extends StatefulWidget {
     required this.currentAccuracyMeters,
     required this.wallet,
     required this.onFareDeducted,
+    required this.onRideCompleted,
+    required this.demoArrivalRequest,
+    required this.favoritePlaceNames,
+    required this.onToggleFavorite,
     super.key,
   });
 
@@ -19,6 +23,10 @@ class HubPoolScreen extends StatefulWidget {
   final double? currentAccuracyMeters;
   final double wallet;
   final ValueChanged<double> onFareDeducted;
+  final void Function(DestinationCandidate?, double) onRideCompleted;
+  final int demoArrivalRequest;
+  final Set<String> favoritePlaceNames;
+  final ValueChanged<DestinationCandidate> onToggleFavorite;
 
   @override
   State<HubPoolScreen> createState() => _HubPoolScreenState();
@@ -67,6 +75,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   bool _fareDeducted = false;
   bool _searchingDestination = false;
   bool _loadingPickupLocation = false;
+  double? _rideChargeDistanceKm;
   LatLng? _hubCurrentLocation;
   double? _hubCurrentAccuracyMeters;
   LatLng? _snappedRideLocation;
@@ -100,6 +109,9 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     _mapController = widget.mapController ?? _mapController;
     if (widget.active && !oldWidget.active) {
       unawaited(_loadPickupLocation(silent: true));
+    }
+    if (oldWidget.demoArrivalRequest != widget.demoArrivalRequest) {
+      _completeDemoArrival();
     }
     if (_pointKey(oldWidget.currentLocation) ==
         _pointKey(widget.currentLocation)) {
@@ -271,6 +283,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _seconds = 10;
       _driver = null;
       _destination = destination;
+      _rideChargeDistanceKm = rideDistanceKm;
       _route = null;
       _destinationStatusMessage = null;
       _fareDeducted = false;
@@ -345,10 +358,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           });
           return;
         }
-        final fare = _fareForDistance(_rideDistanceKm(destination.location));
-        if (!_fareDeducted) {
-          widget.onFareDeducted(fare);
-        }
         final pickupRoadPoint = _route?.points.isNotEmpty ?? false
             ? _route!.points.last
             : _pickupLocation;
@@ -358,7 +367,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           _snappedRideLocation = pickupRoadPoint;
           _route = _destinationRoute(destination);
           _approachAnimationPoints = const [];
-          _fareDeducted = true;
+          _fareDeducted = false;
         });
         _startRideLocationUpdates();
         unawaited(_fitRoute(_route?.points ?? const []));
@@ -379,6 +388,53 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _route = null;
       _approachAnimationPoints = const [];
       _snappedRideLocation = null;
+      _rideChargeDistanceKm = null;
+    });
+  }
+
+  void _completeDemoArrival() {
+    if (_stage != RideStage.matching &&
+        _stage != RideStage.tracking &&
+        _stage != RideStage.onboard) {
+      return;
+    }
+    final destination = _destination;
+    final distanceKm =
+        _rideChargeDistanceKm ??
+        (destination == null ? 0.0 : _rideDistanceKm(destination.location));
+    final fare = _fareForDistance(distanceKm);
+    _timer?.cancel();
+    _destinationRouteRefreshTimer?.cancel();
+    _carController.stop();
+    _stopRideLocationUpdates();
+    final shouldDeductFare = !_fareDeducted && fare > 0;
+    setState(() {
+      _stage = RideStage.idle;
+      _seconds = 0;
+      _destinationController.clear();
+      _driver = null;
+      _destination = null;
+      _destinationCandidates = const [];
+      _route = null;
+      _approachAnimationPoints = const [];
+      _snappedRideLocation = null;
+      _fareDeducted = false;
+      _rideChargeDistanceKm = null;
+      _destinationStatusMessage = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (shouldDeductFare) {
+        widget.onFareDeducted(fare);
+      }
+      widget.onRideCompleted(destination, fare);
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text('${destination?.name ?? 'Destination'} reached.'),
+        ),
+      );
     });
   }
 
@@ -751,7 +807,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       chain: 'Pickup -> ${destination.name}',
       time: '${max(4, (distanceKm * 4).round())} min',
       distance: '${distanceKm.toStringAsFixed(1)} km',
-      fare: '${_fareForDistance(distanceKm).toStringAsFixed(2)} credit',
+      fare: 'RM ${_fareForDistance(distanceKm).toStringAsFixed(2)}',
       transfers: 'Direct',
       crowd: .2,
       color: TrasiaColors.primary,
@@ -790,7 +846,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       final drivingRoute = _destinationRoute(destination).copyWith(
         time: route.time,
         distance: route.distance,
-        fare: '${_fareForDistance(distanceKm).toStringAsFixed(2)} credit',
+        fare: 'RM ${_fareForDistance(distanceKm).toStringAsFixed(2)}',
         legs: [
           RouteLeg(
             fromName: _originName,
@@ -805,6 +861,10 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       );
       setState(() {
         _route = drivingRoute;
+        _rideChargeDistanceKm = max(
+          _rideChargeDistanceKm ?? 0,
+          distanceKm,
+        );
         if (route.points.isNotEmpty) {
           _snappedRideLocation = route.points.first;
         }
@@ -900,7 +960,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   }
 
   double _fareForDistance(double km) {
-    return max(.01, double.parse((km * .01).toStringAsFixed(2)));
+    return max(.01, double.parse((km * .50).toStringAsFixed(2)));
   }
 
   Future<void> _fitRoute(List<LatLng> points) async {
@@ -1013,6 +1073,10 @@ class _HubPoolScreenState extends State<HubPoolScreen>
             selectedDestination: destination,
             statusMessage: _destinationStatusMessage,
             searchingDestination: _searchingDestination,
+            favoritePlaceNames: widget.favoritePlaceNames,
+            fareForDestination: (destination) => _fareForDistance(
+              _rideDistanceKm(destination.location),
+            ),
             onTextChanged: _handleDestinationTextChanged,
             onClearInput: _clearDestinationInput,
             onSearch: _searchDestination,
@@ -1026,6 +1090,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
                 _mapController?.flyToLatLngZoom(candidate.location, 14.5),
               );
             },
+            onToggleFavorite: widget.onToggleFavorite,
             onBook: destination == null ? null : _bookRide,
             onCancel:
                 _stage == RideStage.matching ||
@@ -1053,6 +1118,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _route = null;
       _approachAnimationPoints = const [];
       _snappedRideLocation = null;
+      _rideChargeDistanceKm = null;
       _destinationStatusMessage = null;
       _fareDeducted = false;
     });
@@ -1072,10 +1138,13 @@ class _HubPoolOverlay extends StatelessWidget {
     required this.selectedDestination,
     required this.statusMessage,
     required this.searchingDestination,
+    required this.favoritePlaceNames,
+    required this.fareForDestination,
     required this.onTextChanged,
     required this.onClearInput,
     required this.onSearch,
     required this.onSelectDestination,
+    required this.onToggleFavorite,
     required this.onBook,
     required this.onCancel,
   });
@@ -1091,10 +1160,13 @@ class _HubPoolOverlay extends StatelessWidget {
   final DestinationCandidate? selectedDestination;
   final String? statusMessage;
   final bool searchingDestination;
+  final Set<String> favoritePlaceNames;
+  final double Function(DestinationCandidate) fareForDestination;
   final VoidCallback onTextChanged;
   final VoidCallback onClearInput;
   final VoidCallback onSearch;
   final ValueChanged<DestinationCandidate> onSelectDestination;
+  final ValueChanged<DestinationCandidate> onToggleFavorite;
   final VoidCallback? onBook;
   final VoidCallback? onCancel;
 
@@ -1112,7 +1184,7 @@ class _HubPoolOverlay extends StatelessWidget {
       RideStage.idle =>
         selectedDestination == null
             ? 'Search any destination'
-            : '${distanceKm.toStringAsFixed(1)} km / ${fare.toStringAsFixed(2)} credit',
+            : '${distanceKm.toStringAsFixed(1)} km / RM ${fare.toStringAsFixed(2)}',
       RideStage.matching => 'Confirmed. Matching in $seconds sec',
       RideStage.tracking => 'Arrives in $seconds sec',
       RideStage.onboard =>
@@ -1243,7 +1315,12 @@ class _HubPoolOverlay extends StatelessWidget {
               _HubDestinationTile(
                 destination: destination,
                 selected: destination.placeId == selectedDestination?.placeId,
+                favorite: favoritePlaceNames.contains(
+                  destination.name.toLowerCase(),
+                ),
+                fare: fareForDestination(destination),
                 onTap: () => onSelectDestination(destination),
+                onToggleFavorite: () => onToggleFavorite(destination),
               ),
               const SizedBox(height: 8),
             ],
@@ -1302,12 +1379,18 @@ class _HubDestinationTile extends StatelessWidget {
   const _HubDestinationTile({
     required this.destination,
     required this.selected,
+    required this.favorite,
+    required this.fare,
     required this.onTap,
+    required this.onToggleFavorite,
   });
 
   final DestinationCandidate destination;
   final bool selected;
+  final bool favorite;
+  final double fare;
   final VoidCallback onTap;
+  final VoidCallback onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -1349,6 +1432,40 @@ class _HubDestinationTile extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'RM ${fare.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Color(0xFF172033),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                SizedBox(
+                  width: 34,
+                  height: 32,
+                  child: IconButton(
+                    tooltip: favorite
+                        ? 'Remove from Favorites'
+                        : 'Save to Favorites',
+                    padding: EdgeInsets.zero,
+                    onPressed: onToggleFavorite,
+                    color: favorite
+                        ? const Color(0xFFE04470)
+                        : TrasiaColors.primary,
+                    iconSize: 20,
+                    icon: Icon(
+                      favorite
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
