@@ -255,10 +255,12 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     for (final stop in completedItinerary) {
       widget.onCancelDestination(stop.attraction.name);
     }
+    if (mounted) {
+      _resetFeatureCPlanner();
+    }
     try {
       await widget.onDemoArrivalCompleted(completedItinerary);
     } catch (_) {
-      _completionInProgress = false;
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           const SnackBar(
@@ -268,10 +270,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       }
       return;
     }
-    if (!mounted) {
-      return;
-    }
-    _resetFeatureCPlanner();
   }
 
   void _resetFeatureCPlanner() {

@@ -15,6 +15,9 @@ class DestinationCandidate {
 }
 
 class _GoogleMapsApi {
+  static const _maxAccessWalkMeters = 1600.0;
+  static const _maxTotalWalkMeters = 3000.0;
+
   static Future<List<DestinationCandidate>> findPlaces({
     required String query,
     required String apiKey,
@@ -146,16 +149,587 @@ class _GoogleMapsApi {
       routesError = error;
     }
     try {
-      return await _fetchDirectionsDrivingRoute(
+      return await _fetchDirectionsRoute(
         origin: origin,
         destination: destination,
         apiKey: apiKey,
+        mode: 'driving',
       );
     } catch (directionsError) {
       throw 'Road service: $roadServiceError / '
           'Google Routes API: $routesError / '
           'Google Directions API: $directionsError';
     }
+  }
+
+  static Future<List<_TransitApiRoute>> fetchTransitRoutes({
+    required LatLng origin,
+    required LatLng destination,
+    required String originName,
+    required String destinationName,
+    required String apiKey,
+  }) async {
+    Object? routesApiError;
+    try {
+      final routes = await _fetchRoutesApiTransitRoutes(
+        origin: origin,
+        destination: destination,
+        originName: originName,
+        destinationName: destinationName,
+        apiKey: apiKey,
+      );
+      if (routes.isNotEmpty) {
+        return routes;
+      }
+    } catch (error) {
+      routesApiError = error;
+    }
+    try {
+      return await _fetchDirectionsTransitRoutes(
+        origin: origin,
+        destination: destination,
+        originName: originName,
+        destinationName: destinationName,
+        apiKey: apiKey,
+      );
+    } catch (directionsError) {
+      throw 'Google Routes Transit: $routesApiError / '
+          'Google Directions Transit: $directionsError';
+    }
+  }
+
+  static Future<List<_TransitApiRoute>> _fetchRoutesApiTransitRoutes({
+    required LatLng origin,
+    required LatLng destination,
+    required String originName,
+    required String destinationName,
+    required String apiKey,
+  }) async {
+    final uri = Uri.https(
+      'routes.googleapis.com',
+      '/directions/v2:computeRoutes',
+    );
+    final response = await http
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+            'X-Goog-FieldMask':
+                'routes.duration,routes.distanceMeters,routes.localizedValues,'
+                'routes.travelAdvisory.transitFare,routes.legs.steps.duration,'
+                'routes.legs.steps.staticDuration,routes.legs.steps.distanceMeters,'
+                'routes.legs.steps.polyline.encodedPolyline,'
+                'routes.legs.steps.startLocation,routes.legs.steps.endLocation,'
+                'routes.legs.steps.travelMode,routes.legs.steps.transitDetails',
+          },
+          body: jsonEncode({
+            'origin': {
+              'location': {
+                'latLng': {
+                  'latitude': origin.latitude,
+                  'longitude': origin.longitude,
+                },
+              },
+            },
+            'destination': {
+              'location': {
+                'latLng': {
+                  'latitude': destination.latitude,
+                  'longitude': destination.longitude,
+                },
+              },
+            },
+            'travelMode': 'TRANSIT',
+            'computeAlternativeRoutes': true,
+            'transitPreferences': {
+              'routingPreference': 'LESS_WALKING',
+              'allowedTravelModes': [
+                'BUS',
+                'SUBWAY',
+                'TRAIN',
+                'LIGHT_RAIL',
+                'RAIL',
+              ],
+            },
+            'languageCode': 'en',
+            'regionCode': 'MY',
+            'units': 'METRIC',
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200) {
+      final error = body['error'] as Map<String, dynamic>?;
+      throw error?['message'] ?? 'Unknown transit Routes API error';
+    }
+    final routes = body['routes'] as List<dynamic>? ?? const [];
+    final parsedRoutes = <_TransitApiRoute>[];
+    for (final route in routes) {
+      final parsed = _parseTransitRoute(
+        route as Map<String, dynamic>,
+        originName: originName,
+        destinationName: destinationName,
+      );
+      if (parsed != null) {
+        parsedRoutes.add(parsed);
+      }
+    }
+    return parsedRoutes;
+  }
+
+  static Future<List<_TransitApiRoute>> _fetchDirectionsTransitRoutes({
+    required LatLng origin,
+    required LatLng destination,
+    required String originName,
+    required String destinationName,
+    required String apiKey,
+  }) async {
+    final uri = Uri.https('maps.googleapis.com', '/maps/api/directions/json', {
+      'origin': '${origin.latitude},${origin.longitude}',
+      'destination': '${destination.latitude},${destination.longitude}',
+      'mode': 'transit',
+      'alternatives': 'true',
+      'transit_mode': 'bus|subway|train|tram|rail',
+      'transit_routing_preference': 'less_walking',
+      'region': 'my',
+      'language': 'en',
+      'departure_time': 'now',
+      'key': apiKey,
+    });
+    final response = await http.get(uri).timeout(const Duration(seconds: 12));
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final status = body['status'] as String?;
+    if (response.statusCode != 200 || status != 'OK') {
+      throw (body['error_message'] as String?) ??
+          status ??
+          'Unknown Directions Transit API error';
+    }
+    final routes = body['routes'] as List<dynamic>? ?? const [];
+    final parsedRoutes = <_TransitApiRoute>[];
+    for (final route in routes) {
+      final parsed = _parseDirectionsTransitRoute(
+        route as Map<String, dynamic>,
+        originName: originName,
+        destinationName: destinationName,
+      );
+      if (parsed != null) {
+        parsedRoutes.add(parsed);
+      }
+    }
+    return parsedRoutes;
+  }
+
+  static _TransitApiRoute? _parseDirectionsTransitRoute(
+    Map<String, dynamic> route, {
+    required String originName,
+    required String destinationName,
+  }) {
+    final routeLegs = route['legs'] as List<dynamic>? ?? const [];
+    if (routeLegs.isEmpty) {
+      return null;
+    }
+    final leg = routeLegs.first as Map<String, dynamic>;
+    final steps = (leg['steps'] as List<dynamic>? ?? const [])
+        .cast<Map<String, dynamic>>();
+    if (steps.isEmpty) {
+      return null;
+    }
+    final walking = [
+      for (final step in steps) step['travel_mode'] == 'WALKING',
+    ];
+    final meters = [
+      for (final step in steps)
+        (((step['distance'] as Map<String, dynamic>?)?['value'] as num?)
+                ?.toDouble() ??
+            0),
+    ];
+    final walkingMeters = [
+      for (var index = 0; index < steps.length; index++)
+        if (walking[index]) meters[index],
+    ].fold<double>(0, (total, value) => total + value);
+    var accessMeters = 0.0;
+    for (var index = 0; index < steps.length && walking[index]; index++) {
+      accessMeters += meters[index];
+    }
+    var egressMeters = 0.0;
+    for (var index = steps.length - 1; index >= 0 && walking[index]; index--) {
+      egressMeters += meters[index];
+    }
+    final transitCount = walking.where((value) => !value).length;
+    if (transitCount == 0) {
+      return null;
+    }
+    final longAccessWalk =
+        accessMeters > _maxAccessWalkMeters ||
+        egressMeters > _maxAccessWalkMeters ||
+        walkingMeters > _maxTotalWalkMeters;
+
+    final parsedLegs = <RouteLeg>[];
+    for (var index = 0; index < steps.length; index++) {
+      final step = steps[index];
+      final isWalk = walking[index];
+      final details =
+          step['transit_details'] as Map<String, dynamic>? ?? const {};
+      final departure =
+          details['departure_stop'] as Map<String, dynamic>? ?? const {};
+      final arrival =
+          details['arrival_stop'] as Map<String, dynamic>? ?? const {};
+      final previousDetails = index == 0
+          ? const <String, dynamic>{}
+          : steps[index - 1]['transit_details'] as Map<String, dynamic>? ??
+                const {};
+      final nextDetails = index == steps.length - 1
+          ? const <String, dynamic>{}
+          : steps[index + 1]['transit_details'] as Map<String, dynamic>? ??
+                const {};
+      final previousArrival =
+          previousDetails['arrival_stop'] as Map<String, dynamic>? ?? const {};
+      final nextDeparture =
+          nextDetails['departure_stop'] as Map<String, dynamic>? ?? const {};
+      final fromName = isWalk
+          ? index == 0
+                ? originName
+                : (previousArrival['name'] as String?) ?? 'Transfer point'
+          : (departure['name'] as String?) ?? 'Transit stop';
+      final toName = isWalk
+          ? index == steps.length - 1
+                ? destinationName
+                : (nextDeparture['name'] as String?) ?? 'Nearby transit stop'
+          : (arrival['name'] as String?) ?? 'Transit stop';
+      final duration = step['duration'] as Map<String, dynamic>? ?? const {};
+      final distance = step['distance'] as Map<String, dynamic>? ?? const {};
+      var points = _decodePolyline(
+        ((step['polyline'] as Map<String, dynamic>?)?['points'] as String?) ??
+            '',
+      );
+      if (points.isEmpty) {
+        points = [
+          ?_legacyLatLng(step['start_location']),
+          ?_legacyLatLng(step['end_location']),
+        ];
+      }
+      parsedLegs.add(
+        RouteLeg(
+          fromName: fromName,
+          toName: toName,
+          mode: isWalk ? 'Walk' : _legacyTransitModeLabel(details),
+          time:
+              (duration['text'] as String?) ??
+              _formatSeconds((duration['value'] as num?) ?? 0),
+          distance:
+              (distance['text'] as String?) ??
+              _formatMeters(meters[index].round()),
+          icon: isWalk
+              ? Icons.directions_walk_rounded
+              : _legacyTransitModeIcon(details),
+          points: points,
+        ),
+      );
+    }
+
+    final duration = leg['duration'] as Map<String, dynamic>? ?? const {};
+    final distance = leg['distance'] as Map<String, dynamic>? ?? const {};
+    final fare = route['fare'] as Map<String, dynamic>? ?? const {};
+    final transfers = max(0, transitCount - 1);
+    final durationSeconds = (duration['value'] as num?)?.toDouble() ?? 0;
+    return _TransitApiRoute(
+      option: TransitOption(
+        label: 'Transit',
+        chain: parsedLegs.map((item) => item.mode).toSet().join(' -> '),
+        time: (duration['text'] as String?) ?? _formatSeconds(durationSeconds),
+        distance:
+            (distance['text'] as String?) ??
+            _formatMeters((distance['value'] as num?)?.round()),
+        fare: (fare['text'] as String?) ?? 'Fare unavailable',
+        transfers: transfers == 0 ? 'No transfer' : '$transfers transfer',
+        crowd: .48,
+        color: TrasiaColors.primary,
+        legs: parsedLegs,
+        firstLegPointCount: parsedLegs.first.points.length,
+        firstStopLabel: parsedLegs.first.toName,
+        nextInstruction:
+            'Use ${parsedLegs.where((item) => item.mode != 'Walk').map((item) => item.mode).take(3).join(' + ')}',
+      ),
+      durationSeconds: durationSeconds,
+      walkingMeters: walkingMeters,
+      transfers: transfers,
+      longAccessWalk: longAccessWalk,
+    );
+  }
+
+  static String _legacyTransitModeLabel(Map<String, dynamic> details) {
+    final line = details['line'] as Map<String, dynamic>? ?? const {};
+    final agencies = line['agencies'] as List<dynamic>? ?? const [];
+    final agency = agencies.isEmpty
+        ? ''
+        : ((agencies.first as Map<String, dynamic>)['name'] as String?) ?? '';
+    final routeName =
+        (line['short_name'] as String?) ?? (line['name'] as String?) ?? '';
+    final vehicle = line['vehicle'] as Map<String, dynamic>? ?? const {};
+    final vehicleName =
+        (vehicle['name'] as String?) ??
+        _vehicleTypeName(vehicle['type'] as String?);
+    return [
+      if (agency.isNotEmpty) agency,
+      if (routeName.isNotEmpty) routeName,
+      if (agency.isEmpty && routeName.isEmpty) vehicleName,
+    ].join(' ');
+  }
+
+  static IconData _legacyTransitModeIcon(Map<String, dynamic> details) {
+    final line = details['line'] as Map<String, dynamic>? ?? const {};
+    final vehicle = line['vehicle'] as Map<String, dynamic>? ?? const {};
+    return switch (vehicle['type'] as String?) {
+      'BUS' => Icons.directions_bus_rounded,
+      'SUBWAY' || 'TRAM' => Icons.subway_rounded,
+      _ => Icons.train_rounded,
+    };
+  }
+
+  static LatLng? _legacyLatLng(Object? location) {
+    final value = location as Map<String, dynamic>?;
+    final latitude = (value?['lat'] as num?)?.toDouble();
+    final longitude = (value?['lng'] as num?)?.toDouble();
+    return latitude == null || longitude == null
+        ? null
+        : LatLng(latitude, longitude);
+  }
+
+  static _TransitApiRoute? _parseTransitRoute(
+    Map<String, dynamic> route, {
+    required String originName,
+    required String destinationName,
+  }) {
+    final routeLegs = route['legs'] as List<dynamic>? ?? const [];
+    final steps = [
+      for (final leg in routeLegs)
+        ...((leg as Map<String, dynamic>)['steps'] as List<dynamic>? ??
+            const []),
+    ].cast<Map<String, dynamic>>();
+    if (steps.isEmpty) {
+      return null;
+    }
+
+    final isWalking = [for (final step in steps) step['travelMode'] == 'WALK'];
+    final stepMeters = [
+      for (final step in steps)
+        (step['distanceMeters'] as num?)?.toDouble() ?? 0,
+    ];
+    final totalWalkingMeters = [
+      for (var i = 0; i < steps.length; i++)
+        if (isWalking[i]) stepMeters[i],
+    ].fold<double>(0, (total, meters) => total + meters);
+    var accessWalkingMeters = 0.0;
+    for (var i = 0; i < steps.length && isWalking[i]; i++) {
+      accessWalkingMeters += stepMeters[i];
+    }
+    var egressWalkingMeters = 0.0;
+    for (var i = steps.length - 1; i >= 0 && isWalking[i]; i--) {
+      egressWalkingMeters += stepMeters[i];
+    }
+    final hasExcessiveWalk =
+        accessWalkingMeters > _maxAccessWalkMeters ||
+        egressWalkingMeters > _maxAccessWalkMeters ||
+        totalWalkingMeters > _maxTotalWalkMeters ||
+        stepMeters.indexed.any(
+          (entry) => isWalking[entry.$1] && entry.$2 > _maxAccessWalkMeters,
+        );
+    final transitStepCount = isWalking.where((walking) => !walking).length;
+    if (transitStepCount == 0) {
+      return null;
+    }
+
+    final legs = <RouteLeg>[];
+    for (var index = 0; index < steps.length; index++) {
+      final step = steps[index];
+      final walking = isWalking[index];
+      final transitDetails =
+          step['transitDetails'] as Map<String, dynamic>? ?? const {};
+      final stopDetails =
+          transitDetails['stopDetails'] as Map<String, dynamic>? ?? const {};
+      final departureStop =
+          stopDetails['departureStop'] as Map<String, dynamic>? ?? const {};
+      final arrivalStop =
+          stopDetails['arrivalStop'] as Map<String, dynamic>? ?? const {};
+      final fromName = walking
+          ? _walkingStepFromName(
+              index,
+              steps,
+              originName: originName,
+              destinationName: destinationName,
+            )
+          : (departureStop['name'] as String?) ?? 'Transit stop';
+      final toName = walking
+          ? _walkingStepToName(
+              index,
+              steps,
+              originName: originName,
+              destinationName: destinationName,
+            )
+          : (arrivalStop['name'] as String?) ?? 'Transit stop';
+      final mode = walking ? 'Walk' : _transitModeLabel(transitDetails);
+      final encodedPolyline =
+          ((step['polyline'] as Map<String, dynamic>?)?['encodedPolyline']
+              as String?) ??
+          '';
+      var points = _decodePolyline(encodedPolyline);
+      if (points.isEmpty) {
+        final start = _routeLatLng(step['startLocation']);
+        final end = _routeLatLng(step['endLocation']);
+        points = [?start, ?end];
+      }
+      final seconds = _parseGoogleDurationSeconds(
+        (step['duration'] ?? step['staticDuration']) as String?,
+      );
+      legs.add(
+        RouteLeg(
+          fromName: fromName,
+          toName: toName,
+          mode: mode,
+          time: _formatSeconds(seconds),
+          distance: _formatMeters(stepMeters[index].round()),
+          icon: walking
+              ? Icons.directions_walk_rounded
+              : _transitModeIcon(transitDetails),
+          points: points,
+        ),
+      );
+    }
+
+    final localized =
+        route['localizedValues'] as Map<String, dynamic>? ?? const {};
+    final durationText =
+        ((localized['duration'] as Map<String, dynamic>?)?['text'] as String?);
+    final distanceText =
+        ((localized['distance'] as Map<String, dynamic>?)?['text'] as String?);
+    final fareText =
+        ((localized['transitFare'] as Map<String, dynamic>?)?['text']
+            as String?);
+    final routeFare =
+        route['travelAdvisory'] as Map<String, dynamic>? ?? const {};
+    final transitFare =
+        routeFare['transitFare'] as Map<String, dynamic>? ?? const {};
+    final fare =
+        fareText ??
+        (transitFare['units'] == null
+            ? 'Fare unavailable'
+            : '${transitFare['currencyCode'] ?? 'MYR'} '
+                  '${transitFare['units']}');
+    final transfers = max(0, transitStepCount - 1);
+    final totalSeconds = _parseGoogleDurationSeconds(
+      route['duration'] as String?,
+    );
+    final option = TransitOption(
+      label: 'Transit',
+      chain: legs.map((leg) => leg.mode).toSet().join(' -> '),
+      time: durationText ?? _formatSeconds(totalSeconds),
+      distance:
+          distanceText ??
+          _formatMeters((route['distanceMeters'] as num?)?.round()),
+      fare: fare,
+      transfers: transfers == 0 ? 'No transfer' : '$transfers transfer',
+      crowd: .48,
+      color: TrasiaColors.primary,
+      legs: legs,
+      firstLegPointCount: legs.first.points.length,
+      firstStopLabel: legs.first.toName,
+      nextInstruction:
+          'Use ${legs.where((leg) => leg.mode != 'Walk').map((leg) => leg.mode).take(3).join(' + ')}',
+    );
+    return _TransitApiRoute(
+      option: option,
+      durationSeconds: totalSeconds,
+      walkingMeters: totalWalkingMeters,
+      transfers: transfers,
+      longAccessWalk: hasExcessiveWalk,
+    );
+  }
+
+  static String _walkingStepFromName(
+    int index,
+    List<Map<String, dynamic>> steps, {
+    required String originName,
+    required String destinationName,
+  }) {
+    if (index == 0) {
+      return originName;
+    }
+    final previous =
+        steps[index - 1]['transitDetails'] as Map<String, dynamic>?;
+    final stopDetails =
+        previous?['stopDetails'] as Map<String, dynamic>? ?? const {};
+    final arrival =
+        stopDetails['arrivalStop'] as Map<String, dynamic>? ?? const {};
+    return (arrival['name'] as String?) ?? 'Transfer point';
+  }
+
+  static String _walkingStepToName(
+    int index,
+    List<Map<String, dynamic>> steps, {
+    required String originName,
+    required String destinationName,
+  }) {
+    if (index == steps.length - 1) {
+      return destinationName;
+    }
+    final next = steps[index + 1]['transitDetails'] as Map<String, dynamic>?;
+    final stopDetails =
+        next?['stopDetails'] as Map<String, dynamic>? ?? const {};
+    final departure =
+        stopDetails['departureStop'] as Map<String, dynamic>? ?? const {};
+    return (departure['name'] as String?) ?? 'Nearby transit stop';
+  }
+
+  static String _transitModeLabel(Map<String, dynamic> transitDetails) {
+    final line =
+        transitDetails['transitLine'] as Map<String, dynamic>? ?? const {};
+    final agencies = line['agencies'] as List<dynamic>? ?? const [];
+    final agency = agencies.isEmpty
+        ? ''
+        : ((agencies.first as Map<String, dynamic>)['name'] as String?) ?? '';
+    final routeName =
+        (line['nameShort'] as String?) ?? (line['name'] as String?) ?? '';
+    final vehicle = line['vehicle'] as Map<String, dynamic>? ?? const {};
+    final vehicleName =
+        ((vehicle['name'] as Map<String, dynamic>?)?['text'] as String?) ??
+        _vehicleTypeName(vehicle['type'] as String?);
+    return [
+      if (agency.isNotEmpty) agency,
+      if (routeName.isNotEmpty) routeName,
+      if (agency.isEmpty && routeName.isEmpty) vehicleName,
+    ].join(' ');
+  }
+
+  static String _vehicleTypeName(String? type) {
+    return switch (type) {
+      'BUS' => 'Bus',
+      'SUBWAY' => 'MRT',
+      'LIGHT_RAIL' => 'LRT',
+      'HEAVY_RAIL' || 'COMMUTER_TRAIN' || 'RAIL' => 'Train',
+      _ => 'Public transit',
+    };
+  }
+
+  static IconData _transitModeIcon(Map<String, dynamic> transitDetails) {
+    final line =
+        transitDetails['transitLine'] as Map<String, dynamic>? ?? const {};
+    final vehicle = line['vehicle'] as Map<String, dynamic>? ?? const {};
+    return switch (vehicle['type'] as String?) {
+      'BUS' => Icons.directions_bus_rounded,
+      'SUBWAY' || 'LIGHT_RAIL' => Icons.subway_rounded,
+      _ => Icons.train_rounded,
+    };
+  }
+
+  static LatLng? _routeLatLng(Object? location) {
+    final locationMap = location as Map<String, dynamic>?;
+    final latLng = locationMap?['latLng'] as Map<String, dynamic>? ?? const {};
+    final latitude = (latLng['latitude'] as num?)?.toDouble();
+    final longitude = (latLng['longitude'] as num?)?.toDouble();
+    return latitude == null || longitude == null
+        ? null
+        : LatLng(latitude, longitude);
   }
 
   static Future<_DrivingRoute> _fetchRoutesDrivingRoute({
@@ -232,15 +806,16 @@ class _GoogleMapsApi {
     );
   }
 
-  static Future<_DrivingRoute> _fetchDirectionsDrivingRoute({
+  static Future<_DrivingRoute> _fetchDirectionsRoute({
     required LatLng origin,
     required LatLng destination,
     required String apiKey,
+    required String mode,
   }) async {
     final uri = Uri.https('maps.googleapis.com', '/maps/api/directions/json', {
       'origin': '${origin.latitude},${origin.longitude}',
       'destination': '${destination.latitude},${destination.longitude}',
-      'mode': 'driving',
+      'mode': mode,
       'region': 'my',
       'alternatives': 'false',
       'key': apiKey,
@@ -255,7 +830,7 @@ class _GoogleMapsApi {
     }
     final routes = body['routes'] as List<dynamic>? ?? const [];
     if (routes.isEmpty) {
-      throw 'No driving route found';
+      throw 'No $mode route found';
     }
     final route = routes.first as Map<String, dynamic>;
     final overviewPolyline =
@@ -264,7 +839,7 @@ class _GoogleMapsApi {
       (overviewPolyline?['points'] as String?) ?? '',
     );
     if (points.isEmpty) {
-      throw 'Driving route did not include a road polyline';
+      throw '$mode route did not include a polyline';
     }
     final legs = route['legs'] as List<dynamic>? ?? const [];
     final leg = legs.isEmpty
@@ -456,6 +1031,26 @@ class _DrivingRoute {
   final double durationSeconds;
 }
 
+class _TransitApiRoute {
+  const _TransitApiRoute({
+    required this.option,
+    required this.durationSeconds,
+    required this.walkingMeters,
+    required this.transfers,
+    required this.longAccessWalk,
+  });
+
+  final TransitOption option;
+  final double durationSeconds;
+  final double walkingMeters;
+  final int transfers;
+  final bool longAccessWalk;
+
+  String get signature => option.legs
+      .map((leg) => '${leg.fromName}|${leg.toName}|${leg.mode}')
+      .join('>');
+}
+
 class TransitOption {
   const TransitOption({
     required this.label,
@@ -634,14 +1229,6 @@ class _TransitRouteVariant {
   final double Function(_TransitEdge edge) costFor;
 }
 
-const gtfsStaticRapidRailKlEndpoint =
-    'https://api.data.gov.my/gtfs-static/prasarana?category=rapid-rail-kl';
-const gtfsStaticRapidBusKlEndpoint =
-    'https://api.data.gov.my/gtfs-static/prasarana?category=rapid-bus-kl';
-const gtfsStaticMrtFeederEndpoint =
-    'https://api.data.gov.my/gtfs-static/prasarana?category=rapid-bus-mrtfeeder';
-const gtfsStaticKtmbEndpoint = 'https://api.data.gov.my/gtfs-static/ktmb';
-
 class GovernmentDataSource {
   const GovernmentDataSource({
     required this.name,
@@ -670,7 +1257,7 @@ const governmentDataSources = [
     focus:
         'High-frequency open datasets, dashboards, catalogue search, and developer API access from Malaysian public agencies.',
     projectUse:
-        'Trasia uses Malaysia open transport data as the foundation for public transport routing. The app references official GTFS endpoints for Rapid KL rail, Rapid KL bus, MRT feeder, and KTMB services.',
+        'Used as a research reference for Malaysian transport context. Live route choices and geometry are requested from Google Maps.',
     icon: Icons.dataset_rounded,
     color: Color(0xFF0B7CFF),
   ),
@@ -709,13 +1296,6 @@ const governmentDataSources = [
   ),
 ];
 
-const officialTransitDataEndpoints = [
-  gtfsStaticRapidRailKlEndpoint,
-  gtfsStaticRapidBusKlEndpoint,
-  gtfsStaticMrtFeederEndpoint,
-  gtfsStaticKtmbEndpoint,
-];
-
 const _klTransitStops = [
   _TransitStopNode('kl_sentral', 'KL Sentral', LatLng(3.1340, 101.6869)),
   _TransitStopNode('muzium', 'Muzium Negara MRT', LatLng(3.1379, 101.6870)),
@@ -729,11 +1309,23 @@ const _klTransitStops = [
   _TransitStopNode('bukit_bintang', 'Bukit Bintang', LatLng(3.1468, 101.7113)),
   _TransitStopNode('merdeka', 'Merdeka MRT', LatLng(3.1416, 101.7020)),
   _TransitStopNode('maluri', 'Maluri', LatLng(3.1237, 101.7271)),
+  _TransitStopNode(
+    'taman_suntex',
+    'Taman Suntex MRT',
+    LatLng(3.0716, 101.7636),
+  ),
+  _TransitStopNode(
+    'batu_11_cheras',
+    'Batu 11 Cheras MRT',
+    LatLng(3.0410, 101.7731),
+  ),
   _TransitStopNode('titiwangsa', 'Titiwangsa', LatLng(3.1736, 101.6959)),
   _TransitStopNode('bts', 'Bandar Tasik Selatan', LatLng(3.0766, 101.7115)),
   _TransitStopNode('kajang', 'Kajang', LatLng(2.9833, 101.7909)),
   _TransitStopNode('ampang', 'Ampang', LatLng(3.1490, 101.7601)),
   _TransitStopNode('sri_petaling', 'Sri Petaling', LatLng(3.0615, 101.6876)),
+  _TransitStopNode('wangsa_maju', 'Wangsa Maju LRT', LatLng(3.2056, 101.7314)),
+  _TransitStopNode('sri_rampai', 'Sri Rampai LRT', LatLng(3.1985, 101.7377)),
 ];
 
 const _klTransitEdges = [
@@ -846,6 +1438,33 @@ const _klTransitEdges = [
     fare: 4.70,
   ),
   _TransitEdge(
+    fromId: 'maluri',
+    toId: 'taman_suntex',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'MRT Kajang',
+    minutes: 18,
+    fare: 2.20,
+  ),
+  _TransitEdge(
+    fromId: 'taman_suntex',
+    toId: 'batu_11_cheras',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'MRT Kajang',
+    minutes: 5,
+    fare: .80,
+  ),
+  _TransitEdge(
+    fromId: 'batu_11_cheras',
+    toId: 'kajang',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'MRT Kajang',
+    minutes: 16,
+    fare: 2.20,
+  ),
+  _TransitEdge(
     fromId: 'kl_sentral',
     toId: 'bukit_nanas',
     mode: _TransitMode.rail,
@@ -934,6 +1553,24 @@ const _klTransitEdges = [
     routeName: 'Feeder',
     minutes: 46,
     fare: 0,
+  ),
+  _TransitEdge(
+    fromId: 'wangsa_maju',
+    toId: 'sri_rampai',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Kelana Jaya',
+    minutes: 3,
+    fare: .60,
+  ),
+  _TransitEdge(
+    fromId: 'sri_rampai',
+    toId: 'klcc',
+    mode: _TransitMode.rail,
+    operatorName: 'Rapid KL',
+    routeName: 'LRT Kelana Jaya',
+    minutes: 15,
+    fare: 2.20,
   ),
 ];
 

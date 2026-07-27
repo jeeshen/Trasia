@@ -294,36 +294,36 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       _loading = true;
       _statusMessage = null;
     });
-    final transitRoutes = _multimodalTransitRoutes(destination);
-    final roadAlignedTransitRoutesFuture = transitRoutes.isEmpty
-        ? Future<List<TransitOption>>.value(transitRoutes)
-        : _roadAlignAccessTransitRoutes(transitRoutes);
-    final drivingOptionFuture = _buildDrivingOption(destination);
-    final roadAlignedTransitRoutes = await roadAlignedTransitRoutesFuture;
-    final drivingOption = await drivingOptionFuture;
-    final liveRoutes = _filterRoutesForRequestedMode([
-      ...roadAlignedTransitRoutes,
-      drivingOption,
-    ]);
-    if (!_hasGoogleMapsKey) {
-      final routes = liveRoutes.isEmpty
-          ? _filterRoutesForRequestedMode(_previewRoutes(destination))
-          : liveRoutes;
-      setState(() {
-        _routes = routes;
-        _selectedRoute = null;
-        _statusMessage = _usingFallbackDeparture
-            ? 'Device GPS looks unreliable, so planning starts from the Kuala Lumpur map area until a precise current location is available.'
-            : 'Preview routes shown. Connect Google Maps API for real travel time and path interpolation.';
-        _loading = false;
-      });
-      return;
-    }
     try {
-      final routes = liveRoutes;
+      final drivingOptionFuture = _buildDrivingOption(destination);
+      final googleTransitRoutes = _hasGoogleMapsKey
+          ? await _buildLiveTransitOptions(destination)
+          : const <TransitOption>[];
+      var transitRoutes = googleTransitRoutes;
+      if (transitRoutes.isEmpty) {
+        final fallbackRoutes = _multimodalTransitRoutes(destination);
+        transitRoutes = fallbackRoutes.isEmpty
+            ? const []
+            : await _roadAlignAccessTransitRoutes(fallbackRoutes);
+      }
+      final drivingOption = await drivingOptionFuture;
+      var routes = _filterRoutesForRequestedMode([
+        ...transitRoutes,
+        drivingOption,
+      ]);
+      if (routes.isEmpty) {
+        routes = _filterRoutesForRequestedMode(_previewRoutes(destination));
+      }
       setState(() {
         _routes = routes;
         _selectedRoute = null;
+        if (_usingFallbackDeparture) {
+          _statusMessage =
+              'Device GPS looks unreliable, so planning starts from the Kuala Lumpur map area until a precise current location is available.';
+        } else if (googleTransitRoutes.isEmpty) {
+          _statusMessage =
+              'Google transit is unavailable, so estimated routes are shown.';
+        }
       });
       if (routes.isNotEmpty) {
         await _mapController?.flyToLatLngZoom(_routingOrigin, 15);
@@ -332,9 +332,9 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       }
     } catch (error) {
       if (_isGoogleRoutesUnavailable(error)) {
-        final routes = liveRoutes.isEmpty
-            ? _filterRoutesForRequestedMode(_previewRoutes(destination))
-            : liveRoutes;
+        final routes = _filterRoutesForRequestedMode(
+          _previewRoutes(destination),
+        );
         setState(() {
           _routes = routes;
           _selectedRoute = null;
@@ -364,6 +364,84 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
             .toList(),
       null => routes,
     };
+  }
+
+  Future<List<TransitOption>> _buildLiveTransitOptions(
+    DestinationCandidate destination,
+  ) async {
+    try {
+      final apiRoutes = await _GoogleMapsApi.fetchTransitRoutes(
+        origin: _routingOrigin,
+        destination: destination.location,
+        originName: _routingOriginName,
+        destinationName: destination.name,
+        apiKey: _GoogleMapsConfig.apiKey,
+      );
+      if (apiRoutes.isEmpty) {
+        return const [];
+      }
+
+      final nearbyRoutes = apiRoutes
+          .where((route) => !route.longAccessWalk)
+          .toList();
+      final candidateRoutes = nearbyRoutes.isEmpty ? apiRoutes : nearbyRoutes;
+      final selected = <TransitOption>[];
+      final used = <String>{};
+      void addBest(
+        Iterable<_TransitApiRoute> routes, {
+        required String label,
+        required Color color,
+        required double crowd,
+      }) {
+        for (final route in routes) {
+          if (!used.add(route.signature)) {
+            continue;
+          }
+          selected.add(
+            route.option.copyWith(label: label, color: color, crowd: crowd),
+          );
+          return;
+        }
+      }
+
+      final fastest = [...candidateRoutes]
+        ..sort((a, b) => a.durationSeconds.compareTo(b.durationSeconds));
+      final leastWalking = [...candidateRoutes]
+        ..sort((a, b) {
+          final walking = a.walkingMeters.compareTo(b.walkingMeters);
+          return walking != 0
+              ? walking
+              : a.durationSeconds.compareTo(b.durationSeconds);
+        });
+      final fewestTransfers = [...candidateRoutes]
+        ..sort((a, b) {
+          final transfers = a.transfers.compareTo(b.transfers);
+          return transfers != 0
+              ? transfers
+              : a.durationSeconds.compareTo(b.durationSeconds);
+        });
+      addBest(
+        fastest,
+        label: 'Fastest Transit',
+        color: const Color(0xFF0B7CFF),
+        crowd: .70,
+      );
+      addBest(
+        leastWalking,
+        label: 'Less Walking',
+        color: const Color(0xFF2F9BFF),
+        crowd: .48,
+      );
+      addBest(
+        fewestTransfers,
+        label: 'Minimum Transfers',
+        color: const Color(0xFF005BD8),
+        crowd: .36,
+      );
+      return selected;
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<TransitOption> _buildDrivingOption(
@@ -477,9 +555,9 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       }
       widget.onTransitRouteSaved(completedDestination);
       widget.onNavigationCancelled();
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text('$destination reached.')),
-      );
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(SnackBar(content: Text('$destination reached.')));
     });
   }
 
@@ -579,11 +657,20 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   List<TransitOption> _multimodalTransitRoutes(
     DestinationCandidate destination,
   ) {
+    const maxAccessWalkMeters = 1600.0;
     final origin = _routingOrigin;
     final target = destination.location;
-    final startStop = _nearestTransitStop(origin);
-    final endStop = _nearestTransitStop(target);
-    if (startStop == null || endStop == null) {
+    final nearbyStartStops = _nearbyTransitStops(origin, maxAccessWalkMeters);
+    final nearbyEndStops = _nearbyTransitStops(target, maxAccessWalkMeters);
+    final nearestStartStop = _nearestTransitStop(origin);
+    final nearestEndStop = _nearestTransitStop(target);
+    final startStops = nearbyStartStops.isNotEmpty
+        ? nearbyStartStops
+        : [?nearestStartStop];
+    final endStops = nearbyEndStops.isNotEmpty
+        ? nearbyEndStops
+        : [?nearestEndStop];
+    if (startStops.isEmpty || endStops.isEmpty) {
       return const [];
     }
     final variants = [
@@ -614,18 +701,40 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     final options = <TransitOption>[];
     final seenChains = <String>{};
     for (final variant in variants) {
-      final path = _findTransitPath(startStop.id, endStop.id, variant);
-      if (path.isEmpty) {
+      TransitOption? bestOption;
+      var bestScore = double.infinity;
+      for (final startStop in startStops) {
+        for (final endStop in endStops) {
+          final path = _findTransitPath(startStop.id, endStop.id, variant);
+          if (path.isEmpty) {
+            continue;
+          }
+          final accessMinutes =
+              (_metersBetween(origin, startStop.location) +
+                  _metersBetween(endStop.location, target)) /
+              75;
+          final pathScore = path.fold<double>(
+            accessMinutes,
+            (score, edge) => score + variant.costFor(edge),
+          );
+          if (pathScore >= bestScore) {
+            continue;
+          }
+          bestScore = pathScore;
+          bestOption = _transitOptionFromPath(
+            variant: variant,
+            origin: origin,
+            destination: destination,
+            startStop: startStop,
+            endStop: endStop,
+            path: path,
+          );
+        }
+      }
+      final option = bestOption;
+      if (option == null) {
         continue;
       }
-      final option = _transitOptionFromPath(
-        variant: variant,
-        origin: origin,
-        destination: destination,
-        startStop: startStop,
-        endStop: endStop,
-        path: path,
-      );
       final chainKey = option.legs.map((leg) => leg.mode).join('|');
       if (seenChains.add('${variant.label}|$chainKey')) {
         options.add(option);
@@ -634,14 +743,31 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     return options.take(3).toList();
   }
 
+  List<_TransitStopNode> _nearbyTransitStops(
+    LatLng location,
+    double maxMeters,
+  ) {
+    final nearby = [
+      for (final stop in _klTransitStops)
+        if (_metersBetween(location, stop.location) <= maxMeters) stop,
+    ];
+    nearby.sort(
+      (a, b) => _metersBetween(
+        location,
+        a.location,
+      ).compareTo(_metersBetween(location, b.location)),
+    );
+    return nearby;
+  }
+
   _TransitStopNode? _nearestTransitStop(LatLng location) {
     _TransitStopNode? nearest;
-    var bestMeters = double.infinity;
+    var nearestMeters = double.infinity;
     for (final stop in _klTransitStops) {
       final meters = _metersBetween(location, stop.location);
-      if (meters < bestMeters) {
-        bestMeters = meters;
+      if (meters < nearestMeters) {
         nearest = stop;
+        nearestMeters = meters;
       }
     }
     return nearest;

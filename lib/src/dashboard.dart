@@ -416,38 +416,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<LatLng?> _readDeviceLocation() async {
     final messenger = ScaffoldMessenger.maybeOf(context);
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      messenger?.showSnackBar(
-        const SnackBar(content: Text('Turn on location services first.')),
-      );
-      return null;
-    }
-
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        await _showLocationSettingsDialog();
+      }
+      return null;
+    }
+    if (permission == LocationPermission.denied) {
       messenger?.showSnackBar(
-        const SnackBar(content: Text('Location permission is needed.')),
+        const SnackBar(
+          content: Text('Allow location while using the app to continue.'),
+        ),
+      );
+      return null;
+    }
+
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: const Text('Turn on location services first.'),
+          action: SnackBarAction(
+            label: 'Settings',
+            onPressed: Geolocator.openLocationSettings,
+          ),
+        ),
       );
       return null;
     }
 
     try {
-      final last = await Geolocator.getLastKnownPosition();
-      if (last != null) {
-        unawaited(_refreshSharedLocation());
-        return LatLng(last.latitude, last.longitude);
-      }
-
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
           distanceFilter: 0,
-          timeLimit: Duration(seconds: 4),
+          timeLimit: Duration(seconds: 8),
         ),
       );
       return LatLng(position.latitude, position.longitude);
@@ -459,24 +466,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _refreshSharedLocation() async {
-    try {
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 0,
-          timeLimit: Duration(seconds: 5),
+  Future<void> _showLocationSettingsDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Location permission needed'),
+        content: const Text(
+          'Location access is blocked. Open Android settings and allow '
+          'location while using the app.',
         ),
-      );
-      if (!mounted) {
-        return;
-      }
-      _setSharedSelfLocation(
-        LatLng(position.latitude, position.longitude),
-        position.accuracy,
-        centerMap: true,
-      );
-    } catch (_) {}
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              unawaited(Geolocator.openAppSettings());
+            },
+            child: const Text('Open settings'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _setSharedSelfLocation(

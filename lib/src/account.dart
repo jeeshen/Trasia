@@ -1065,8 +1065,6 @@ class _GovernmentDataSheet extends StatelessWidget {
             _GovernmentDataCard(source: source),
             const SizedBox(height: 12),
           ],
-          const SizedBox(height: 6),
-          const _OfficialEndpointPanel(),
         ],
       ),
     );
@@ -1213,58 +1211,6 @@ class _DataDetailBlock extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _OfficialEndpointPanel extends StatelessWidget {
-  const _OfficialEndpointPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF102033),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.directions_transit_rounded, color: Colors.white),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Official transit API endpoints',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'These endpoints are already referenced in Trasia for Malaysia public transport data.',
-            style: TextStyle(color: Color(0xFFBFD0E5), height: 1.35),
-          ),
-          const SizedBox(height: 12),
-          for (final endpoint in officialTransitDataEndpoints) ...[
-            SelectableText(
-              endpoint,
-              style: const TextStyle(
-                color: Color(0xFF9DFFCB),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 7),
-          ],
-        ],
-      ),
     );
   }
 }
