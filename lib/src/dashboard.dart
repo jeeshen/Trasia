@@ -26,12 +26,15 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _tab = 0;
+  int _previousTab = 0;
   late double _wallet;
   late int _savedTransitRoutes;
   late int _hubPoolTransactions;
   late double _carbonSavedKg;
   String _transitDestination = 'KLCC';
   int _transitRequest = 0;
+  DestinationCandidate? _hubPoolRequestedDestination;
+  int _hubPoolRequest = 0;
   BlindBoxTravelMode? _transitRequestedMode;
   String? _ongoingDestination;
   LatLng? _sharedCurrentLocation;
@@ -94,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _openTransitFor(String destination, BlindBoxTravelMode travelMode) {
+  void _openTransitFor(String destination, BlindBoxTravelMode? travelMode) {
     setState(() {
       _transitDestination = destination;
       _transitRequest++;
@@ -185,7 +188,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _revisitFavoritePlace(FavoritePlace place) {
-    _openTransitFor(place.name, BlindBoxTravelMode.transit);
+    final sourceTab = _tab == 4 ? _previousTab : _tab;
+    if (sourceTab == 1) {
+      final destination = DestinationCandidate(
+        name: place.name,
+        address: place.address,
+        location: place.location,
+        placeId: 'favorite-${place.key}',
+      );
+      setState(() {
+        _previousTab = _tab;
+        _hubPoolRequestedDestination = destination;
+        _hubPoolRequest++;
+        _tab = 1;
+      });
+      return;
+    }
+    _openTransitFor(place.name, null);
   }
 
   Future<void> _loadFavoritePlaces() async {
@@ -355,24 +374,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _updateMapView(SharedMapView view) {
     final incomingLocation = view.currentLocation;
-    if (incomingLocation != null && view.currentAccuracyMeters != null) {
+    if (incomingLocation != null) {
       _sharedCurrentLocation = incomingLocation;
       _sharedCurrentAccuracyMeters = view.currentAccuracyMeters;
     }
-    if (globalMapViewNotifier.value.signature == view.signature) {
+    final effectiveView = _mapViewWithSharedSelfLocation(view);
+    if (globalMapViewNotifier.value.signature == effectiveView.signature) {
       return;
     }
     final oldPrefix = globalMapViewNotifier.value.signature.split('|').first;
-    final newPrefix = view.signature.split('|').first;
-    globalMapViewNotifier.value = view;
-    final target = view.initialTarget;
-    final zoom = view.initialZoom;
+    final newPrefix = effectiveView.signature.split('|').first;
+    globalMapViewNotifier.value = effectiveView;
+    final target = effectiveView.vehicleLocation ?? effectiveView.initialTarget;
+    final zoom = effectiveView.vehicleLocation != null
+        ? 17.5
+        : effectiveView.initialZoom;
     if (globalMapController.value != null &&
         target != null &&
         zoom != null &&
         oldPrefix != newPrefix) {
       unawaited(globalMapController.value!.flyToLatLngZoom(target, zoom));
     }
+  }
+
+  SharedMapView _mapViewWithSharedSelfLocation(SharedMapView view) {
+    final location = view.currentLocation ?? _sharedCurrentLocation;
+    if (location == null) {
+      return view;
+    }
+    final accuracy = view.currentAccuracyMeters ?? _sharedCurrentAccuracyMeters;
+    final baseSignature = view.signature.split('|self:').first;
+    return SharedMapView(
+      signature:
+          '$baseSignature|self:${location.latitude.toStringAsFixed(5)},${location.longitude.toStringAsFixed(5)}',
+      currentLocation: location,
+      currentAccuracyMeters: accuracy,
+      candidate: view.candidate,
+      selectedRoute: view.selectedRoute,
+      navigating: view.navigating,
+      vehicleLocation: view.vehicleLocation,
+      vehicleColor: view.vehicleColor,
+      vehicleBearing: view.vehicleBearing,
+      routeProgress: view.routeProgress,
+      showCurrentLocationMarker: view.showCurrentLocationMarker,
+      showRouteEndpoints: view.showRouteEndpoints,
+      initialTarget: view.initialTarget,
+      initialZoom: view.initialZoom,
+      extraMarkers: view.extraMarkers,
+      extraPolylines: view.extraPolylines,
+    );
   }
 
   Future<void> _centerSharedMapOnCurrentLocation() async {
@@ -514,6 +564,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       vehicleLocation: current.vehicleLocation,
       vehicleColor: current.vehicleColor,
       vehicleBearing: current.vehicleBearing,
+      routeProgress: current.routeProgress,
       showCurrentLocationMarker: current.showCurrentLocationMarker,
       showRouteEndpoints: current.showRouteEndpoints,
       initialTarget: centerMap ? location : current.initialTarget,
@@ -562,6 +613,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         demoArrivalRequest: _demoArrivalRequest,
         favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
         onToggleFavorite: _toggleFavoriteDestination,
+        requestedDestination: _hubPoolRequestedDestination,
+        request: _hubPoolRequest,
       ),
       _DashboardOverviewPage(active: _tab == 2),
       PelancongPlanScreen(
@@ -623,6 +676,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   vehicleLocation: view.vehicleLocation,
                   vehicleColor: view.vehicleColor,
                   vehicleBearing: view.vehicleBearing,
+                  routeProgress: view.routeProgress,
                   showCurrentLocationMarker: view.showCurrentLocationMarker,
                   showRouteEndpoints: view.showRouteEndpoints,
                   initialTarget: view.initialTarget,
@@ -639,47 +693,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             ),
           ),
+          if (_tab == 0 || _tab == 1 || _tab == 3)
+            _buildMapControls(behindExpandedResults: true),
           IndexedStack(index: _tab, children: pages),
-          if (_tab != 2 && _tab != 4)
-            ValueListenableBuilder<SharedMapView>(
-              valueListenable: globalMapViewNotifier,
-              builder: (context, view, _) {
-                final isPlanEmpty =
-                    _tab == 3 && view.signature.startsWith('plan-empty');
-                if (isPlanEmpty) {
-                  return const SizedBox.shrink();
-                }
-                final showDemoArrival =
-                    view.navigating ||
-                    (_tab == 1 &&
-                        (view.signature.contains('RideStage.matching') ||
-                            view.signature.contains('RideStage.tracking') ||
-                            view.signature.contains('RideStage.onboard'))) ||
-                    (_tab == 3 &&
-                        (view.signature.contains('trip:traveling') ||
-                            view.signature.contains('trip:arrived')));
-                return Positioned(
-                  right: 16,
-                  bottom: 128,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (showDemoArrival) ...[
-                        _DemoArrivalButton(onPressed: _completeDemoArrival),
-                        const SizedBox(height: 12),
-                      ] else ...[
-                        _MapFavoritesButton(onPressed: _showMapFavorites),
-                        const SizedBox(height: 12),
-                      ],
-                      _MapLocationButton(
-                        loading: _centeringOnLocation,
-                        onPressed: _centerSharedMapOnCurrentLocation,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+          if (_tab != 2 && _tab != 4) _buildMapControls(),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -715,47 +732,93 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildMapControls({bool behindExpandedResults = false}) {
+    return ValueListenableBuilder<SharedMapView>(
+      valueListenable: globalMapViewNotifier,
+      builder: (context, view, _) {
+        if (_tab == 0 || _tab == 1 || _tab == 3) {
+          final resultsExpanded = view.signature.contains('results:expanded');
+          if (behindExpandedResults != resultsExpanded) {
+            return const SizedBox.shrink();
+          }
+        } else if (behindExpandedResults) {
+          return const SizedBox.shrink();
+        }
+        final isPlanEmpty =
+            _tab == 3 && view.signature.startsWith('plan-empty');
+        if (isPlanEmpty) {
+          return const SizedBox.shrink();
+        }
+        final showDemoArrival =
+            view.navigating ||
+            (_tab == 1 &&
+                (view.signature.contains('RideStage.matching') ||
+                    view.signature.contains('RideStage.tracking') ||
+                    view.signature.contains('RideStage.onboard'))) ||
+            (_tab == 3 &&
+                view.signature.startsWith('plan|') &&
+                !view.signature.contains('trip:completed'));
+        return Positioned(
+          right: 16,
+          bottom: 128,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (showDemoArrival) ...[
+                _DemoArrivalButton(onPressed: _completeDemoArrival),
+                const SizedBox(height: 12),
+              ] else ...[
+                _MapFavoritesButton(onPressed: _showMapFavorites),
+                const SizedBox(height: 12),
+              ],
+              _MapLocationButton(
+                loading: _centeringOnLocation,
+                onPressed: _centerSharedMapOnCurrentLocation,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildNavItem(IconData icon, String label, int index) {
     final isSelected = _tab == index;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _tab = index),
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          height: 48,
-          decoration: BoxDecoration(
-            color: isSelected ? colorScheme.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: isSelected
-                    ? colorScheme.onPrimary
-                    : TrasiaColors.darkIcon,
-                size: 20,
+      child: Semantics(
+        label: label,
+        button: true,
+        selected: isSelected,
+        child: Tooltip(
+          message: label,
+          child: GestureDetector(
+            key: Key('nav-${label.toLowerCase()}'),
+            onTap: () => setState(() {
+              _previousTab = _tab;
+              _tab = index;
+            }),
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              height: 48,
+              decoration: BoxDecoration(
+                color: isSelected ? colorScheme.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
               ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-                style: TextStyle(
+              child: Center(
+                child: Icon(
+                  icon,
                   color: isSelected
                       ? colorScheme.onPrimary
                       : TrasiaColors.darkIcon,
-                  fontSize: label == 'Dashboard' ? 8 : 9,
-                  fontWeight: FontWeight.w800,
+                  size: 22,
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

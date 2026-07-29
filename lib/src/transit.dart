@@ -111,9 +111,11 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
 
   SharedMapView get _currentMapView {
     final displayCurrentLocation = _displayCurrentLocation;
+    final resultsExpanded =
+        !_navigating && (_candidates.isNotEmpty || _routes.isNotEmpty);
     return SharedMapView(
       signature:
-          'transit|${_pointKey(displayCurrentLocation)}|${_navigating ? 'nav' : widget.currentAccuracyMeters?.round()}|${_candidate?.placeId}|${_selectedRoute?.label}|$_navigating|${_routes.length}',
+          'transit|${_pointKey(displayCurrentLocation)}|${_navigating ? 'nav' : widget.currentAccuracyMeters?.round()}|${_candidate?.placeId}|${_selectedRoute?.label}|$_navigating|results:${resultsExpanded ? 'expanded' : 'collapsed'}|${_routes.length}',
       currentLocation: displayCurrentLocation,
       currentAccuracyMeters: _navigating ? null : widget.currentAccuracyMeters,
       candidate: _candidate,
@@ -299,12 +301,14 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       final googleTransitRoutes = _hasGoogleMapsKey
           ? await _buildLiveTransitOptions(destination)
           : const <TransitOption>[];
-      var transitRoutes = googleTransitRoutes;
+      final localFareRoutes = _multimodalTransitRoutes(destination);
+      var transitRoutes = googleTransitRoutes.isEmpty
+          ? const <TransitOption>[]
+          : _applyLocalFareEstimates(googleTransitRoutes, localFareRoutes);
       if (transitRoutes.isEmpty) {
-        final fallbackRoutes = _multimodalTransitRoutes(destination);
-        transitRoutes = fallbackRoutes.isEmpty
+        transitRoutes = localFareRoutes.isEmpty
             ? const []
-            : await _roadAlignAccessTransitRoutes(fallbackRoutes);
+            : await _roadAlignAccessTransitRoutes(localFareRoutes);
       }
       final drivingOption = await drivingOptionFuture;
       var routes = _filterRoutesForRequestedMode([
@@ -364,6 +368,40 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
             .toList(),
       null => routes,
     };
+  }
+
+  List<TransitOption> _applyLocalFareEstimates(
+    List<TransitOption> liveRoutes,
+    List<TransitOption> localRoutes,
+  ) {
+    if (localRoutes.isEmpty) {
+      return liveRoutes;
+    }
+    return [
+      for (var index = 0; index < liveRoutes.length; index++)
+        if (!liveRoutes[index].fare.toLowerCase().contains('unavailable'))
+          liveRoutes[index]
+        else
+          liveRoutes[index].copyWith(
+            fare: _localFareForLiveRoute(liveRoutes[index], index, localRoutes),
+          ),
+    ];
+  }
+
+  String _localFareForLiveRoute(
+    TransitOption liveRoute,
+    int index,
+    List<TransitOption> localRoutes,
+  ) {
+    final localLabel = liveRoute.label == 'Less Walking'
+        ? 'Cheapest Route'
+        : liveRoute.label;
+    for (final localRoute in localRoutes) {
+      if (localRoute.label == localLabel) {
+        return localRoute.fare;
+      }
+    }
+    return localRoutes[min(index, localRoutes.length - 1)].fare;
   }
 
   Future<List<TransitOption>> _buildLiveTransitOptions(

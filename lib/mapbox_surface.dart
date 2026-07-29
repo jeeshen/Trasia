@@ -54,6 +54,26 @@ class AppMapController {
     );
   }
 
+  Future<void> easeToCameraPosition(
+    gmaps.CameraPosition position, {
+    int durationMs = 240,
+  }) {
+    return mapboxMap.easeTo(
+      mapbox.CameraOptions(
+        center: mapbox.Point(
+          coordinates: mapbox.Position(
+            position.target.longitude,
+            position.target.latitude,
+          ),
+        ),
+        zoom: position.zoom,
+        pitch: position.tilt,
+        bearing: position.bearing,
+      ),
+      mapbox.MapAnimationOptions(duration: durationMs),
+    );
+  }
+
   Future<void> flyToLatLngZoom(gmaps.LatLng location, double zoom) {
     return mapboxMap.flyTo(
       mapbox.CameraOptions(
@@ -110,6 +130,7 @@ class LiveMapboxSurface extends StatefulWidget {
     this.vehicleLocation,
     this.vehicleColor,
     this.vehicleBearing = 0,
+    this.routeProgress,
     this.showCurrentLocationMarker = true,
     this.showRouteEndpoints = true,
     this.initialTarget,
@@ -129,6 +150,7 @@ class LiveMapboxSurface extends StatefulWidget {
   final gmaps.LatLng? vehicleLocation;
   final Color? vehicleColor;
   final double vehicleBearing;
+  final double? routeProgress;
   final bool showCurrentLocationMarker;
   final bool showRouteEndpoints;
   final gmaps.LatLng? initialTarget;
@@ -145,11 +167,20 @@ class LiveMapboxSurface extends StatefulWidget {
 class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   mapbox.MapboxMap? _mapboxMap;
   mapbox.PointAnnotationManager? _pointManager;
+  mapbox.PointAnnotationManager? _vehiclePointManager;
   mapbox.PolylineAnnotationManager? _polylineManager;
   mapbox.CircleAnnotationManager? _circleManager;
+  mapbox.PointAnnotation? _vehicleAnnotation;
+  final List<mapbox.PolylineAnnotation> _routeAnnotations = [];
+  mapbox.Cancelable? _pointTapEvents;
+  final Map<String, VoidCallback> _pointTapCallbacks = {};
   Future<void>? _annotationSetup;
   bool _annotationUpdateRunning = false;
   bool _annotationUpdateRequested = false;
+  bool _vehicleUpdateRunning = false;
+  bool _vehicleUpdateRequested = false;
+  bool _routeProgressUpdateRunning = false;
+  bool _routeProgressUpdateRequested = false;
   Future<Uint8List>? _selfMarkerBytes;
   final Map<int, Future<Uint8List>> _vehicleMarkerBytes = {};
   bool _isMapLoaded = false;
@@ -158,6 +189,13 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   void initState() {
     super.initState();
     mapbox.MapboxOptions.setAccessToken(_mapboxAccessToken);
+  }
+
+  @override
+  void dispose() {
+    _pointTapEvents?.cancel();
+    _pointTapCallbacks.clear();
+    super.dispose();
   }
 
   @override
@@ -228,14 +266,39 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       setState(() => _isMapLoaded = true);
     }
     _scheduleAnnotationUpdate();
+    _scheduleVehicleUpdate();
   }
 
   @override
   void didUpdateWidget(covariant LiveMapboxSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_mapboxMap != null) {
+    if (_mapboxMap == null) {
+      return;
+    }
+    if (_staticMapContentChanged(oldWidget)) {
       _scheduleAnnotationUpdate();
     }
+    if (oldWidget.vehicleLocation != widget.vehicleLocation ||
+        oldWidget.vehicleColor != widget.vehicleColor ||
+        oldWidget.vehicleBearing != widget.vehicleBearing) {
+      _scheduleVehicleUpdate();
+    }
+    if (oldWidget.routeProgress != widget.routeProgress) {
+      _scheduleRouteProgressUpdate();
+    }
+  }
+
+  bool _staticMapContentChanged(LiveMapboxSurface oldWidget) {
+    return oldWidget.currentLocation != widget.currentLocation ||
+        oldWidget.currentAccuracyMeters != widget.currentAccuracyMeters ||
+        oldWidget.candidate != widget.candidate ||
+        !identical(oldWidget.selectedRoute, widget.selectedRoute) ||
+        oldWidget.navigating != widget.navigating ||
+        oldWidget.showCurrentLocationMarker !=
+            widget.showCurrentLocationMarker ||
+        oldWidget.showRouteEndpoints != widget.showRouteEndpoints ||
+        !identical(oldWidget.extraMarkers, widget.extraMarkers) ||
+        !identical(oldWidget.extraPolylines, widget.extraPolylines);
   }
 
   void _scheduleAnnotationUpdate() {
@@ -279,6 +342,19 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     _circleManager = await mapboxMap.annotations
         .createCircleAnnotationManager();
     _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
+    _vehiclePointManager = await mapboxMap.annotations
+        .createPointAnnotationManager();
+    await _vehiclePointManager!.setIconAllowOverlap(true);
+    await _vehiclePointManager!.setIconIgnorePlacement(true);
+    await _vehiclePointManager!.setIconRotationAlignment(
+      mapbox.IconRotationAlignment.MAP,
+    );
+    _pointTapEvents?.cancel();
+    _pointTapEvents = _pointManager!.tapEvents(
+      onTap: (annotation) {
+        _pointTapCallbacks[annotation.id]?.call();
+      },
+    );
   }
 
   Future<void> _updateAnnotations() async {
@@ -291,6 +367,8 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     await _pointManager!.deleteAll();
     await _polylineManager!.deleteAll();
     await _circleManager!.deleteAll();
+    _routeAnnotations.clear();
+    _pointTapCallbacks.clear();
 
     for (final polyline in widget.extraPolylines) {
       await _polylineManager!.create(
@@ -312,7 +390,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
         if (leg.points.isEmpty) {
           continue;
         }
-        await _polylineManager!.create(
+        final annotation = await _polylineManager!.create(
           mapbox.PolylineAnnotationOptions(
             geometry: mapbox.LineString(
               coordinates: leg.points
@@ -323,6 +401,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
             lineWidth: 5.0,
           ),
         );
+        _routeAnnotations.add(annotation);
       }
     }
 
@@ -340,7 +419,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
         mapbox.PointAnnotationOptions(
           geometry: _point(widget.currentLocation!),
           image: await _selfMarker(),
-          iconSize: 1.0,
+          iconSize: 0.9,
         ),
       );
     }
@@ -351,17 +430,6 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
         radius: 8,
         color: Colors.red,
         strokeColor: Colors.white,
-      );
-    }
-
-    if (widget.vehicleLocation != null) {
-      await _pointManager!.create(
-        mapbox.PointAnnotationOptions(
-          geometry: _point(widget.vehicleLocation!),
-          image: await _vehicleMarker(widget.vehicleColor ?? Colors.black),
-          iconSize: .62,
-          iconRotate: widget.vehicleBearing,
-        ),
       );
     }
 
@@ -394,14 +462,133 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
         );
         continue;
       }
-      await _pointManager!.create(
+      final annotation = await _pointManager!.create(
         mapbox.PointAnnotationOptions(
           geometry: _point(marker.position),
           image: imageBytes,
           iconSize: 2.5,
         ),
       );
+      final onTap = marker.onTap;
+      if (onTap != null) {
+        _pointTapCallbacks[annotation.id] = onTap;
+      }
     }
+    _scheduleRouteProgressUpdate();
+    _scheduleVehicleUpdate();
+  }
+
+  void _scheduleRouteProgressUpdate() {
+    _routeProgressUpdateRequested = true;
+    if (_routeProgressUpdateRunning) {
+      return;
+    }
+    _routeProgressUpdateRunning = true;
+    unawaited(_drainRouteProgressUpdates());
+  }
+
+  Future<void> _drainRouteProgressUpdates() async {
+    while (mounted && _routeProgressUpdateRequested) {
+      _routeProgressUpdateRequested = false;
+      try {
+        await _ensureAnnotationManagers();
+        if (mounted) {
+          await _updateRouteProgress();
+        }
+      } catch (error) {
+        debugPrint('Route progress update failed: $error');
+      }
+    }
+    _routeProgressUpdateRunning = false;
+    if (mounted && _routeProgressUpdateRequested) {
+      _scheduleRouteProgressUpdate();
+    }
+  }
+
+  Future<void> _updateRouteProgress() async {
+    final manager = _polylineManager;
+    final route = widget.selectedRoute;
+    final progress = widget.routeProgress;
+    if (manager == null ||
+        route == null ||
+        progress == null ||
+        _routeAnnotations.isEmpty) {
+      return;
+    }
+    final legs = route.legs.where((leg) => leg.points.isNotEmpty).toList();
+    final count = min(legs.length, _routeAnnotations.length);
+    for (var i = 0; i < count; i++) {
+      final remaining = _remainingRoutePoints(legs[i].points, progress);
+      final annotation = _routeAnnotations[i];
+      annotation.geometry = mapbox.LineString(
+        coordinates: remaining
+            .map((point) => mapbox.Position(point.longitude, point.latitude))
+            .toList(),
+      );
+      await manager.update(annotation);
+    }
+  }
+
+  void _scheduleVehicleUpdate() {
+    _vehicleUpdateRequested = true;
+    if (_vehicleUpdateRunning) {
+      return;
+    }
+    _vehicleUpdateRunning = true;
+    unawaited(_drainVehicleUpdates());
+  }
+
+  Future<void> _drainVehicleUpdates() async {
+    while (mounted && _vehicleUpdateRequested) {
+      _vehicleUpdateRequested = false;
+      try {
+        await _ensureAnnotationManagers();
+        if (mounted) {
+          await _updateVehicleAnnotation();
+        }
+      } catch (error) {
+        debugPrint('Vehicle annotation update failed: $error');
+      }
+    }
+    _vehicleUpdateRunning = false;
+    if (mounted && _vehicleUpdateRequested) {
+      _scheduleVehicleUpdate();
+    }
+  }
+
+  Future<void> _updateVehicleAnnotation() async {
+    final manager = _vehiclePointManager;
+    if (manager == null) {
+      return;
+    }
+    final location = widget.vehicleLocation;
+    if (location == null) {
+      final annotation = _vehicleAnnotation;
+      if (annotation != null) {
+        await manager.delete(annotation);
+        _vehicleAnnotation = null;
+      }
+      return;
+    }
+    final image = await _vehicleMarker(widget.vehicleColor ?? Colors.black);
+    final annotation = _vehicleAnnotation;
+    if (annotation == null) {
+      _vehicleAnnotation = await manager.create(
+        mapbox.PointAnnotationOptions(
+          geometry: _point(location),
+          image: image,
+          iconSize: .62,
+          iconRotate: widget.vehicleBearing,
+        ),
+      );
+      return;
+    }
+    annotation
+      ..geometry = _point(location)
+      ..image = image
+      ..iconSize = .62
+      ..iconRotate = widget.vehicleBearing;
+    await manager.update(annotation);
   }
 
   Future<void> _createCircle(
@@ -426,6 +613,60 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     return mapbox.Point(
       coordinates: mapbox.Position(location.longitude, location.latitude),
     );
+  }
+
+  List<gmaps.LatLng> _remainingRoutePoints(
+    List<gmaps.LatLng> points,
+    double progress,
+  ) {
+    if (points.length < 2) {
+      return points;
+    }
+    final currentProgress = progress.clamp(0, 1).toDouble();
+    final segmentLengths = <double>[];
+    var totalMeters = 0.0;
+    for (var i = 0; i < points.length - 1; i++) {
+      final length = _mapDistanceMeters(points[i], points[i + 1]);
+      segmentLengths.add(length);
+      totalMeters += length;
+    }
+    if (totalMeters == 0) {
+      return [points.last, points.last];
+    }
+
+    var travelledMeters = totalMeters * currentProgress;
+    var segmentIndex = 0;
+    while (segmentIndex < segmentLengths.length - 1 &&
+        travelledMeters > segmentLengths[segmentIndex]) {
+      travelledMeters -= segmentLengths[segmentIndex];
+      segmentIndex++;
+    }
+    final from = points[segmentIndex];
+    final to = points[segmentIndex + 1];
+    final segmentLength = segmentLengths[segmentIndex];
+    final segmentProgress = segmentLength == 0
+        ? 0.0
+        : (travelledMeters / segmentLength).clamp(0, 1).toDouble();
+    final current = gmaps.LatLng(
+      from.latitude + (to.latitude - from.latitude) * segmentProgress,
+      from.longitude + (to.longitude - from.longitude) * segmentProgress,
+    );
+    return [current, ...points.skip(segmentIndex + 1)];
+  }
+
+  double _mapDistanceMeters(gmaps.LatLng from, gmaps.LatLng to) {
+    const earthRadiusMeters = 6371000.0;
+    final fromLatitude = from.latitude * pi / 180;
+    final toLatitude = to.latitude * pi / 180;
+    final latitudeDelta = (to.latitude - from.latitude) * pi / 180;
+    final longitudeDelta = (to.longitude - from.longitude) * pi / 180;
+    final a =
+        sin(latitudeDelta / 2) * sin(latitudeDelta / 2) +
+        cos(fromLatitude) *
+            cos(toLatitude) *
+            sin(longitudeDelta / 2) *
+            sin(longitudeDelta / 2);
+    return earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
 
   Future<Uint8List> _selfMarker() {

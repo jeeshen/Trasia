@@ -174,11 +174,11 @@ class _MapSearchWindow extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasResults =
         statusMessage != null || candidates.isNotEmpty || routes.isNotEmpty;
+    final panelMaxHeight = MediaQuery.sizeOf(context).height * .76;
+    final resultMaxHeight = max(220.0, panelMaxHeight - 140);
 
     return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * .76,
-      ),
+      constraints: BoxConstraints(maxHeight: panelMaxHeight),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -198,7 +198,7 @@ class _MapSearchWindow extends StatelessWidget {
             children: [
               Expanded(
                 child: Container(
-                  height: 38,
+                  height: 48,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF2F6FB),
@@ -243,6 +243,10 @@ class _MapSearchWindow extends StatelessWidget {
                       style: const TextStyle(color: Color(0xFF172033)),
                       decoration: InputDecoration(
                         isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
                         filled: true,
                         fillColor: const Color(0xFFF2F6FB),
                         border: const OutlineInputBorder(
@@ -288,7 +292,8 @@ class _MapSearchWindow extends StatelessWidget {
           if (hasResults) ...[
             const SizedBox(height: 12),
             const Divider(height: 1),
-            Flexible(
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: resultMaxHeight),
               child: ListView(
                 shrinkWrap: true,
                 padding: const EdgeInsets.only(top: 12),
@@ -305,7 +310,7 @@ class _MapSearchWindow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    for (final option in candidates.take(6)) ...[
+                    for (final option in candidates) ...[
                       _DestinationConfirmCard(
                         candidate: option,
                         selected: option == candidate,
@@ -422,11 +427,7 @@ class _DemoArrivalButton extends StatelessWidget {
         child: const SizedBox.square(
           dimension: 48,
           child: Center(
-            child: Icon(
-              Icons.flag_rounded,
-              color: Colors.white,
-              size: 24,
-            ),
+            child: Icon(Icons.flag_rounded, color: Colors.white, size: 24),
           ),
         ),
       ),
@@ -549,6 +550,8 @@ class _DestinationConfirmCard extends StatelessWidget {
                   children: [
                     Text(
                       candidate.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Color(0xFF172033),
                         fontSize: 18,
@@ -586,6 +589,10 @@ class _DestinationConfirmCard extends StatelessWidget {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onConfirm,
+                style: FilledButton.styleFrom(
+                  foregroundColor: Colors.black,
+                  disabledForegroundColor: Colors.black,
+                ),
                 icon: const Icon(Icons.alt_route_rounded),
                 label: Text(actionLabel!),
               ),
@@ -655,7 +662,7 @@ class _RouteChoiceCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              route.chain,
+              _userFacingTransitText(route.chain),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Color(0xFF687386)),
@@ -663,7 +670,10 @@ class _RouteChoiceCard extends StatelessWidget {
             const SizedBox(height: 14),
             Row(
               children: [
-                _DarkMiniMetric(Icons.schedule_rounded, route.time),
+                _DarkMiniMetric(
+                  Icons.schedule_rounded,
+                  _compactDurationLabel(route.time),
+                ),
                 const SizedBox(width: 8),
                 _DarkMiniMetric(Icons.straighten_rounded, route.distance),
                 const SizedBox(width: 8),
@@ -712,6 +722,26 @@ class _DarkMiniMetric extends StatelessWidget {
       ),
     );
   }
+}
+
+String _compactDurationLabel(String value) {
+  final hours = RegExp(
+    r'(\d+)\s*(?:hours?|hrs?|h)\b',
+    caseSensitive: false,
+  ).firstMatch(value);
+  final minutes = RegExp(
+    r'(\d+)\s*(?:minutes?|mins?|m)\b',
+    caseSensitive: false,
+  ).firstMatch(value);
+  if (hours == null && minutes == null) {
+    return value;
+  }
+  final hourValue = hours?.group(1);
+  final minuteValue = minutes?.group(1);
+  return [
+    if (hourValue != null) '${hourValue}H',
+    if (minuteValue != null) '${minuteValue}M',
+  ].join();
 }
 
 class _PeakCrowdBars extends StatelessWidget {
@@ -841,7 +871,14 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
                         '${route.label} / ${route.time} / ${route.distance}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Color(0xFF687386)),
+                        style: TextStyle(
+                          color: route.time == 'Calculating'
+                              ? Colors.black
+                              : const Color(0xFF687386),
+                          fontWeight: route.time == 'Calculating'
+                              ? FontWeight.w700
+                              : FontWeight.normal,
+                        ),
                       ),
                       if (widget.ongoing)
                         const Text(
@@ -924,7 +961,14 @@ class _NextLegCard extends StatelessWidget {
                 ),
                 Text(
                   '${leg.mode} / ${leg.time} / ${leg.distance}',
-                  style: const TextStyle(color: Color(0xFF687386)),
+                  style: TextStyle(
+                    color: leg.time == 'Calculating'
+                        ? Colors.black
+                        : const Color(0xFF687386),
+                    fontWeight: leg.time == 'Calculating'
+                        ? FontWeight.w700
+                        : FontWeight.normal,
+                  ),
                 ),
               ],
             ),
@@ -994,7 +1038,14 @@ class _TripLegRow extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${leg.mode} / ${leg.time} / ${leg.distance}',
-                    style: const TextStyle(color: Color(0xFF687386)),
+                    style: TextStyle(
+                      color: leg.time == 'Calculating'
+                          ? Colors.black
+                          : const Color(0xFF687386),
+                      fontWeight: leg.time == 'Calculating'
+                          ? FontWeight.w700
+                          : FontWeight.normal,
+                    ),
                   ),
                 ],
               ),
@@ -1045,16 +1096,6 @@ class _MapLoadingPillState extends State<_MapLoadingPill>
               painter: _SegmentedSpinnerPainter(_controller.value),
             );
           },
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'LOADING',
-          style: TextStyle(
-            color: Color(0xFF8AC7E5),
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 2.0,
-          ),
         ),
       ],
     );
@@ -1179,12 +1220,18 @@ class _PlanSlider extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                  style: const TextStyle(
+                    color: Color(0xFF172033),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
               Text(
                 valueLabel,
-                style: const TextStyle(fontWeight: FontWeight.w900),
+                style: const TextStyle(
+                  color: Color(0xFF172033),
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
@@ -1306,12 +1353,18 @@ class _BlindBoxTravelModeSelector extends StatelessWidget {
               const Expanded(
                 child: Text(
                   'Travel mode',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    color: Color(0xFF172033),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
               Text(
                 value.label,
-                style: const TextStyle(fontWeight: FontWeight.w900),
+                style: const TextStyle(
+                  color: Color(0xFF172033),
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
@@ -1339,7 +1392,7 @@ class _BlindBoxTravelModeSelector extends StatelessWidget {
   }
 }
 
-enum _MapStopAction { continueTrip, proceed, cancel }
+enum _MapStopAction { proceed, cancel }
 
 class _FeatureCResultsToggle extends StatelessWidget {
   const _FeatureCResultsToggle({
@@ -1435,12 +1488,10 @@ class _FeatureCResultsSheet extends StatelessWidget {
     required this.tripTotalStops,
     required this.completedStopCount,
     required this.completedStopNames,
-    required this.favoritePlaceNames,
     required this.onClose,
     required this.onCancel,
     required this.onFocusStop,
     required this.onChooseRoute,
-    required this.onToggleFavorite,
     required this.onStartTrip,
     required this.onArrived,
     required this.onNextPlace,
@@ -1455,12 +1506,10 @@ class _FeatureCResultsSheet extends StatelessWidget {
   final int tripTotalStops;
   final int completedStopCount;
   final Set<String> completedStopNames;
-  final Set<String> favoritePlaceNames;
   final VoidCallback onClose;
   final Future<bool> Function(ItineraryStop stop) onCancel;
   final ValueChanged<ItineraryStop> onFocusStop;
   final ValueChanged<String> onChooseRoute;
-  final ValueChanged<Attraction> onToggleFavorite;
   final VoidCallback onStartTrip;
   final VoidCallback onArrived;
   final VoidCallback onNextPlace;
@@ -1492,90 +1541,99 @@ class _FeatureCResultsSheet extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: ListView(
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              shrinkWrap: true,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.list_alt_rounded,
-                      color: Color(0xFF40A9FF),
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Results',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.list_alt_rounded,
+                        color: Color(0xFF40A9FF),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Results',
+                          style: TextStyle(
+                            color: Color(0xFF172033),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Hide results',
-                      onPressed: onClose,
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _FeatureCTripProgressPanel(
-                  stops: stops,
-                  status: tripStatus,
-                  activeStopIndex: activeStopIndex,
-                  totalStops: tripTotalStops,
-                  completedStops: completedStopCount,
-                  onStartTrip: onStartTrip,
-                  onArrived: onArrived,
-                  onNextPlace: onNextPlace,
-                  onFinishTrip: onFinishTrip,
-                ),
-                const SizedBox(height: 12),
-                for (var i = 0; i < stops.length; i++) ...[
-                  Dismissible(
-                    key: ValueKey('itinerary-${stops[i].attraction.name}'),
-                    direction: DismissDirection.endToStart,
-                    confirmDismiss: (_) => onCancel(stops[i]),
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 18),
-                      decoration: BoxDecoration(
-                        color: TrasiaColors.primary,
-                        borderRadius: BorderRadius.circular(24),
+                      IconButton(
+                        tooltip: 'Hide results',
+                        onPressed: onClose,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
                       ),
-                      child: const Icon(
-                        Icons.delete_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                    child: _ItineraryStopCard(
-                      stop: stops[i],
-                      active:
-                          i == activeStopIndex &&
-                          !completedStopNames.contains(
-                            stops[i].attraction.name,
-                          ) &&
-                          tripStatus != FeatureCTripStatus.notStarted,
-                      completed: completedStopNames.contains(
-                        stops[i].attraction.name,
-                      ),
-                      arrived:
-                          i == activeStopIndex &&
-                          tripStatus == FeatureCTripStatus.arrived,
-                      ongoing: ongoingDestination == stops[i].attraction.name,
-                      favorite: favoritePlaceNames.contains(
-                        stops[i].attraction.name.toLowerCase(),
-                      ),
-                      onFocus: () => onFocusStop(stops[i]),
-                      onNavigate: () => onChooseRoute(stops[i].attraction.name),
-                      onToggleFavorite: () =>
-                          onToggleFavorite(stops[i].attraction),
-                    ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _FeatureCTripProgressPanel(
+                    stops: stops,
+                    status: tripStatus,
+                    activeStopIndex: activeStopIndex,
+                    totalStops: tripTotalStops,
+                    completedStops: completedStopCount,
+                    onStartTrip: onStartTrip,
+                    onArrived: onArrived,
+                    onNextPlace: onNextPlace,
+                    onFinishTrip: onFinishTrip,
                   ),
                   const SizedBox(height: 12),
+                  Flexible(
+                    child: ListView.separated(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      itemCount: stops.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (context, i) {
+                        return Dismissible(
+                          key: ValueKey(
+                            'itinerary-${stops[i].attraction.name}',
+                          ),
+                          direction: DismissDirection.endToStart,
+                          confirmDismiss: (_) => onCancel(stops[i]),
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 18),
+                            decoration: BoxDecoration(
+                              color: TrasiaColors.primary,
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: const Icon(
+                              Icons.delete_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                          child: _ItineraryStopCard(
+                            stop: stops[i],
+                            active:
+                                i == activeStopIndex &&
+                                !completedStopNames.contains(
+                                  stops[i].attraction.name,
+                                ) &&
+                                tripStatus != FeatureCTripStatus.notStarted,
+                            completed: completedStopNames.contains(
+                              stops[i].attraction.name,
+                            ),
+                            arrived:
+                                i == activeStopIndex &&
+                                tripStatus == FeatureCTripStatus.arrived,
+                            ongoing:
+                                ongoingDestination == stops[i].attraction.name,
+                            onFocus: () => onFocusStop(stops[i]),
+                            onNavigate: () =>
+                                onChooseRoute(stops[i].attraction.name),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -1585,93 +1643,152 @@ class _FeatureCResultsSheet extends StatelessWidget {
 }
 
 class _MapStopActionSheet extends StatelessWidget {
-  const _MapStopActionSheet({required this.stop});
+  const _MapStopActionSheet({required this.stop, required this.canGo});
 
   final ItineraryStop stop;
+  final bool canGo;
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(
-                    stop.attraction.imageAsset,
-                    width: 76,
-                    height: 76,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
+      child: SingleChildScrollView(
+        child: Padding(
+          key: const Key('feature-c-stop-details'),
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      stop.attraction.imageAsset,
                       width: 76,
                       height: 76,
-                      color: stop.attraction.color,
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.image_not_supported_rounded),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 76,
+                        height: 76,
+                        color: stop.attraction.color,
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.image_not_supported_rounded),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        stop.attraction.name,
-                        style: const TextStyle(
-                          color: Color(0xFF172033),
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          stop.attraction.name,
+                          style: const TextStyle(
+                            color: Color(0xFF172033),
+                            fontSize: 19,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        '${_formatClock(stop.startMinute)} - ${_formatClock(stop.endMinute)} / ${stop.attraction.hours}',
-                        style: const TextStyle(color: Color(0xFF687386)),
-                      ),
-                    ],
+                        const SizedBox(height: 5),
+                        Text(
+                          '${_formatClock(stop.startMinute)} - ${_formatClock(stop.endMinute)} / ${stop.attraction.hours}',
+                          style: const TextStyle(color: Color(0xFF687386)),
+                        ),
+                      ],
+                    ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _MapStopDetailRow(
+                icon: Icons.schedule_rounded,
+                text:
+                    '${_formatClock(stop.startMinute)} - ${_formatClock(stop.endMinute)}',
+              ),
+              _MapStopDetailRow(
+                icon: Icons.access_time_rounded,
+                text: 'Opening hours: ${stop.attraction.hours}',
+              ),
+              _MapStopDetailRow(
+                icon: Icons.route_rounded,
+                text: 'Distance: ${stop.distanceKm.toStringAsFixed(1)} km',
+              ),
+              _MapStopDetailRow(
+                icon: stop.travelMode.icon,
+                text: stop.travelMinutes == 0
+                    ? 'Start point / ${stop.travelMode.label}'
+                    : '${stop.travelMode.label}: ${stop.travelMinutes} min',
+              ),
+              _MapStopDetailRow(
+                icon: Icons.payments_rounded,
+                text: 'Cost: RM ${stop.cost}',
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: canGo
+                      ? () => Navigator.of(context).pop(_MapStopAction.proceed)
+                      : null,
+                  style: FilledButton.styleFrom(
+                    foregroundColor: Colors.black,
+                    disabledBackgroundColor: const Color(0xFFE9EEF5),
+                    disabledForegroundColor: const Color(0xFF475467),
+                  ),
+                  icon: Icon(
+                    canGo ? Icons.navigation_rounded : Icons.schedule_rounded,
+                  ),
+                  label: Text(canGo ? 'Going' : 'Queue'),
                 ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () =>
-                    Navigator.of(context).pop(_MapStopAction.proceed),
-                icon: const Icon(Icons.near_me_rounded),
-                label: const Text('Proceed'),
               ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.tonalIcon(
-                onPressed: () =>
-                    Navigator.of(context).pop(_MapStopAction.continueTrip),
-                icon: const Icon(Icons.check_circle_rounded),
-                label: const Text('Continue itinerary'),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () =>
+                      Navigator.of(context).pop(_MapStopAction.cancel),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.cancel_rounded),
+                  label: const Text('Cancel this stop'),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: () =>
-                    Navigator.of(context).pop(_MapStopAction.cancel),
-                icon: const Icon(Icons.cancel_rounded),
-                label: const Text('Cancel this stop'),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _MapStopDetailRow extends StatelessWidget {
+  const _MapStopDetailRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: TrasiaColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFF41556B),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1781,13 +1898,17 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w900),
+                        style: const TextStyle(
+                          color: Color(0xFF172033),
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                       Text(
                         subtitle,
                         style: const TextStyle(
-                          color: Color(0xFF607086),
+                          color: Color(0xFF41556B),
                           fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -1830,10 +1951,8 @@ class _ItineraryStopCard extends StatelessWidget {
     required this.completed,
     required this.arrived,
     required this.ongoing,
-    required this.favorite,
     required this.onFocus,
     required this.onNavigate,
-    required this.onToggleFavorite,
   });
 
   final ItineraryStop stop;
@@ -1841,10 +1960,8 @@ class _ItineraryStopCard extends StatelessWidget {
   final bool completed;
   final bool arrived;
   final bool ongoing;
-  final bool favorite;
   final VoidCallback onFocus;
   final VoidCallback onNavigate;
-  final VoidCallback onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -1897,27 +2014,10 @@ class _ItineraryStopCard extends StatelessWidget {
                         child: Text(
                           stop.attraction.name,
                           style: const TextStyle(
+                            color: Color(0xFF172033),
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                           ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: favorite
-                            ? 'Remove from Favorites'
-                            : 'Save to Favorites',
-                        onPressed: onToggleFavorite,
-                        style: IconButton.styleFrom(
-                          foregroundColor: favorite
-                              ? const Color(0xFFE04470)
-                              : TrasiaColors.primary,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          minimumSize: const Size(36, 36),
-                        ),
-                        icon: Icon(
-                          favorite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
                         ),
                       ),
                     ],
@@ -1982,7 +2082,13 @@ class _ItineraryDetailRow extends StatelessWidget {
           Icon(icon, size: 16, color: TrasiaColors.primary),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(text, style: const TextStyle(color: Color(0xFF607086))),
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFF41556B),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),

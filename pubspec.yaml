@@ -71,6 +71,7 @@ flutter:
   assets:
     - .env.local
     - assets/attractions/
+    - assets/branding/
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

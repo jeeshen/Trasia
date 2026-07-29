@@ -203,12 +203,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 56),
-                    const Center(
-                      child: Icon(
-                        Icons.near_me_rounded,
-                        color: TrasiaColors.primary,
-                        size: 34,
+                    const SizedBox(height: 40),
+                    Center(
+                      child: Image.asset(
+                        'assets/branding/app_logo.png',
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.contain,
+                        semanticLabel: 'Trasia logo',
                       ),
                     ),
                     const SizedBox(height: 18),

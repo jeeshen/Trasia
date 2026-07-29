@@ -250,6 +250,7 @@ class SharedMapView {
     this.vehicleLocation,
     this.vehicleColor,
     this.vehicleBearing = 0,
+    this.routeProgress,
     this.showCurrentLocationMarker = true,
     this.showRouteEndpoints = true,
     this.initialTarget,
@@ -267,6 +268,7 @@ class SharedMapView {
   final LatLng? vehicleLocation;
   final Color? vehicleColor;
   final double vehicleBearing;
+  final double? routeProgress;
   final bool showCurrentLocationMarker;
   final bool showRouteEndpoints;
   final LatLng? initialTarget;

@@ -76,7 +76,11 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       unawaited(_loadFeatureCDrivingRoute());
     }
     if (oldWidget.demoArrivalRequest != widget.demoArrivalRequest) {
-      _completeDemoArrival();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _completeDemoArrival();
+        }
+      });
     }
   }
 
@@ -225,9 +229,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   }
 
   void _completeDemoArrival() {
-    if (_itinerary.isEmpty ||
-        (_tripStatus != FeatureCTripStatus.traveling &&
-            _tripStatus != FeatureCTripStatus.arrived)) {
+    if (_itinerary.isEmpty) {
       return;
     }
     setState(() {
@@ -296,26 +298,25 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   }
 
   Future<void> _showMapStopAction(ItineraryStop stop) async {
+    final canGo = identical(stop, _activeTripStop);
     final action = await showModalBottomSheet<_MapStopAction>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
-      builder: (context) => _MapStopActionSheet(stop: stop),
+      builder: (context) => _MapStopActionSheet(stop: stop, canGo: canGo),
     );
     if (!mounted || action == null) {
       return;
     }
     switch (action) {
-      case _MapStopAction.continueTrip:
-        break;
       case _MapStopAction.proceed:
-        final index = _itinerary.indexOf(stop);
-        if (index >= 0) {
+        if (canGo) {
           setState(() {
-            _activeStopIndex = index;
             _tripStatus = FeatureCTripStatus.traveling;
             _itineraryListVisible = true;
           });
+          unawaited(_focusActiveTripStop());
         }
         break;
       case _MapStopAction.cancel:
@@ -398,7 +399,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     }
     return SharedMapView(
       signature:
-          'plan|${_pointKey(widget.currentLocation)}|mode:${_travelMode.name}|trip:${_tripStatus.name}:$_activeStopIndex|icons:$_markerIconRevision|route:$_routeRevision|${_itinerary.map((stop) => '${stop.order}:${stop.attraction.name}').join('|')}',
+          'plan|${_pointKey(widget.currentLocation)}|mode:${_travelMode.name}|trip:${_tripStatus.name}:$_activeStopIndex|results:${_itineraryListVisible ? 'expanded' : 'collapsed'}|icons:$_markerIconRevision|route:$_routeRevision|${_itinerary.map((stop) => '${stop.order}:${stop.attraction.name}').join('|')}',
       currentLocation: widget.currentLocation,
       currentAccuracyMeters: widget.currentAccuracyMeters,
       initialTarget: _itinerary.first.attraction.location,
@@ -886,13 +887,11 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
                 tripTotalStops: _tripTotalStops,
                 completedStopCount: _completedStopCount,
                 completedStopNames: _completedStopNames,
-                favoritePlaceNames: widget.favoritePlaceNames,
                 onClose: () => setState(() => _itineraryListVisible = false),
                 onCancel: _confirmCancel,
                 onFocusStop: _focusItineraryStop,
                 onChooseRoute: (destination) =>
                     widget.onGoNow(destination, _travelMode),
-                onToggleFavorite: widget.onToggleFavorite,
                 onStartTrip: _startFeatureCTrip,
                 onArrived: _markActiveStopArrived,
                 onNextPlace: _goToNextFeatureCStop,

@@ -14,6 +14,16 @@ class DestinationCandidate {
   final String placeId;
 }
 
+String _userFacingTransitText(String value) {
+  return value
+      .replaceAll(
+        RegExp(r'\s*(?:via\s+)?data\.gov\.my\b', caseSensitive: false),
+        '',
+      )
+      .replaceAll(RegExp(r'\s{2,}'), ' ')
+      .trim();
+}
+
 class _GoogleMapsApi {
   static const _maxAccessWalkMeters = 1600.0;
   static const _maxTotalWalkMeters = 3000.0;
@@ -463,9 +473,12 @@ class _GoogleMapsApi {
     final agencies = line['agencies'] as List<dynamic>? ?? const [];
     final agency = agencies.isEmpty
         ? ''
-        : ((agencies.first as Map<String, dynamic>)['name'] as String?) ?? '';
-    final routeName =
-        (line['short_name'] as String?) ?? (line['name'] as String?) ?? '';
+        : _userFacingTransitText(
+            ((agencies.first as Map<String, dynamic>)['name'] as String?) ?? '',
+          );
+    final routeName = _userFacingTransitText(
+      (line['short_name'] as String?) ?? (line['name'] as String?) ?? '',
+    );
     final vehicle = line['vehicle'] as Map<String, dynamic>? ?? const {};
     final vehicleName =
         (vehicle['name'] as String?) ??
@@ -687,9 +700,12 @@ class _GoogleMapsApi {
     final agencies = line['agencies'] as List<dynamic>? ?? const [];
     final agency = agencies.isEmpty
         ? ''
-        : ((agencies.first as Map<String, dynamic>)['name'] as String?) ?? '';
-    final routeName =
-        (line['nameShort'] as String?) ?? (line['name'] as String?) ?? '';
+        : _userFacingTransitText(
+            ((agencies.first as Map<String, dynamic>)['name'] as String?) ?? '',
+          );
+    final routeName = _userFacingTransitText(
+      (line['nameShort'] as String?) ?? (line['name'] as String?) ?? '',
+    );
     final vehicle = line['vehicle'] as Map<String, dynamic>? ?? const {};
     final vehicleName =
         ((vehicle['name'] as Map<String, dynamic>?)?['text'] as String?) ??
@@ -1819,10 +1835,11 @@ String _pointKey(LatLng? point) {
 }
 
 class _BlindBoxArea {
-  const _BlindBoxArea(this.name, this.location);
+  const _BlindBoxArea(this.name, this.location, this.imageAsset);
 
   final String name;
   final LatLng location;
+  final String imageAsset;
 }
 
 class _BlindBoxTheme {
@@ -2164,27 +2181,111 @@ List<Attraction> _buildBlindBoxLocations() {
   ];
 
   const areas = [
-    _BlindBoxArea('Bukit Bintang', LatLng(3.1468, 101.7113)),
-    _BlindBoxArea('Chinatown', LatLng(3.1421, 101.6964)),
-    _BlindBoxArea('KLCC', LatLng(3.1579, 101.7123)),
-    _BlindBoxArea('Brickfields', LatLng(3.1291, 101.6841)),
-    _BlindBoxArea('Chow Kit', LatLng(3.1675, 101.6980)),
-    _BlindBoxArea('Kampung Baru', LatLng(3.1641, 101.7068)),
-    _BlindBoxArea('Bangsar', LatLng(3.1292, 101.6784)),
-    _BlindBoxArea('Mont Kiara', LatLng(3.1700, 101.6529)),
-    _BlindBoxArea('TTDI', LatLng(3.1413, 101.6297)),
-    _BlindBoxArea('Cheras', LatLng(3.1068, 101.7259)),
-    _BlindBoxArea('Ampang', LatLng(3.1502, 101.7600)),
-    _BlindBoxArea('Setapak', LatLng(3.1881, 101.7106)),
-    _BlindBoxArea('Sentul', LatLng(3.1838, 101.6923)),
-    _BlindBoxArea('Titiwangsa', LatLng(3.1804, 101.7037)),
-    _BlindBoxArea('Petaling Jaya', LatLng(3.1073, 101.6067)),
-    _BlindBoxArea('Subang Jaya', LatLng(3.0567, 101.5851)),
-    _BlindBoxArea('Shah Alam', LatLng(3.0738, 101.5183)),
-    _BlindBoxArea('Puchong', LatLng(3.0327, 101.6188)),
-    _BlindBoxArea('Sri Petaling', LatLng(3.0715, 101.6947)),
-    _BlindBoxArea('Kepong', LatLng(3.2140, 101.6356)),
-    _BlindBoxArea('Batu Caves', LatLng(3.2379, 101.6840)),
+    _BlindBoxArea(
+      'Bukit Bintang',
+      LatLng(3.1468, 101.7113),
+      'assets/attractions/area_bukit_bintang.jpg',
+    ),
+    _BlindBoxArea(
+      'Chinatown',
+      LatLng(3.1421, 101.6964),
+      'assets/attractions/area_chinatown.jpg',
+    ),
+    _BlindBoxArea(
+      'KLCC',
+      LatLng(3.1579, 101.7123),
+      'assets/attractions/area_klcc.jpg',
+    ),
+    _BlindBoxArea(
+      'Brickfields',
+      LatLng(3.1291, 101.6841),
+      'assets/attractions/area_brickfields.jpg',
+    ),
+    _BlindBoxArea(
+      'Chow Kit',
+      LatLng(3.1675, 101.6980),
+      'assets/attractions/area_chow_kit.jpg',
+    ),
+    _BlindBoxArea(
+      'Kampung Baru',
+      LatLng(3.1641, 101.7068),
+      'assets/attractions/area_kampung_baru.jpg',
+    ),
+    _BlindBoxArea(
+      'Bangsar',
+      LatLng(3.1292, 101.6784),
+      'assets/attractions/area_bangsar.jpg',
+    ),
+    _BlindBoxArea(
+      'Mont Kiara',
+      LatLng(3.1700, 101.6529),
+      'assets/attractions/area_mont_kiara.jpg',
+    ),
+    _BlindBoxArea(
+      'TTDI',
+      LatLng(3.1413, 101.6297),
+      'assets/attractions/area_ttdi.jpg',
+    ),
+    _BlindBoxArea(
+      'Cheras',
+      LatLng(3.1068, 101.7259),
+      'assets/attractions/area_cheras.jpg',
+    ),
+    _BlindBoxArea(
+      'Ampang',
+      LatLng(3.1502, 101.7600),
+      'assets/attractions/area_ampang.jpg',
+    ),
+    _BlindBoxArea(
+      'Setapak',
+      LatLng(3.1881, 101.7106),
+      'assets/attractions/area_setapak.jpg',
+    ),
+    _BlindBoxArea(
+      'Sentul',
+      LatLng(3.1838, 101.6923),
+      'assets/attractions/area_sentul.jpg',
+    ),
+    _BlindBoxArea(
+      'Titiwangsa',
+      LatLng(3.1804, 101.7037),
+      'assets/attractions/area_titiwangsa.jpg',
+    ),
+    _BlindBoxArea(
+      'Petaling Jaya',
+      LatLng(3.1073, 101.6067),
+      'assets/attractions/area_petaling_jaya.jpg',
+    ),
+    _BlindBoxArea(
+      'Subang Jaya',
+      LatLng(3.0567, 101.5851),
+      'assets/attractions/area_subang_jaya.jpg',
+    ),
+    _BlindBoxArea(
+      'Shah Alam',
+      LatLng(3.0738, 101.5183),
+      'assets/attractions/area_shah_alam.jpg',
+    ),
+    _BlindBoxArea(
+      'Puchong',
+      LatLng(3.0327, 101.6188),
+      'assets/attractions/area_puchong.jpg',
+    ),
+    _BlindBoxArea(
+      'Sri Petaling',
+      LatLng(3.0715, 101.6947),
+      'assets/attractions/area_sri_petaling.jpg',
+    ),
+    _BlindBoxArea(
+      'Kepong',
+      LatLng(3.2140, 101.6356),
+      'assets/attractions/area_kepong.jpg',
+    ),
+    _BlindBoxArea(
+      'Batu Caves',
+      LatLng(3.2379, 101.6840),
+      'assets/attractions/area_batu_caves.jpg',
+    ),
   ];
   const themes = [
     _BlindBoxTheme(
@@ -2255,9 +2356,6 @@ List<Attraction> _buildBlindBoxLocations() {
         () {
           final area = areas[areaIndex];
           final theme = themes[themeIndex];
-          final image =
-              verifiedPlaces[(areaIndex * themes.length + themeIndex) %
-                  verifiedPlaces.length];
           final offset = (themeIndex - 2.5) * 0.0012;
           return Attraction(
             name: '${area.name} ${theme.name}',
@@ -2268,7 +2366,7 @@ List<Attraction> _buildBlindBoxLocations() {
             stayMinutes: theme.stayMinutes,
             suggestedDistanceKm: 3 + ((areaIndex * 5 + themeIndex * 3) % 38),
             priceTier: theme.priceTier,
-            imageAsset: image.imageAsset,
+            imageAsset: area.imageAsset,
             color: theme.color,
             location: LatLng(
               area.location.latitude + offset,
