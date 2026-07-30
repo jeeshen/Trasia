@@ -67,6 +67,8 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   late final AnimationController _carController;
   Timer? _timer;
   Timer? _destinationRouteRefreshTimer;
+  Timer? _destinationSearchDebounce;
+  int _destinationSearchRequest = 0;
   StreamSubscription<Position>? _hubPositionSubscription;
   RideStage _stage = RideStage.idle;
   Driver? _driver;
@@ -79,6 +81,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   bool _fareDeducted = false;
   bool _searchingDestination = false;
   bool _loadingPickupLocation = false;
+  int _mapRefreshRevision = 0;
   DateTime? _lastRideCameraUpdate;
   double? _rideChargeDistanceKm;
   LatLng? _hubCurrentLocation;
@@ -120,6 +123,9 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   void didUpdateWidget(covariant HubPoolScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     _mapController = widget.mapController ?? _mapController;
+    if (widget.active && !oldWidget.active) {
+      _mapRefreshRevision++;
+    }
     if (widget.active &&
         !oldWidget.active &&
         _stage == RideStage.idle &&
@@ -181,6 +187,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   void dispose() {
     _timer?.cancel();
     _destinationRouteRefreshTimer?.cancel();
+    _destinationSearchDebounce?.cancel();
     _hubPositionSubscription?.cancel();
     _carController.dispose();
     _destinationController.dispose();
@@ -594,6 +601,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       currentAccuracyMeters: _pickupAccuracyMeters,
       candidate: _stage == RideStage.tracking ? null : _destination,
       selectedRoute: _route,
+      mapRefreshRevision: _mapRefreshRevision,
       navigating: _stage == RideStage.tracking || _stage == RideStage.onboard,
       vehicleLocation: _vehicleLocation,
       vehicleColor: _driver?.color,
@@ -1053,15 +1061,28 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   }
 
   void _handleDestinationTextChanged() {
+    _destinationSearchDebounce?.cancel();
+    final query = _destinationController.text.trim();
+    _destinationSearchRequest++;
     setState(() {
       _destination = null;
       _destinationStatusMessage = null;
       _destinationCandidates = const [];
+      _searchingDestination = false;
     });
+    if (query.isEmpty) {
+      return;
+    }
+    _destinationSearchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      () => unawaited(_searchDestination()),
+    );
   }
 
   Future<void> _searchDestination() async {
+    _destinationSearchDebounce?.cancel();
     final query = _destinationController.text.trim();
+    final request = ++_destinationSearchRequest;
     if (query.isEmpty) {
       setState(() {
         _destination = null;
@@ -1082,7 +1103,9 @@ class _HubPoolScreenState extends State<HubPoolScreen>
         query: query,
         apiKey: _GoogleMapsConfig.apiKey,
       );
-      if (!mounted) {
+      if (!mounted ||
+          request != _destinationSearchRequest ||
+          query != _destinationController.text.trim()) {
         return;
       }
       setState(() {
@@ -1097,7 +1120,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
         await _mapController?.flyToLatLngZoom(destination.location, 14.5);
       }
     } catch (error) {
-      if (!mounted) {
+      if (!mounted || request != _destinationSearchRequest) {
         return;
       }
       setState(() {
@@ -1106,7 +1129,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
         _destinationStatusMessage = 'Place search failed. Try again.';
       });
     } finally {
-      if (mounted) {
+      if (mounted && request == _destinationSearchRequest) {
         setState(() => _searchingDestination = false);
       }
     }
@@ -1167,6 +1190,8 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   }
 
   void _clearDestinationInput() {
+    _destinationSearchDebounce?.cancel();
+    _destinationSearchRequest++;
     _timer?.cancel();
     _carController.reset();
     _stopRideLocationUpdates();
@@ -1258,15 +1283,15 @@ class _HubPoolOverlay extends StatelessWidget {
     };
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x22001844),
-            blurRadius: 18,
-            offset: Offset(0, 8),
+            color: Color(0x2D001844),
+            blurRadius: 24,
+            offset: Offset(0, 10),
           ),
         ],
       ),
@@ -1274,103 +1299,95 @@ class _HubPoolOverlay extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: TrasiaColors.primary,
-                child: const Icon(
-                  Icons.local_taxi_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Color(0xFF172033),
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: Color(0xFF667085),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                wallet.toStringAsFixed(2),
-                style: const TextStyle(
-                  color: Color(0xFF172033),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (stage == RideStage.idle || stage == RideStage.cancelled) ...[
-            Row(
+          SizedBox(
+            height: 48,
+            child: Row(
               children: [
-                Expanded(
-                  child: TextField(
-                    key: const Key('feature-b-destination'),
-                    controller: controller,
-                    onChanged: (_) => onTextChanged(),
-                    onSubmitted: (_) => onSearch(),
-                    style: const TextStyle(color: Color(0xFF172033)),
-                    decoration: InputDecoration(
-                      hintText: 'Search destination',
-                      hintStyle: const TextStyle(color: Color(0xFF98A2B3)),
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: controller.text.trim().isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: 'Clear destination',
-                              onPressed: onClearInput,
-                              icon: const Icon(Icons.close_rounded),
-                            ),
-                      filled: true,
-                      fillColor: const Color(0xFFF0F4FA),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: TrasiaColors.primary,
+                  child: const Icon(
+                    Icons.local_taxi_rounded,
+                    color: Colors.white,
+                    size: 20,
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  tooltip: 'Search destinations',
-                  onPressed: searchingDestination ? null : onSearch,
-                  style: IconButton.styleFrom(
-                    backgroundColor: TrasiaColors.primary,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFFB9D7FF),
-                    disabledForegroundColor: Colors.white,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Color(0xFF172033),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: Color(0xFF667085),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  icon: searchingDestination
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.near_me_rounded),
+                ),
+                Text(
+                  wallet.toStringAsFixed(2),
+                  style: const TextStyle(
+                    color: Color(0xFF172033),
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+          ),
+          const SizedBox(height: 8),
+          if (stage == RideStage.idle || stage == RideStage.cancelled) ...[
+            TextField(
+              key: const Key('feature-b-destination'),
+              controller: controller,
+              onChanged: (_) => onTextChanged(),
+              onSubmitted: (_) => onSearch(),
+              style: const TextStyle(color: Color(0xFF172033)),
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                hintText: 'Search destination',
+                hintStyle: const TextStyle(color: Color(0xFF98A2B3)),
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: searchingDestination
+                    ? const Padding(
+                        padding: EdgeInsets.all(13),
+                        child: SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                        ),
+                      )
+                    : controller.text.trim().isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear destination',
+                        onPressed: onClearInput,
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                filled: true,
+                fillColor: const Color(0xFFF0F4FA),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            if (statusMessage != null || destinations.isNotEmpty)
+              const SizedBox(height: 10),
             if (statusMessage != null) ...[
               _SheetNotice(message: statusMessage!),
               const SizedBox(height: 10),

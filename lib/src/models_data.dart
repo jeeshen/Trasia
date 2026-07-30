@@ -49,7 +49,7 @@ class _GoogleMapsApi {
     }
     final results = body['results'] as List<dynamic>;
     final candidates = [
-      for (final result in results.take(8))
+      for (final result in results)
         _candidateFromTextSearch(result as Map<String, dynamic>, query),
     ];
     for (final suggestion in _localSuggestions(query)) {
@@ -60,9 +60,6 @@ class _GoogleMapsApi {
       );
       if (!duplicate) {
         candidates.add(suggestion);
-      }
-      if (candidates.length >= 6) {
-        break;
       }
     }
     return candidates;

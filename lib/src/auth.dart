@@ -17,6 +17,7 @@ class TrasiaApp extends StatelessWidget {
         scaffoldBackgroundColor: TrasiaColors.background,
         useMaterial3: true,
         fontFamily: 'Roboto',
+        snackBarTheme: _trasiaSnackBarTheme,
       ),
       home: const LoginScreen(),
     );
@@ -161,6 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
+        snackBarTheme: _trasiaSnackBarTheme,
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: const Color(0xFFF8FBFF),

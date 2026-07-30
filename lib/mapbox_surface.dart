@@ -16,6 +16,41 @@ const _mapboxAccessToken =
     'pk.eyJ1IjoiamVlc2hlbiIsImEiOiJjbW9uNGIzYjMwYXg1MnBwc214ZmM0dTFjIn0.VHq4AAucdQxUz865oPSwYg';
 const _mapboxStyleUri = mapbox.MapboxStyles.LIGHT;
 
+Color routeModeColor(String mode) {
+  final value = mode.toLowerCase();
+  if (value.contains('walk')) {
+    return const Color(0xFF168BFF);
+  }
+  if (value.contains('bus') || value.contains('feeder')) {
+    return const Color(0xFFFF8A00);
+  }
+  if (value.contains('ktm') ||
+      value.contains('ets') ||
+      value.contains('komuter') ||
+      value.contains('train')) {
+    return const Color(0xFFE53935);
+  }
+  if (value.contains('mrt') ||
+      value.contains('lrt') ||
+      value.contains('subway') ||
+      value.contains('metro') ||
+      value.contains('monorail') ||
+      value.contains('rapid rail') ||
+      value.contains('rail')) {
+    return const Color(0xFF7C4DFF);
+  }
+  if (value.contains('drive') || value.contains('car')) {
+    return const Color(0xFF00A86B);
+  }
+  if (value.contains('ferry') || value.contains('boat')) {
+    return const Color(0xFF00A6B2);
+  }
+  if (value.contains('cycle') || value.contains('bike')) {
+    return const Color(0xFF16A085);
+  }
+  return const Color(0xFF5B78D6);
+}
+
 class AppMapController {
   AppMapController(this.mapboxMap);
 
@@ -126,6 +161,7 @@ class LiveMapboxSurface extends StatefulWidget {
     required this.currentAccuracyMeters,
     required this.candidate,
     required this.selectedRoute,
+    required this.mapRefreshRevision,
     required this.navigating,
     this.vehicleLocation,
     this.vehicleColor,
@@ -146,6 +182,7 @@ class LiveMapboxSurface extends StatefulWidget {
   final double? currentAccuracyMeters;
   final DestinationCandidate? candidate;
   final TransitOption? selectedRoute;
+  final int mapRefreshRevision;
   final bool navigating;
   final gmaps.LatLng? vehicleLocation;
   final Color? vehicleColor;
@@ -182,6 +219,8 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   bool _routeProgressUpdateRunning = false;
   bool _routeProgressUpdateRequested = false;
   Future<Uint8List>? _selfMarkerBytes;
+  Future<Uint8List>? _destinationMarkerBytes;
+  final Map<int, Future<Uint8List>> _transferMarkerBytes = {};
   final Map<int, Future<Uint8List>> _vehicleMarkerBytes = {};
   bool _isMapLoaded = false;
 
@@ -280,7 +319,8 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     }
     if (oldWidget.vehicleLocation != widget.vehicleLocation ||
         oldWidget.vehicleColor != widget.vehicleColor ||
-        oldWidget.vehicleBearing != widget.vehicleBearing) {
+        oldWidget.vehicleBearing != widget.vehicleBearing ||
+        oldWidget.mapRefreshRevision != widget.mapRefreshRevision) {
       _scheduleVehicleUpdate();
     }
     if (oldWidget.routeProgress != widget.routeProgress) {
@@ -293,6 +333,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
         oldWidget.currentAccuracyMeters != widget.currentAccuracyMeters ||
         oldWidget.candidate != widget.candidate ||
         !identical(oldWidget.selectedRoute, widget.selectedRoute) ||
+        oldWidget.mapRefreshRevision != widget.mapRefreshRevision ||
         oldWidget.navigating != widget.navigating ||
         oldWidget.showCurrentLocationMarker !=
             widget.showCurrentLocationMarker ||
@@ -342,6 +383,8 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     _circleManager = await mapboxMap.annotations
         .createCircleAnnotationManager();
     _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
+    await _pointManager!.setIconAllowOverlap(true);
+    await _pointManager!.setIconIgnorePlacement(true);
     _vehiclePointManager = await mapboxMap.annotations
         .createPointAnnotationManager();
     await _vehiclePointManager!.setIconAllowOverlap(true);
@@ -397,11 +440,26 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
                   .map((p) => mapbox.Position(p.longitude, p.latitude))
                   .toList(),
             ),
-            lineColor: route.color.value,
+            lineColor: routeModeColor(leg.mode).value,
             lineWidth: 5.0,
           ),
         );
         _routeAnnotations.add(annotation);
+      }
+      for (var index = 1; index < route.legs.length; index++) {
+        final previous = route.legs[index - 1];
+        final current = route.legs[index];
+        final transferLocation = current.points.isNotEmpty
+            ? current.points.first
+            : previous.points.isNotEmpty
+            ? previous.points.last
+            : null;
+        if (transferLocation != null) {
+          await _createTransferMarker(
+            transferLocation,
+            routeModeColor(current.mode),
+          );
+        }
       }
     }
 
@@ -424,18 +482,12 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       );
     }
 
-    if (widget.candidate != null) {
-      await _createCircle(
-        widget.candidate!.location,
-        radius: 8,
-        color: Colors.red,
-        strokeColor: Colors.white,
-      );
-    }
-
     final routePoints =
         widget.selectedRoute?.legs.expand((leg) => leg.points).toList() ??
         const <gmaps.LatLng>[];
+    if (widget.candidate != null) {
+      await _createDestinationMarker(widget.candidate!.location);
+    }
     if (routePoints.isNotEmpty && widget.showRouteEndpoints) {
       await _createCircle(
         routePoints.first,
@@ -443,12 +495,10 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
         color: Colors.green,
         strokeColor: Colors.white,
       );
-      await _createCircle(
-        routePoints.last,
-        radius: 8,
-        color: Colors.red,
-        strokeColor: Colors.white,
-      );
+      if (widget.candidate == null ||
+          widget.candidate!.location != routePoints.last) {
+        await _createDestinationMarker(routePoints.last);
+      }
     }
 
     for (final marker in widget.extraMarkers) {
@@ -609,6 +659,30 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     );
   }
 
+  Future<void> _createDestinationMarker(gmaps.LatLng location) async {
+    await _pointManager!.create(
+      mapbox.PointAnnotationOptions(
+        geometry: _point(location),
+        image: await _destinationMarker(),
+        iconAnchor: mapbox.IconAnchor.BOTTOM,
+        iconSize: .78,
+        symbolSortKey: 100,
+      ),
+    );
+  }
+
+  Future<void> _createTransferMarker(gmaps.LatLng location, Color color) async {
+    await _pointManager!.create(
+      mapbox.PointAnnotationOptions(
+        geometry: _point(location),
+        image: await _transferMarker(color),
+        iconAnchor: mapbox.IconAnchor.BOTTOM,
+        iconSize: .58,
+        symbolSortKey: 80,
+      ),
+    );
+  }
+
   mapbox.Point _point(gmaps.LatLng location) {
     return mapbox.Point(
       coordinates: mapbox.Position(location.longitude, location.latitude),
@@ -671,6 +745,17 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
 
   Future<Uint8List> _selfMarker() {
     return _selfMarkerBytes ??= _drawSelfMarker();
+  }
+
+  Future<Uint8List> _destinationMarker() {
+    return _destinationMarkerBytes ??= _drawDestinationMarker();
+  }
+
+  Future<Uint8List> _transferMarker(Color color) {
+    return _transferMarkerBytes.putIfAbsent(
+      color.value,
+      () => _drawTransferMarker(color),
+    );
   }
 
   Future<Uint8List> _vehicleMarker(Color color) {
@@ -809,6 +894,78 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return bytes!.buffer.asUint8List();
+  }
+
+  Future<Uint8List> _drawDestinationMarker() async {
+    const width = 96.0;
+    const height = 120.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    final markerPath = Path()
+      ..moveTo(48, 109)
+      ..cubicTo(43, 99, 14, 72, 14, 45)
+      ..cubicTo(14, 24, 29, 9, 48, 9)
+      ..cubicTo(67, 9, 82, 24, 82, 45)
+      ..cubicTo(82, 72, 53, 99, 48, 109)
+      ..close();
+    final shadow = Paint()
+      ..color = const Color(0x44001844)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 6);
+    canvas.save();
+    canvas.translate(0, 4);
+    canvas.drawPath(markerPath, shadow);
+    canvas.restore();
+
+    canvas.drawPath(markerPath, Paint()..color = const Color(0xFFE53935));
+    final border = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(markerPath, border);
+    canvas.drawCircle(const Offset(48, 44), 14, Paint()..color = Colors.white);
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(width.toInt(), height.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return bytes!.buffer.asUint8List();
+  }
+
+  Future<Uint8List> _drawTransferMarker(Color color) async {
+    const width = 64.0;
+    const height = 80.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final markerPath = Path()
+      ..moveTo(32, 74)
+      ..cubicTo(28, 66, 9, 48, 9, 30)
+      ..cubicTo(9, 15, 19, 5, 32, 5)
+      ..cubicTo(45, 5, 55, 15, 55, 30)
+      ..cubicTo(55, 48, 36, 66, 32, 74)
+      ..close();
+
+    final shadow = Paint()
+      ..color = const Color(0x44001844)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4);
+    canvas.save();
+    canvas.translate(0, 3);
+    canvas.drawPath(markerPath, shadow);
+    canvas.restore();
+    canvas.drawPath(markerPath, Paint()..color = color);
+    canvas.drawPath(
+      markerPath,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    canvas.drawCircle(const Offset(32, 29), 8, Paint()..color = Colors.white);
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(width.toInt(), height.toInt());
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
   }

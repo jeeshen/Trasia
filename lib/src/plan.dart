@@ -402,6 +402,11 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
           'plan|${_pointKey(widget.currentLocation)}|mode:${_travelMode.name}|trip:${_tripStatus.name}:$_activeStopIndex|results:${_itineraryListVisible ? 'expanded' : 'collapsed'}|icons:$_markerIconRevision|route:$_routeRevision|${_itinerary.map((stop) => '${stop.order}:${stop.attraction.name}').join('|')}',
       currentLocation: widget.currentLocation,
       currentAccuracyMeters: widget.currentAccuracyMeters,
+      focusDestination:
+          _tripStatus == FeatureCTripStatus.traveling ||
+              _tripStatus == FeatureCTripStatus.arrived
+          ? _activeTripStop?.attraction.location
+          : null,
       initialTarget: _itinerary.first.attraction.location,
       initialZoom: 13.2,
       extraMarkers: _featureCMarkers(),
@@ -838,6 +843,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         brightness: Brightness.light,
       ),
       useMaterial3: true,
+      snackBarTheme: _trasiaSnackBarTheme,
     );
     if (_itinerary.isNotEmpty || _tripStatus == FeatureCTripStatus.completed) {
       return Theme(

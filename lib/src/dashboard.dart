@@ -40,9 +40,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   LatLng? _sharedCurrentLocation;
   double? _sharedCurrentAccuracyMeters;
   bool _centeringOnLocation = false;
+  bool _mapFocusOnCurrentLocation = false;
   List<FavoritePlace> _favoritePlaces = const [];
   List<TripHistoryEntry> _tripHistory = const [];
-  int _demoArrivalRequest = 0;
+  int _transitDemoArrivalRequest = 0;
+  int _hubPoolDemoArrivalRequest = 0;
+  int _planDemoArrivalRequest = 0;
 
   bool _hasCenteredOnInitialLocation = false;
 
@@ -177,7 +180,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _completeDemoArrival() {
-    setState(() => _demoArrivalRequest++);
+    setState(() {
+      switch (_tab) {
+        case 0:
+          _transitDemoArrivalRequest++;
+        case 1:
+          _hubPoolDemoArrivalRequest++;
+        case 3:
+          _planDemoArrivalRequest++;
+      }
+    });
   }
 
   void _revisitHistoryEntry(TripHistoryEntry entry) {
@@ -382,8 +394,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (globalMapViewNotifier.value.signature == effectiveView.signature) {
       return;
     }
-    final oldPrefix = globalMapViewNotifier.value.signature.split('|').first;
+    final previousView = globalMapViewNotifier.value;
+    final oldPrefix = previousView.signature.split('|').first;
     final newPrefix = effectiveView.signature.split('|').first;
+    if (oldPrefix != newPrefix ||
+        previousView.candidate?.placeId != effectiveView.candidate?.placeId ||
+        previousView.focusDestination != effectiveView.focusDestination) {
+      _mapFocusOnCurrentLocation = false;
+    }
     globalMapViewNotifier.value = effectiveView;
     final target = effectiveView.vehicleLocation ?? effectiveView.initialTarget;
     final zoom = effectiveView.vehicleLocation != null
@@ -410,7 +428,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       currentLocation: location,
       currentAccuracyMeters: accuracy,
       candidate: view.candidate,
+      focusDestination: view.focusDestination,
       selectedRoute: view.selectedRoute,
+      mapRefreshRevision: view.mapRefreshRevision,
       navigating: view.navigating,
       vehicleLocation: view.vehicleLocation,
       vehicleColor: view.vehicleColor,
@@ -432,12 +452,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     setState(() => _centeringOnLocation = true);
     try {
+      final view = globalMapViewNotifier.value;
+      final routePoints = view.selectedRoute?.points ?? const <LatLng>[];
+      final destination =
+          view.focusDestination ??
+          view.candidate?.location ??
+          (routePoints.isEmpty ? null : routePoints.last);
+      if (destination != null && _mapFocusOnCurrentLocation) {
+        await controller.flyToLatLngZoom(destination, 14.5);
+        _mapFocusOnCurrentLocation = false;
+        return;
+      }
       final location = await _readDeviceLocation();
       if (!mounted || location == null) {
         return;
       }
       _setSharedSelfLocation(location, 0);
       await controller.flyToLatLngZoom(location, 17.0);
+      _mapFocusOnCurrentLocation = destination != null;
     } finally {
       if (mounted) {
         setState(() => _centeringOnLocation = false);
@@ -559,7 +591,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       currentLocation: location,
       currentAccuracyMeters: accuracyMeters,
       candidate: current.candidate,
+      focusDestination: current.focusDestination,
       selectedRoute: current.selectedRoute,
+      mapRefreshRevision: current.mapRefreshRevision,
       navigating: current.navigating,
       vehicleLocation: current.vehicleLocation,
       vehicleColor: current.vehicleColor,
@@ -595,7 +629,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _transitRequestedMode = null;
         }),
         onTransitRouteSaved: _saveTransitRoute,
-        demoArrivalRequest: _demoArrivalRequest,
+        demoArrivalRequest: _transitDemoArrivalRequest,
         currentLocation: _sharedCurrentLocation,
         currentAccuracyMeters: _sharedCurrentAccuracyMeters,
         favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
@@ -610,7 +644,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         wallet: _wallet,
         onFareDeducted: _deductFare,
         onRideCompleted: _saveRideCompletion,
-        demoArrivalRequest: _demoArrivalRequest,
+        demoArrivalRequest: _hubPoolDemoArrivalRequest,
         favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
         onToggleFavorite: _toggleFavoriteDestination,
         requestedDestination: _hubPoolRequestedDestination,
@@ -626,7 +660,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ongoingDestination: _ongoingDestination,
         favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
         onToggleFavorite: _toggleFavoritePlace,
-        demoArrivalRequest: _demoArrivalRequest,
+        demoArrivalRequest: _planDemoArrivalRequest,
         onDemoArrivalCompleted: _saveDemoPlanCompletion,
         onGoNow: _openTransitFor,
         onCancelDestination: _cancelDestination,
@@ -672,6 +706,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   currentAccuracyMeters: view.currentAccuracyMeters,
                   candidate: view.candidate,
                   selectedRoute: view.selectedRoute,
+                  mapRefreshRevision: view.mapRefreshRevision,
                   navigating: view.navigating,
                   vehicleLocation: view.vehicleLocation,
                   vehicleColor: view.vehicleColor,
@@ -695,7 +730,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           if (_tab == 0 || _tab == 1 || _tab == 3)
             _buildMapControls(behindExpandedResults: true),
-          IndexedStack(index: _tab, children: pages),
+          IndexedStack(
+            key: const ValueKey('dashboard-pages'),
+            index: _tab,
+            children: pages,
+          ),
           if (_tab != 2 && _tab != 4) _buildMapControls(),
         ],
       ),
@@ -807,7 +846,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               height: 48,
               decoration: BoxDecoration(
                 color: isSelected ? colorScheme.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(24),
               ),
               child: Center(
                 child: Icon(
@@ -999,6 +1038,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
         ),
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
+        snackBarTheme: _trasiaSnackBarTheme,
       ),
       child: ColoredBox(
         color: Colors.white,
@@ -1321,10 +1361,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
     }
     if (_comparisonLoading) {
       return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: CircularProgressIndicator(),
-        ),
+        child: Padding(padding: EdgeInsets.all(20), child: _MapLoadingPill()),
       );
     }
     final forward = page['A_to_B_callout'] as Map<String, dynamic>?;
@@ -1352,7 +1389,7 @@ class _GovernmentLoading extends StatelessWidget {
       padding: EdgeInsets.only(top: 80),
       child: Column(
         children: [
-          CircularProgressIndicator(),
+          _MapLoadingPill(),
           SizedBox(height: 14),
           Text(
             'Loading official government data...',

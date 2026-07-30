@@ -17,6 +17,23 @@ class TrasiaColors {
   static const darkIcon = Color(0xFF1F2937);
 }
 
+SnackBarThemeData get _trasiaSnackBarTheme => SnackBarThemeData(
+  behavior: SnackBarBehavior.floating,
+  backgroundColor: Colors.white,
+  elevation: 10,
+  insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(22),
+    side: const BorderSide(color: Color(0xFFE0E7F0)),
+  ),
+  contentTextStyle: const TextStyle(
+    color: Color(0xFF172033),
+    fontWeight: FontWeight.w700,
+    fontSize: 13,
+  ),
+  actionTextColor: TrasiaColors.primary,
+);
+
 class SupabaseConfig {
   static const _definedUrl = String.fromEnvironment('SUPABASE_URL');
   static const _definedAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
@@ -245,7 +262,9 @@ class SharedMapView {
     this.currentLocation,
     this.currentAccuracyMeters,
     this.candidate,
+    this.focusDestination,
     this.selectedRoute,
+    this.mapRefreshRevision = 0,
     this.navigating = false,
     this.vehicleLocation,
     this.vehicleColor,
@@ -263,7 +282,9 @@ class SharedMapView {
   final LatLng? currentLocation;
   final double? currentAccuracyMeters;
   final DestinationCandidate? candidate;
+  final LatLng? focusDestination;
   final TransitOption? selectedRoute;
+  final int mapRefreshRevision;
   final bool navigating;
   final LatLng? vehicleLocation;
   final Color? vehicleColor;

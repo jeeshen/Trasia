@@ -229,65 +229,47 @@ class _MapSearchWindow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: toController,
-                  builder: (context, value, _) {
-                    return TextField(
-                      key: const Key('feature-a-destination'),
-                      controller: toController,
-                      onChanged: (_) => onTextChanged(),
-                      onSubmitted: (_) => onSearch(),
-                      style: const TextStyle(color: Color(0xFF172033)),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 9,
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: toController,
+            builder: (context, value, _) {
+              return TextField(
+                key: const Key('feature-a-destination'),
+                controller: toController,
+                onChanged: (_) => onTextChanged(),
+                onSubmitted: (_) => onSearch(),
+                style: const TextStyle(color: Color(0xFF172033)),
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(99)),
+                    borderSide: BorderSide.none,
+                  ),
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: searchingDestination
+                      ? const Padding(
+                          padding: EdgeInsets.all(13),
+                          child: SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2.2),
+                          ),
+                        )
+                      : value.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear destination',
+                          onPressed: onClearDestination,
+                          icon: const Icon(Icons.close_rounded),
                         ),
-                        filled: true,
-                        fillColor: const Color(0xFFF2F6FB),
-                        border: const OutlineInputBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(99)),
-                          borderSide: BorderSide.none,
-                        ),
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: value.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'Clear destination',
-                                onPressed: onClearDestination,
-                                icon: const Icon(Icons.close_rounded),
-                              ),
-                        hintText: 'Search and Navigate',
-                      ),
-                    );
-                  },
+                  hintText: 'Search and Navigate',
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                tooltip: 'Search route options',
-                onPressed: searchingDestination ? null : onSearch,
-                style: IconButton.styleFrom(
-                  backgroundColor: TrasiaColors.primary,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: const Color(0xFFB9D7FF),
-                  disabledForegroundColor: Colors.white,
-                ),
-                icon: searchingDestination
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.near_me_rounded),
-              ),
-            ],
+              );
+            },
           ),
           if (hasResults) ...[
             const SizedBox(height: 12),
@@ -673,19 +655,22 @@ class _RouteChoiceCard extends StatelessWidget {
                 _DarkMiniMetric(
                   Icons.schedule_rounded,
                   _compactDurationLabel(route.time),
+                  flex: 5,
                 ),
-                const SizedBox(width: 8),
-                _DarkMiniMetric(Icons.straighten_rounded, route.distance),
-                const SizedBox(width: 8),
-                _DarkMiniMetric(Icons.payments_rounded, route.fare),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                _DarkMiniMetric(Icons.sync_alt_rounded, route.transfers),
-                const SizedBox(width: 8),
-                Expanded(child: _PeakCrowdBars(crowd: route.crowd)),
+                const SizedBox(width: 4),
+                _DarkMiniMetric(
+                  Icons.straighten_rounded,
+                  route.distance,
+                  flex: 5,
+                ),
+                const SizedBox(width: 4),
+                _DarkMiniMetric(Icons.payments_rounded, route.fare, flex: 5),
+                const SizedBox(width: 4),
+                _DarkMiniMetric(
+                  Icons.sync_alt_rounded,
+                  route.transfers,
+                  flex: 6,
+                ),
               ],
             ),
           ],
@@ -696,29 +681,34 @@ class _RouteChoiceCard extends StatelessWidget {
 }
 
 class _DarkMiniMetric extends StatelessWidget {
-  const _DarkMiniMetric(this.icon, this.label);
+  const _DarkMiniMetric(this.icon, this.label, {this.flex = 1});
 
   final IconData icon;
   final String label;
+  final int flex;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: TrasiaColors.primary),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
+      flex: flex,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: TrasiaColors.primary),
+            const SizedBox(width: 3),
+            Text(
               label,
-              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Color(0xFF172033),
                 fontWeight: FontWeight.w800,
+                fontSize: 12,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -744,72 +734,19 @@ String _compactDurationLabel(String value) {
   ].join();
 }
 
-class _PeakCrowdBars extends StatelessWidget {
-  const _PeakCrowdBars({required this.crowd});
-
-  final double crowd;
-
-  @override
-  Widget build(BuildContext context) {
-    final levels = [
-      (crowd * .75).clamp(.08, 1).toDouble(),
-      crowd.clamp(.08, 1).toDouble(),
-      (crowd * .62).clamp(.08, 1).toDouble(),
-      (crowd * .9).clamp(.08, 1).toDouble(),
-    ];
-    return Row(
-      children: [
-        const Icon(
-          Icons.bar_chart_rounded,
-          size: 16,
-          color: TrasiaColors.primary,
-        ),
-        const SizedBox(width: 4),
-        SizedBox(
-          height: 20,
-          width: 54,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (final level in levels) ...[
-                Expanded(
-                  child: Container(
-                    height: 18 * level,
-                    decoration: BoxDecoration(
-                      color: TrasiaColors.primary.withValues(alpha: .78),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 3),
-              ],
-            ],
-          ),
-        ),
-        const Text(
-          'Peak',
-          style: TextStyle(
-            color: Color(0xFF172033),
-            fontWeight: FontWeight.w800,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _TripDetailsDropdown extends StatefulWidget {
   const _TripDetailsDropdown({
     required this.destination,
     required this.route,
     required this.ongoing,
+    required this.onFocusLeg,
     required this.onStop,
   });
 
   final DestinationCandidate? destination;
   final TransitOption route;
   final bool ongoing;
+  final ValueChanged<RouteLeg> onFocusLeg;
   final VoidCallback onStop;
 
   @override
@@ -841,201 +778,134 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
           ),
         ],
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: route.color,
-                  foregroundColor: Colors.white,
-                  child: const Icon(Icons.alt_route_rounded),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        destination,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF172033),
-                          fontSize: 16,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: route.color,
+                foregroundColor: Colors.white,
+                child: const Icon(Icons.alt_route_rounded),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      destination,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF172033),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      '${route.label} / ${route.time} / ${route.distance}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: route.time == 'Calculating'
+                            ? Colors.black
+                            : const Color(0xFF687386),
+                        fontWeight: route.time == 'Calculating'
+                            ? FontWeight.w700
+                            : FontWeight.normal,
+                      ),
+                    ),
+                    if (widget.ongoing)
+                      const Text(
+                        'On Going',
+                        style: TextStyle(
+                          color: TrasiaColors.primary,
+                          fontSize: 12,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      Text(
-                        '${route.label} / ${route.time} / ${route.distance}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: route.time == 'Calculating'
-                              ? Colors.black
-                              : const Color(0xFF687386),
-                          fontWeight: route.time == 'Calculating'
-                              ? FontWeight.w700
-                              : FontWeight.normal,
-                        ),
-                      ),
-                      if (widget.ongoing)
-                        const Text(
-                          'On Going',
-                          style: TextStyle(
-                            color: TrasiaColors.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: _expanded ? 'Hide details' : 'Show details',
-                  onPressed: () => setState(() => _expanded = !_expanded),
-                  icon: Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: const Color(0xFF172033),
-                  ),
+              ),
+              IconButton(
+                tooltip: _expanded ? 'Hide details' : 'Show details',
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(
+                  _expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: const Color(0xFF172033),
                 ),
-                IconButton.filledTonal(
-                  tooltip: 'Stop navigation',
-                  onPressed: widget.onStop,
-                  icon: const Icon(Icons.stop_rounded),
-                ),
-              ],
-            ),
-            if (_expanded && nextLeg != null) ...[
-              const SizedBox(height: 10),
-              _NextLegCard(leg: nextLeg),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Stop navigation',
+                onPressed: widget.onStop,
+                icon: const Icon(Icons.stop_rounded),
+              ),
             ],
-            if (_expanded && route.legs.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              for (var i = 0; i < route.legs.length; i++)
-                _TripLegRow(
-                  leg: route.legs[i],
-                  active: i == 0,
-                  isLast: i == route.legs.length - 1,
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NextLegCard extends StatelessWidget {
-  const _NextLegCard({required this.leg});
-
-  final RouteLeg leg;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAF8FF),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF22C7F4)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.near_me_rounded, color: TrasiaColors.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Next: ${leg.toName}',
-                  style: const TextStyle(
-                    color: Color(0xFF172033),
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  '${leg.mode} / ${leg.time} / ${leg.distance}',
-                  style: TextStyle(
-                    color: leg.time == 'Calculating'
-                        ? Colors.black
-                        : const Color(0xFF687386),
-                    fontWeight: leg.time == 'Calculating'
-                        ? FontWeight.w700
-                        : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ),
           ),
+          if (_expanded && nextLeg != null) ...[
+            const SizedBox(height: 10),
+            _NextLegCard(leg: nextLeg, onTap: () => widget.onFocusLeg(nextLeg)),
+          ],
+          if (_expanded && route.legs.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Flexible(
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: route.legs.length,
+                itemBuilder: (context, index) => _TripLegRow(
+                  leg: route.legs[index],
+                  active: index == 0,
+                  isLast: index == route.legs.length - 1,
+                  onTap: () => widget.onFocusLeg(route.legs[index]),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _TripLegRow extends StatelessWidget {
-  const _TripLegRow({
-    required this.leg,
-    required this.active,
-    required this.isLast,
-  });
+class _NextLegCard extends StatelessWidget {
+  const _NextLegCard({required this.leg, required this.onTap});
 
   final RouteLeg leg;
-  final bool active;
-  final bool isLast;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? const Color(0xFF22C7F4) : const Color(0xFF8FB7E8);
-    return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              CircleAvatar(
-                radius: 15,
-                backgroundColor: color,
-                foregroundColor: Colors.white,
-                child: Icon(leg.icon, size: 17),
-              ),
-              if (!isLast)
-                Container(
-                  width: 3,
-                  height: 32,
-                  margin: const EdgeInsets.symmetric(vertical: 3),
-                  color: const Color(0xFFE0E7F0),
-                ),
-            ],
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: active
-                    ? const Color(0xFFEAF8FF)
-                    : const Color(0xFFF7F9FC),
-                borderRadius: BorderRadius.circular(14),
-              ),
+    final color = routeModeColor(leg.mode);
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .10),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.near_me_rounded, color: color),
+            const SizedBox(width: 10),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${leg.fromName} to ${leg.toName}',
+                    'Next: ${leg.toName}',
                     style: const TextStyle(
                       color: Color(0xFF172033),
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 4),
                   Text(
                     '${leg.mode} / ${leg.time} / ${leg.distance}',
                     style: TextStyle(
@@ -1050,101 +920,114 @@ class _TripLegRow extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _MapLoadingPill extends StatefulWidget {
-  const _MapLoadingPill();
+class _TripLegRow extends StatelessWidget {
+  const _TripLegRow({
+    required this.leg,
+    required this.active,
+    required this.isLast,
+    required this.onTap,
+  });
 
-  @override
-  State<_MapLoadingPill> createState() => _MapLoadingPillState();
-}
-
-class _MapLoadingPillState extends State<_MapLoadingPill>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final RouteLeg leg;
+  final bool active;
+  final bool isLast;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return CustomPaint(
-              size: const Size(64, 64),
-              painter: _SegmentedSpinnerPainter(_controller.value),
-            );
-          },
+    final color = routeModeColor(leg.mode);
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Column(
+              children: [
+                CircleAvatar(
+                  radius: 15,
+                  backgroundColor: color,
+                  foregroundColor: Colors.white,
+                  child: Icon(leg.icon, size: 17),
+                ),
+                if (!isLast)
+                  Container(
+                    width: 3,
+                    height: 32,
+                    margin: const EdgeInsets.symmetric(vertical: 3),
+                    color: color.withValues(alpha: .28),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: active
+                      ? color.withValues(alpha: .11)
+                      : const Color(0xFFF7F9FC),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${leg.fromName} to ${leg.toName}',
+                      style: const TextStyle(
+                        color: Color(0xFF172033),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${leg.mode} / ${leg.time} / ${leg.distance}',
+                      style: TextStyle(
+                        color: leg.time == 'Calculating'
+                            ? Colors.black
+                            : const Color(0xFF687386),
+                        fontWeight: leg.time == 'Calculating'
+                            ? FontWeight.w700
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
-class _SegmentedSpinnerPainter extends CustomPainter {
-  _SegmentedSpinnerPainter(this.progress);
-  final double progress;
+class _MapLoadingPill extends StatelessWidget {
+  const _MapLoadingPill();
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final strokeWidth = size.width * 0.16;
-    final radius = size.width / 2 - strokeWidth / 2;
-
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.butt;
-
-    const segmentCount = 12;
-    const sweepAngle = (2 * pi / segmentCount) * 0.75;
-
-    final step = (progress * segmentCount).floor();
-
-    for (int i = 0; i < segmentCount; i++) {
-      final startAngle = (i * 2 * pi / segmentCount) - pi / 2;
-
-      int distance = (step - i) % segmentCount;
-      if (distance < 0) distance += segmentCount;
-
-      final opacity = 1.0 - (distance / segmentCount);
-
-      paint.color = const Color(0xFF26648E).withValues(alpha: opacity);
-
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle,
-        sweepAngle,
-        false,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _SegmentedSpinnerPainter oldDelegate) {
-    return oldDelegate.progress != progress;
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Loading',
+      child: Image.asset(
+        'assets/branding/logo_loading.gif',
+        width: 64,
+        height: 64,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.high,
+        excludeFromSemantics: true,
+      ),
+    );
   }
 }
 
@@ -1370,6 +1253,7 @@ class _BlindBoxTravelModeSelector extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           SegmentedButton<BlindBoxTravelMode>(
+            expandedInsets: EdgeInsets.zero,
             segments: const [
               ButtonSegment(
                 value: BlindBoxTravelMode.drive,

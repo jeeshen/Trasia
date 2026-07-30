@@ -54,6 +54,9 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   bool _loading = false;
   bool _searchingDestination = false;
   bool _navigating = false;
+  int _mapRefreshRevision = 0;
+  Timer? _destinationSearchDebounce;
+  int _destinationSearchRequest = 0;
   @override
   void initState() {
     super.initState();
@@ -65,6 +68,9 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
   void didUpdateWidget(covariant TransitRouterScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     _mapController = widget.mapController ?? _mapController;
+    if (widget.active && !oldWidget.active) {
+      _mapRefreshRevision++;
+    }
     if (oldWidget.destination != widget.destination ||
         oldWidget.request != widget.request) {
       _toController.text = widget.destination;
@@ -85,6 +91,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
 
   @override
   void dispose() {
+    _destinationSearchDebounce?.cancel();
     _fromController.dispose();
     _toController.dispose();
     super.dispose();
@@ -120,6 +127,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       currentAccuracyMeters: _navigating ? null : widget.currentAccuracyMeters,
       candidate: _candidate,
       selectedRoute: _selectedRoute,
+      mapRefreshRevision: _mapRefreshRevision,
       navigating: _navigating,
       initialTarget: displayCurrentLocation ?? _lastMapCenter,
       initialZoom: displayCurrentLocation == null ? 12 : 15,
@@ -161,7 +169,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
               navigating: _navigating,
               searchingDestination: _searchingDestination,
               favoritePlaceNames: widget.favoritePlaceNames,
-              onTextChanged: () => setState(() {}),
+              onTextChanged: _handleDestinationTextChanged,
               onSearch: _searchDestination,
               onClearDestination: _clearTransitDestination,
               onConfirmDestination: _calculateDirections,
@@ -181,6 +189,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
               destination: _candidate,
               route: _selectedRoute!,
               ongoing: widget.ongoingDestination == _candidate?.name,
+              onFocusLeg: _focusRouteLeg,
               onStop: _resetNavigation,
             ),
           ),
@@ -190,7 +199,16 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
 
   bool get _hasGoogleMapsKey => _GoogleMapsConfig.isReady;
 
+  Future<void> _focusRouteLeg(RouteLeg leg) async {
+    if (leg.points.isEmpty) {
+      return;
+    }
+    await _mapController?.flyToLatLngZoom(leg.points.first, 17);
+  }
+
   void _clearTransitDestination() {
+    _destinationSearchDebounce?.cancel();
+    _destinationSearchRequest++;
     setState(() {
       _toController.clear();
       _candidate = null;
@@ -207,8 +225,32 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     widget.onNavigationCancelled();
   }
 
-  Future<void> _searchDestination({bool autoCalculate = false}) async {
+  void _handleDestinationTextChanged() {
+    _destinationSearchDebounce?.cancel();
     final query = _toController.text.trim();
+    _destinationSearchRequest++;
+    setState(() {
+      _candidate = null;
+      _candidates = const [];
+      _routes = const [];
+      _selectedRoute = null;
+      _statusMessage = null;
+      _searchingDestination = false;
+      _navigating = false;
+    });
+    if (query.isEmpty) {
+      return;
+    }
+    _destinationSearchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      () => unawaited(_searchDestination()),
+    );
+  }
+
+  Future<void> _searchDestination({bool autoCalculate = false}) async {
+    _destinationSearchDebounce?.cancel();
+    final query = _toController.text.trim();
+    final request = ++_destinationSearchRequest;
     if (query.isEmpty) {
       setState(() {
         _candidate = null;
@@ -222,6 +264,11 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     }
     if (!_hasGoogleMapsKey) {
       final candidates = _previewCandidates(query);
+      if (!mounted ||
+          request != _destinationSearchRequest ||
+          query != _toController.text.trim()) {
+        return;
+      }
       setState(() {
         _candidate = candidates.first;
         _candidates = candidates;
@@ -249,18 +296,15 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     });
 
     try {
-      if (widget.currentLocation == null) {
-        setState(() {
-          _statusMessage =
-              'Location not available. Tap the location button on the map first.';
-          _searchingDestination = false;
-        });
-        return;
-      }
       final candidates = await _GoogleMapsApi.findPlaces(
         query: query,
         apiKey: _GoogleMapsConfig.apiKey,
       );
+      if (!mounted ||
+          request != _destinationSearchRequest ||
+          query != _toController.text.trim()) {
+        return;
+      }
       setState(() {
         _candidate = candidates.isEmpty ? null : candidates.first;
         _candidates = candidates;
@@ -275,9 +319,11 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         }
       }
     } catch (error) {
-      setState(() => _statusMessage = 'Place search failed: $error');
+      if (mounted && request == _destinationSearchRequest) {
+        setState(() => _statusMessage = 'Place search failed: $error');
+      }
     } finally {
-      if (mounted) {
+      if (mounted && request == _destinationSearchRequest) {
         setState(() => _searchingDestination = false);
       }
     }
@@ -311,10 +357,16 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
             : await _roadAlignAccessTransitRoutes(localFareRoutes);
       }
       final drivingOption = await drivingOptionFuture;
-      var routes = _filterRoutesForRequestedMode([
-        ...transitRoutes,
-        drivingOption,
-      ]);
+      var routes = _ensureRouteChoiceCount(
+        primary: _filterRoutesForRequestedMode([
+          ...transitRoutes,
+          drivingOption,
+        ]),
+        supplements: _filterRoutesForRequestedMode([
+          ...localFareRoutes,
+          ..._previewRoutes(destination),
+        ]),
+      );
       if (routes.isEmpty) {
         routes = _filterRoutesForRequestedMode(_previewRoutes(destination));
       }
@@ -327,6 +379,9 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         } else if (googleTransitRoutes.isEmpty) {
           _statusMessage =
               'Google transit is unavailable, so estimated routes are shown.';
+        } else if (googleTransitRoutes.length < 3) {
+          _statusMessage =
+              'Some alternatives are estimated because fewer live transit routes are available.';
         }
       });
       if (routes.isNotEmpty) {
@@ -370,22 +425,66 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     };
   }
 
+  List<TransitOption> _ensureRouteChoiceCount({
+    required List<TransitOption> primary,
+    required List<TransitOption> supplements,
+  }) {
+    final routes = <TransitOption>[];
+    final labels = <String>{};
+
+    void addUnique(TransitOption route) {
+      if (routes.length >= 5 || !labels.add(route.label.toLowerCase())) {
+        return;
+      }
+      routes.add(route);
+    }
+
+    for (final route in primary) {
+      addUnique(route);
+    }
+    if (routes.length < 3) {
+      for (final route in supplements) {
+        addUnique(route);
+        if (routes.length >= 3) {
+          break;
+        }
+      }
+    }
+    return routes;
+  }
+
   List<TransitOption> _applyLocalFareEstimates(
     List<TransitOption> liveRoutes,
     List<TransitOption> localRoutes,
   ) {
-    if (localRoutes.isEmpty) {
-      return liveRoutes;
-    }
     return [
       for (var index = 0; index < liveRoutes.length; index++)
-        if (!liveRoutes[index].fare.toLowerCase().contains('unavailable'))
+        if (!_needsFareEstimate(liveRoutes[index].fare))
           liveRoutes[index]
         else
           liveRoutes[index].copyWith(
-            fare: _localFareForLiveRoute(liveRoutes[index], index, localRoutes),
+            fare: localRoutes.isEmpty
+                ? _distanceBasedTransitFare()
+                : _localFareForLiveRoute(liveRoutes[index], index, localRoutes),
           ),
     ];
+  }
+
+  bool _needsFareEstimate(String fare) {
+    final normalized = fare.trim().toLowerCase();
+    return normalized.isEmpty ||
+        normalized.contains('unavailable') ||
+        normalized.contains('not available') ||
+        normalized.contains('pending');
+  }
+
+  String _distanceBasedTransitFare() {
+    final destination = _candidate?.location;
+    final distanceKm = destination == null
+        ? 5.0
+        : max(.2, _metersBetween(_routingOrigin, destination) / 1000);
+    final estimatedFare = (1.20 + distanceKm * .55).clamp(1.20, 10.00);
+    return '~RM ${estimatedFare.toStringAsFixed(2)}';
   }
 
   String _localFareForLiveRoute(
@@ -1045,22 +1144,31 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     final transitMinutes = max(12, (distanceKm / 24 * 60 + 10).round());
     final walkMinutes = max(4, (distanceKm / 4.8 * 60).round());
     final transitFare = (1.20 + distanceKm * .55).clamp(1.20, 8.00);
-    return [
-      TransitOption(
-        label: 'Transit',
-        chain: 'Walk -> Rail/Bus -> Walk',
-        time: _formatLegMinutes(transitMinutes),
+    TransitOption estimatedTransit({
+      required String label,
+      required String chain,
+      required int extraMinutes,
+      required double fareFactor,
+      required String transfers,
+      required Color color,
+    }) {
+      final minutes = transitMinutes + extraMinutes;
+      final fare = (transitFare * fareFactor).clamp(1.20, 10.00);
+      return TransitOption(
+        label: label,
+        chain: chain,
+        time: _formatLegMinutes(minutes),
         distance: _formatLegDistance(distanceMeters),
-        fare: 'RM ${transitFare.toStringAsFixed(2)}',
-        transfers: distanceKm > 7 ? '2 transfers' : '1 transfer',
-        crowd: .58,
-        color: const Color(0xFF2F9BFF),
+        fare: 'RM ${fare.toStringAsFixed(2)}',
+        transfers: transfers,
+        crowd: .48,
+        color: color,
         legs: [
           _leg(
             originName,
             _candidate?.name ?? 'Destination',
             'Transit',
-            _formatLegMinutes(transitMinutes),
+            _formatLegMinutes(minutes),
             _formatLegDistance(distanceMeters),
             Icons.directions_transit_rounded,
             const [],
@@ -1068,6 +1176,33 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         ],
         firstStopLabel: 'Nearest station',
         nextInstruction: 'Use the nearest rail or bus connection',
+      );
+    }
+
+    return [
+      estimatedTransit(
+        label: 'Fastest Transit',
+        chain: 'Fastest available rail and bus connection',
+        extraMinutes: 0,
+        fareFactor: 1,
+        transfers: distanceKm > 7 ? '2 transfers' : '1 transfer',
+        color: const Color(0xFF0B7CFF),
+      ),
+      estimatedTransit(
+        label: 'Less Walking',
+        chain: 'Shorter walk with nearby transit connections',
+        extraMinutes: 4,
+        fareFactor: 1.05,
+        transfers: distanceKm > 9 ? '2 transfers' : '1 transfer',
+        color: const Color(0xFF2F9BFF),
+      ),
+      estimatedTransit(
+        label: 'Minimum Transfers',
+        chain: 'Simpler journey with fewer changes',
+        extraMinutes: 7,
+        fareFactor: 1.1,
+        transfers: distanceKm > 12 ? '1 transfer' : 'No transfer',
+        color: const Color(0xFF005BD8),
       ),
       TransitOption(
         label: 'Walk',

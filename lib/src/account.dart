@@ -271,6 +271,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
         ),
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
+        snackBarTheme: _trasiaSnackBarTheme,
       ),
       child: ColoredBox(
         color: Colors.white,

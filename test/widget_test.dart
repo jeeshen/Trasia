@@ -21,6 +21,22 @@ void main() {
     expect(find.text('Transit Matrix Router'), findsNothing);
     expect(find.text('Search and Navigate'), findsOneWidget);
     expect(find.byKey(const Key('feature-a-destination')), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('feature-a-destination')),
+      'Keep this transit trip',
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(const Key('nav-dashboard')));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(const Key('nav-account')));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(const Key('nav-transit')));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Keep this transit trip'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('feature-a-destination')), '');
+    await tester.pump();
   });
 
   testWidgets('Feature C shows map after generating results', (
@@ -80,6 +96,16 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byIcon(Icons.alt_route_rounded), findsNothing);
+    expect(find.text('Arrived'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('nav-dashboard')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const Key('nav-account')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const Key('nav-plan')));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Arrived'), findsOneWidget);
     await tester.tap(find.text('Arrived'));
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -157,6 +183,28 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byKey(const Key('demo-arrival')));
     await tester.pump();
+    expect(
+      tester
+          .widget<TransitRouterScreen>(
+            find.byType(TransitRouterScreen, skipOffstage: false),
+          )
+          .demoArrivalRequest,
+      0,
+    );
+    expect(
+      tester
+          .widget<HubPoolScreen>(
+            find.byType(HubPoolScreen, skipOffstage: false),
+          )
+          .demoArrivalRequest,
+      0,
+    );
+    expect(
+      tester
+          .widget<PelancongPlanScreen>(find.byType(PelancongPlanScreen))
+          .demoArrivalRequest,
+      1,
+    );
     await tester.pump(const Duration(seconds: 2));
 
     final preferences = await SharedPreferences.getInstance();
@@ -283,5 +331,19 @@ void main() {
     );
     expect(hubPoolScreen.active, isTrue);
     expect(hubPoolScreen.requestedDestination?.name, 'Suria KLCC');
+
+    await tester.tap(find.byKey(const Key('book-ride')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Finding a driver'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('nav-dashboard')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const Key('nav-account')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const Key('nav-ride')));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Finding a driver'), findsOneWidget);
+    expect(find.text('Cancel Ride'), findsOneWidget);
   });
 }
