@@ -184,7 +184,28 @@ class AuthService {
   Future<void> signOut() => _client.auth.signOut();
 
   Future<void> updateEmail(String newEmail) async {
-    await _client.auth.updateUser(UserAttributes(email: newEmail));
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    
+    final res = await _client
+        .from('profiles')
+        .select('id')
+        .ilike('email', newEmail)
+        .neq('id', user.id)
+        .maybeSingle();
+        
+    if (res != null) {
+      throw Exception('This email address is already in use.');
+    }
+    
+    try {
+      await _client.from('profiles').update({'email': newEmail}).eq('id', user.id);
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        throw Exception('This email address is already in use.');
+      }
+      rethrow;
+    }
   }
 
   Future<void> updatePassword(String newPassword) async {

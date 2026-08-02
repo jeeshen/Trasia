@@ -1508,11 +1508,13 @@ class _EditEmailPage extends StatefulWidget {
 }
 
 class _EditEmailPageState extends State<_EditEmailPage> {
-  final _controller = TextEditingController();
+  final emailController = TextEditingController();
   bool _isLoading = false;
 
   Future<void> _save() async {
-    final email = _controller.text.trim();
+    final email = emailController.text.trim();
+    debugPrint("Updating email: $email");
+    
     if (email.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address.')));
       return;
@@ -1520,24 +1522,44 @@ class _EditEmailPageState extends State<_EditEmailPage> {
     
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(email: email),
-      );
+      final userId = Supabase.instance.client.auth.currentUser!.id;
+      
+      final res = await Supabase.instance.client
+          .from('profiles')
+          .select('id')
+          .ilike('email', email)
+          .neq('id', userId)
+          .maybeSingle();
+
+      if (res != null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This email address is already in use.')));
+        }
+        return;
+      }
+
+      await Supabase.instance.client.from('profiles').update({'email': email}).eq('id', userId);
+      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('A confirmation link has been sent to your new email.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email updated successfully.')));
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update email: $e')));
+        if (e is PostgrestException && e.code == '23505') {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This email address is already in use.')));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update email: $e')));
+        }
       }
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    emailController.dispose();
     super.dispose();
   }
 
@@ -1564,7 +1586,7 @@ class _EditEmailPageState extends State<_EditEmailPage> {
               const Text('Enter a new email address. We will send a verification link to confirm the change.', style: TextStyle(color: Color(0xFF68788C), fontSize: 14)),
               const SizedBox(height: 24),
               TextField(
-                controller: _controller,
+                controller: emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: 'New Email',
