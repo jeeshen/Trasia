@@ -26,19 +26,36 @@ part 'src/rewards.dart';
 part 'src/account.dart';
 part 'src/shared_widgets.dart';
 part 'src/models_data.dart';
+part 'src/admin.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const TrasiaBootstrap());
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.dumpErrorToConsole(details);
+      debugPrintStack(label: 'FlutterError: ${details.exceptionAsString()}', stackTrace: details.stack);
+    };
+
+    runApp(const TrasiaBootstrap());
+  } catch (e, stack) {
+    debugPrintStack(label: 'Main Crash: $e', stackTrace: stack);
+    rethrow;
+  }
 }
 
 Future<void> _initializeApp() async {
-  await SupabaseConfig.load();
-  if (SupabaseConfig.isReady) {
-    await Supabase.initialize(
-      url: SupabaseConfig.url,
-      publishableKey: SupabaseConfig.anonKey,
-    );
+  try {
+    await SupabaseConfig.load();
+    if (SupabaseConfig.isReady) {
+      await Supabase.initialize(
+        url: SupabaseConfig.url,
+        publishableKey: SupabaseConfig.anonKey,
+      );
+    }
+  } catch (e, stack) {
+    debugPrintStack(label: '_initializeApp Crash: $e', stackTrace: stack);
+    rethrow;
   }
 }
 

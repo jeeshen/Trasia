@@ -40,21 +40,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _transitDemoArrivalRequest = 0;
   int _hubPoolDemoArrivalRequest = 0;
   int _planDemoArrivalRequest = 0;
+  String? _username;
+  late AuthProfile _currentProfile;
 
   bool _hasCenteredOnInitialLocation = false;
 
   @override
   void initState() {
     super.initState();
-    _wallet = widget.profile.credit;
-    _savedTransitRoutes = widget.profile.savedTransitRoutes;
-    _hubPoolTransactions = widget.profile.hubPoolTransactions;
-    _carbonSavedKg = widget.profile.carbonSavedKg;
-    _rewardPoints = widget.profile.rewardPoints;
-    _redeemedVouchers = widget.profile.redeemedVouchers;
-    _checkedInPlaces = widget.profile.checkedInPlaces;
-    _favoritePlaces = widget.profile.favoritePlaces;
-    _tripHistory = widget.profile.tripHistory;
+    _currentProfile = widget.profile;
+    _username = _currentProfile.username;
+    _wallet = _currentProfile.credit;
+    _savedTransitRoutes = _currentProfile.savedTransitRoutes;
+    _hubPoolTransactions = _currentProfile.hubPoolTransactions;
+    _carbonSavedKg = _currentProfile.carbonSavedKg;
+    _rewardPoints = _currentProfile.rewardPoints;
+    _redeemedVouchers = _currentProfile.redeemedVouchers;
+    _checkedInPlaces = _currentProfile.checkedInPlaces;
+    _favoritePlaces = _currentProfile.favoritePlaces;
+    _tripHistory = _currentProfile.tripHistory;
     
     globalMapController.addListener(_onMapControllerChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -68,6 +72,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     globalMapController.removeListener(_onMapControllerChanged);
     super.dispose();
+  }
+
+  Future<void> _refreshProfile() async {
+    final updated = await const AuthService().currentProfile();
+    if (updated != null && mounted) {
+      setState(() {
+        _currentProfile = updated;
+        _username = updated.username;
+        _wallet = updated.credit;
+        _savedTransitRoutes = updated.savedTransitRoutes;
+        _hubPoolTransactions = updated.hubPoolTransactions;
+        _carbonSavedKg = updated.carbonSavedKg;
+        _rewardPoints = updated.rewardPoints;
+        _redeemedVouchers = updated.redeemedVouchers;
+        _checkedInPlaces = updated.checkedInPlaces;
+        _favoritePlaces = updated.favoritePlaces;
+        _tripHistory = updated.tripHistory;
+      });
+    }
   }
 
   void _onMapControllerChanged() {
@@ -677,8 +700,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: Colors.white,
         child: SafeArea(
           child: AccountConsoleScreen(
-            role: widget.profile.role,
-            email: widget.profile.email,
+            role: _currentProfile.role,
+            username: _username,
+            onUsernameChanged: (_) => _refreshProfile(),
+            email: _currentProfile.email,
             wallet: _wallet,
             savedTransitRoutes: _savedTransitRoutes,
             hubPoolTransactions: _hubPoolTransactions,

@@ -55,9 +55,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _resumeSession() async {
-    final profile = await _auth.currentProfile();
-    if (mounted && profile != null) {
-      _enter(profile);
+    try {
+      final profile = await _auth.currentProfile();
+      if (mounted && profile != null) {
+        _enter(profile);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _message = 'Failed to resume session: $e');
+      }
     }
   }
 
@@ -104,10 +110,18 @@ class _LoginScreenState extends State<LoginScreen> {
   void _enter(AuthProfile profile) {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (_, _, _) => DashboardScreen(
-          profile: profile,
-          onLogout: _logoutFromDashboard,
-        ),
+        pageBuilder: (_, _, _) {
+          if (profile.role == UserRole.admin) {
+            return AdminPanel(
+              profile: profile,
+              onLogout: _logoutFromDashboard,
+            );
+          }
+          return DashboardScreen(
+            profile: profile,
+            onLogout: _logoutFromDashboard,
+          );
+        },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },

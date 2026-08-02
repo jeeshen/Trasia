@@ -84,6 +84,7 @@ class AuthProfile {
   const AuthProfile({
     required this.email,
     required this.role,
+    this.username,
     required this.credit,
     required this.savedTransitRoutes,
     required this.hubPoolTransactions,
@@ -97,6 +98,7 @@ class AuthProfile {
 
   final String email;
   final UserRole role;
+  final String? username;
   final double credit;
   final int savedTransitRoutes;
   final int hubPoolTransactions;
@@ -108,6 +110,7 @@ class AuthProfile {
   final List<TripHistoryEntry> tripHistory;
 
   AuthProfile copyWith({
+    String? username,
     double? credit,
     int? savedTransitRoutes,
     int? hubPoolTransactions,
@@ -121,6 +124,7 @@ class AuthProfile {
     return AuthProfile(
       email: email,
       role: role,
+      username: username ?? this.username,
       credit: credit ?? this.credit,
       savedTransitRoutes: savedTransitRoutes ?? this.savedTransitRoutes,
       hubPoolTransactions: hubPoolTransactions ?? this.hubPoolTransactions,
@@ -179,6 +183,25 @@ class AuthService {
 
   Future<void> signOut() => _client.auth.signOut();
 
+  Future<void> updateEmail(String newEmail) async {
+    await _client.auth.updateUser(UserAttributes(email: newEmail));
+  }
+
+  Future<void> updatePassword(String newPassword) async {
+    await _client.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
+  Future<bool> isUsernameAvailable(String username) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return false;
+    
+    final res = await _client.rpc('is_username_available', params: {
+      'check_username': username,
+    });
+    
+    return res == true;
+  }
+
   Future<void> updateProfile(AuthProfile profile) async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -187,6 +210,7 @@ class AuthService {
     await _client
         .from('profiles')
         .update({
+          'username': profile.username,
           'credit': profile.credit,
           'saved_transit_routes': profile.savedTransitRoutes,
           'hub_pool_transactions': profile.hubPoolTransactions,
@@ -206,7 +230,7 @@ class AuthService {
     final row = await _client
         .from('profiles')
         .select(
-          'role,email,credit,saved_transit_routes,hub_pool_transactions,carbon_saved_kg,reward_points,redeemed_vouchers,checked_in_places,favorite_places,trip_history',
+          'role,email,username,credit,saved_transit_routes,hub_pool_transactions,carbon_saved_kg,reward_points,redeemed_vouchers,checked_in_places,favorite_places,trip_history',
         )
         .eq('id', user.id)
         .maybeSingle();
@@ -233,6 +257,7 @@ class AuthService {
     return AuthProfile(
       email: (row?['email'] as String?) ?? user.email ?? '',
       role: role,
+      username: row?['username'] as String?,
       credit: ((row?['credit'] as num?) ?? 128.40).toDouble(),
       savedTransitRoutes: ((row?['saved_transit_routes'] as num?) ?? 0).toInt(),
       hubPoolTransactions: ((row?['hub_pool_transactions'] as num?) ?? 0).toInt(),

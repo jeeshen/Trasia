@@ -3,6 +3,8 @@ part of '../main.dart';
 class AccountConsoleScreen extends StatefulWidget {
   const AccountConsoleScreen({
     required this.role,
+    this.username,
+    this.onUsernameChanged,
     required this.email,
     required this.wallet,
     required this.savedTransitRoutes,
@@ -21,6 +23,8 @@ class AccountConsoleScreen extends StatefulWidget {
   });
 
   final UserRole role;
+  final String? username;
+  final ValueChanged<String>? onUsernameChanged;
   final String email;
   final double wallet;
   final int savedTransitRoutes;
@@ -391,17 +395,30 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              widget.email,
-              maxLines: 2,
+              (widget.username != null && widget.username!.trim().isNotEmpty)
+                  ? widget.username!
+                  : 'Set Username',
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: ink,
-                fontSize: 20,
+                fontSize: 22,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
+            Text(
+              widget.email,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: muted,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
               widget.role == UserRole.admin ? 'Administrator' : 'Trasia member',
               textAlign: TextAlign.center,
@@ -463,6 +480,20 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
               icon: Icons.description_outlined,
               title: 'Terms & Conditions',
               onTap: _showTerms,
+            ),
+            _ProfileSettingRow(
+              icon: Icons.settings_rounded,
+              title: 'Settings',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => _SettingsPage(
+                      currentUsername: widget.username,
+                      onUsernameChanged: widget.onUsernameChanged,
+                    ),
+                  ),
+                );
+              },
             ),
             _ProfileSettingRow(
               icon: Icons.logout_rounded,
@@ -1408,6 +1439,513 @@ class _ProfileSheet extends StatelessWidget {
             const SizedBox(height: 22),
             child,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsPage extends StatelessWidget {
+  const _SettingsPage({this.currentUsername, this.onUsernameChanged});
+  final String? currentUsername;
+  final ValueChanged<String>? onUsernameChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData(
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(seedColor: TrasiaColors.primary, brightness: Brightness.light),
+        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
+      ),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF102033), fontSize: 18)),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Color(0xFF93A1B2)),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+          children: [
+            _ProfileSettingRow(
+              icon: Icons.person_outline_rounded,
+              title: 'Username',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (context) => _EditUsernamePage(
+                  currentUsername: currentUsername,
+                  onUsernameChanged: onUsernameChanged,
+                ),
+              )),
+            ),
+            _ProfileSettingRow(
+              icon: Icons.email_outlined,
+              title: 'Email',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (context) => const _EditEmailPage(),
+              )),
+            ),
+            _ProfileSettingRow(
+              icon: Icons.lock_outline_rounded,
+              title: 'Password',
+              showDivider: false,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (context) => const _EditPasswordPage(),
+              )),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditEmailPage extends StatefulWidget {
+  const _EditEmailPage();
+  @override
+  State<_EditEmailPage> createState() => _EditEmailPageState();
+}
+
+class _EditEmailPageState extends State<_EditEmailPage> {
+  final _controller = TextEditingController();
+  bool _isLoading = false;
+
+  Future<void> _save() async {
+    final email = _controller.text.trim();
+    if (email.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address.')));
+      return;
+    }
+    
+    setState(() => _isLoading = true);
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(email: email),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('A confirmation link has been sent to your new email.')));
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update email: $e')));
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData(
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(seedColor: TrasiaColors.primary, brightness: Brightness.light),
+        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
+      ),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF102033), fontSize: 18)),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Color(0xFF93A1B2)),
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              const Text('Enter a new email address. We will send a verification link to confirm the change.', style: TextStyle(color: Color(0xFF68788C), fontSize: 14)),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _controller,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'New Email',
+                  hintText: 'user@example.com',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ),
+              const SizedBox(height: 32),
+              FilledButton(
+                onPressed: _isLoading ? null : _save,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: TrasiaColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isLoading 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    : const Text('Update Email', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditPasswordPage extends StatefulWidget {
+  const _EditPasswordPage();
+  @override
+  State<_EditPasswordPage> createState() => _EditPasswordPageState();
+}
+
+class _EditPasswordPageState extends State<_EditPasswordPage> {
+  final _passCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _isLoading = false;
+
+  Future<void> _save() async {
+    final p1 = _passCtrl.text;
+    final p2 = _confirmCtrl.text;
+    
+    if (p1.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters')));
+      return;
+    }
+    if (p1 != p2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
+      return;
+    }
+    
+    setState(() => _isLoading = true);
+    try {
+      await const AuthService().updatePassword(p1);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password updated successfully')));
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update password: $e')));
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _passCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData(
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(seedColor: TrasiaColors.primary, brightness: Brightness.light),
+        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
+      ),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF102033), fontSize: 18)),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Color(0xFF93A1B2)),
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              TextField(
+                controller: _passCtrl,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'New Password',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _confirmCtrl,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'Confirm Password',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ),
+              const SizedBox(height: 32),
+              FilledButton(
+                onPressed: _isLoading ? null : _save,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: TrasiaColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isLoading 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    : const Text('Update Password', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditUsernamePage extends StatefulWidget {
+  const _EditUsernamePage({this.currentUsername, this.onUsernameChanged});
+  final String? currentUsername;
+  final ValueChanged<String>? onUsernameChanged;
+
+  @override
+  State<_EditUsernamePage> createState() => _EditUsernamePageState();
+}
+
+class _EditUsernamePageState extends State<_EditUsernamePage> {
+  late final TextEditingController _controller;
+  Timer? _debounce;
+  bool _isLoading = false;
+  bool _isChecking = false;
+  bool? _isAvailable;
+  String? _errorMsg;
+  List<String> _suggestions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentUsername);
+    _controller.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    final text = _controller.text.trim();
+    if (text == widget.currentUsername) {
+      setState(() {
+        _isAvailable = null;
+        _errorMsg = null;
+        _suggestions.clear();
+      });
+      return;
+    }
+    if (text.isEmpty) {
+      setState(() {
+        _isAvailable = null;
+        _errorMsg = 'Username cannot be empty';
+        _suggestions.clear();
+      });
+      return;
+    }
+    
+    setState(() {
+      _isChecking = true;
+      _isAvailable = null;
+      _errorMsg = null;
+      _suggestions.clear();
+    });
+    
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () => _checkAvailability(text));
+  }
+
+  Future<void> _checkAvailability(String username) async {
+    final authService = const AuthService();
+    final available = await authService.isUsernameAvailable(username);
+    
+    if (!mounted) return;
+    
+    if (available) {
+      setState(() {
+        _isAvailable = true;
+        _isChecking = false;
+      });
+    } else {
+      setState(() {
+        _isAvailable = false;
+      });
+      await _generateSuggestions(username);
+      if (mounted) setState(() => _isChecking = false);
+    }
+  }
+
+  Future<void> _generateSuggestions(String base) async {
+    final authService = const AuthService();
+    final suggestions = <String>[];
+    
+    final cleanBase = base.replaceAll(RegExp(r'[^a-zA-Z]'), '');
+    final fallbackBase = cleanBase.isEmpty ? 'user' : cleanBase;
+    
+    final suffixes = ['1', '12', '123', '2026', '_01', '99', '_xyz'];
+    int i = 0;
+    while (suggestions.length < 3 && i < suffixes.length + 10) {
+      final suggestion = i < suffixes.length 
+          ? '$fallbackBase${suffixes[i]}' 
+          : '${fallbackBase}_${i * 7}';
+      
+      final isAvail = await authService.isUsernameAvailable(suggestion);
+      if (isAvail && !suggestions.contains(suggestion)) {
+        suggestions.add(suggestion);
+      }
+      i++;
+    }
+    
+    if (mounted && _controller.text.trim() == base) {
+      setState(() {
+        _suggestions = suggestions;
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    final newUsername = _controller.text.trim();
+    if (newUsername.isEmpty) {
+      setState(() => _errorMsg = 'Username cannot be empty');
+      return;
+    }
+    if (newUsername == widget.currentUsername) {
+      Navigator.of(context).pop();
+      return;
+    }
+    
+    setState(() => _isLoading = true);
+    
+    final authService = const AuthService();
+    final available = await authService.isUsernameAvailable(newUsername);
+    if (!available) {
+      setState(() {
+        _isLoading = false;
+        _isAvailable = false;
+      });
+      await _generateSuggestions(newUsername);
+      return;
+    }
+    
+    try {
+      final profile = await authService.currentProfile();
+      if (profile != null) {
+        final updated = profile.copyWith(username: newUsername);
+        await authService.updateProfile(updated);
+        widget.onUsernameChanged?.call(newUsername);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username updated successfully')));
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData(
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(seedColor: TrasiaColors.primary, brightness: Brightness.light),
+        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
+      ),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Edit Username', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF102033), fontSize: 18)),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Color(0xFF93A1B2)),
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              TextField(
+                controller: _controller,
+                maxLength: 50,
+                decoration: InputDecoration(
+                  labelText: 'Username',
+                  hintText: 'Enter a unique username',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  suffixIcon: _isChecking
+                      ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))
+                      : _isAvailable == true
+                          ? const Icon(Icons.check_circle_rounded, color: Color(0xFF00A86B))
+                          : _isAvailable == false
+                              ? const Icon(Icons.cancel_rounded, color: Color(0xFFD63C3C))
+                              : null,
+                ),
+              ),
+              if (_errorMsg != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, left: 12),
+                  child: Text(_errorMsg!, style: const TextStyle(color: Color(0xFFD63C3C), fontSize: 13)),
+                ),
+              if (_isAvailable == true)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8, left: 12),
+                  child: Text('✓ Username is available', style: TextStyle(color: Color(0xFF00A86B), fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+              if (_isAvailable == false)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8, left: 12),
+                  child: Text('✗ Username is already taken', style: TextStyle(color: Color(0xFFD63C3C), fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+              if (_suggestions.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                const Text('Suggestions', style: TextStyle(color: Color(0xFF102033), fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _suggestions.map((s) => ActionChip(
+                    label: Text(s, style: const TextStyle(color: Color(0xFF102033))),
+                    onPressed: () {
+                      _controller.text = s;
+                    },
+                    backgroundColor: const Color(0xFFEAF3FF),
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
+                  )).toList(),
+                ),
+              ],
+              const SizedBox(height: 32),
+              FilledButton(
+                onPressed: (_isLoading || _isChecking || _errorMsg != null || _isAvailable == false) ? null : _save,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: TrasiaColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isLoading 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    : const Text('Save Username', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              ),
+            ],
+          ),
         ),
       ),
     );
