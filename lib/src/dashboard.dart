@@ -25,12 +25,16 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  static const _demoPointGrantVersion = 1;
   int _tab = 0;
   int _previousTab = 0;
   late double _wallet;
   late int _savedTransitRoutes;
   late int _hubPoolTransactions;
   late double _carbonSavedKg;
+  int _rewardPoints = 600;
+  List<RedeemedVoucher> _redeemedVouchers = const [];
+  Set<String> _checkedInPlaceKeys = const {};
   String _transitDestination = 'KLCC';
   int _transitRequest = 0;
   DestinationCandidate? _hubPoolRequestedDestination;
@@ -55,6 +59,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String get _walletStorageKey => 'trasia.wallet.credit.$_accountStorageKey';
 
+  String get _rewardPointsStorageKey {
+    return 'trasia.reward.points.$_accountStorageKey';
+  }
+
+  String get _demoPointGrantStorageKey {
+    return 'trasia.reward.demo-grant-version.$_accountStorageKey';
+  }
+
+  String get _redeemedVouchersStorageKey {
+    return 'trasia.redeemed.vouchers.$_accountStorageKey';
+  }
+
+  String get _checkedInPlacesStorageKey {
+    return 'trasia.checked-in.places.$_accountStorageKey';
+  }
+
   String get _favoritesStorageKey {
     return 'trasia.favorite.places.$_accountStorageKey';
   }
@@ -75,6 +95,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         unawaited(_loadInitialLocation());
         unawaited(_loadWallet());
+        unawaited(_loadRewardPoints());
+        unawaited(_loadRedeemedVouchers());
+        unawaited(_loadCheckedInPlaces());
         unawaited(_loadFavoritePlaces());
         unawaited(_loadTripHistory());
       }
@@ -129,6 +152,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _topUp(double amount) {
     setState(() => _wallet += amount);
     _persistProfileStats();
+  }
+
+  bool _redeemReward(String voucherId, int pointCost, double hubPoolCredit) {
+    if (_rewardPoints < pointCost) {
+      return false;
+    }
+    setState(() {
+      _rewardPoints -= pointCost;
+      _wallet += hubPoolCredit;
+      if (voucherId == 'kfc-5') {
+        _redeemedVouchers = [
+          RedeemedVoucher(
+            id: 'kfc-5-${DateTime.now().millisecondsSinceEpoch}',
+            title: 'RM5 KFC Voucher',
+            description: 'Show this demo code to KFC staff for RM5 off.',
+            code: 'TRASIA-KFC-RM5',
+            redeemedAt: DateTime.now(),
+          ),
+          ..._redeemedVouchers,
+        ];
+      }
+    });
+    unawaited(_persistRewardPoints());
+    unawaited(_persistRedeemedVouchers());
+    _persistProfileStats();
+    return true;
+  }
+
+  bool _checkInPlace(String placeName) {
+    final placeKey = _placeCheckInKey(placeName);
+    if (_checkedInPlaceKeys.contains(placeKey)) {
+      return false;
+    }
+    setState(() {
+      _checkedInPlaceKeys = {..._checkedInPlaceKeys, placeKey};
+      _rewardPoints += 50;
+    });
+    unawaited(_persistCheckedInPlaces());
+    unawaited(_persistRewardPoints());
+    return true;
+  }
+
+  void _markVoucherUsed(String voucherId) {
+    final index = _redeemedVouchers.indexWhere(
+      (voucher) => voucher.id == voucherId,
+    );
+    if (index < 0 || _redeemedVouchers[index].usedAt != null) {
+      return;
+    }
+    setState(() {
+      _redeemedVouchers = [
+        for (var i = 0; i < _redeemedVouchers.length; i++)
+          if (i == index)
+            _redeemedVouchers[i].copyWith(usedAt: DateTime.now())
+          else
+            _redeemedVouchers[i],
+      ];
+    });
+    unawaited(_persistRedeemedVouchers());
   }
 
   void _saveTransitRoute(DestinationCandidate? destination) {
@@ -247,9 +329,91 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _wallet = savedWallet);
   }
 
+  Future<void> _loadRewardPoints() async {
+    final preferences = await SharedPreferences.getInstance();
+    final savedPoints = preferences.getInt(_rewardPointsStorageKey);
+    final grantVersion = preferences.getInt(_demoPointGrantStorageKey) ?? 0;
+    if (grantVersion < _demoPointGrantVersion) {
+      final grantedPoints = max(savedPoints ?? 0, 600);
+      await preferences.setInt(_rewardPointsStorageKey, grantedPoints);
+      await preferences.setInt(
+        _demoPointGrantStorageKey,
+        _demoPointGrantVersion,
+      );
+      if (mounted) {
+        setState(() => _rewardPoints = grantedPoints);
+      }
+      return;
+    }
+    if (savedPoints == null || !mounted) {
+      return;
+    }
+    setState(() => _rewardPoints = savedPoints);
+  }
+
+  Future<void> _loadRedeemedVouchers() async {
+    final preferences = await SharedPreferences.getInstance();
+    final encoded = preferences.getString(_redeemedVouchersStorageKey);
+    if (encoded == null || !mounted) {
+      return;
+    }
+    try {
+      final rawVouchers = jsonDecode(encoded) as List<dynamic>;
+      setState(() {
+        _redeemedVouchers = [
+          for (final rawVoucher in rawVouchers)
+            if (rawVoucher is Map<String, dynamic>)
+              RedeemedVoucher.fromJson(rawVoucher),
+        ];
+      });
+    } catch (_) {
+      await preferences.remove(_redeemedVouchersStorageKey);
+    }
+  }
+
+  Future<void> _loadCheckedInPlaces() async {
+    final preferences = await SharedPreferences.getInstance();
+    final encoded = preferences.getString(_checkedInPlacesStorageKey);
+    if (encoded == null || !mounted) {
+      return;
+    }
+    try {
+      final rawPlaces = jsonDecode(encoded) as List<dynamic>;
+      setState(() {
+        _checkedInPlaceKeys = {
+          for (final rawPlace in rawPlaces)
+            if (rawPlace is String) rawPlace,
+        };
+      });
+    } catch (_) {
+      await preferences.remove(_checkedInPlacesStorageKey);
+    }
+  }
+
   Future<void> _persistWallet() async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setDouble(_walletStorageKey, _wallet);
+  }
+
+  Future<void> _persistRewardPoints() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setInt(_rewardPointsStorageKey, _rewardPoints);
+  }
+
+  Future<void> _persistRedeemedVouchers() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      _redeemedVouchersStorageKey,
+      jsonEncode([for (final voucher in _redeemedVouchers) voucher.toJson()]),
+    );
+  }
+
+  Future<void> _persistCheckedInPlaces() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      _checkedInPlacesStorageKey,
+      jsonEncode(_checkedInPlaceKeys.toList()..sort()),
+    );
   }
 
   Future<void> _loadTripHistory() async {
@@ -664,6 +828,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onDemoArrivalCompleted: _saveDemoPlanCompletion,
         onGoNow: _openTransitFor,
         onCancelDestination: _cancelDestination,
+        rewardPoints: _rewardPoints,
+        onRedeemReward: _redeemReward,
+        checkedInPlaceKeys: _checkedInPlaceKeys,
+        onCheckInPlace: _checkInPlace,
       ),
       ColoredBox(
         color: Colors.white,
@@ -677,6 +845,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             carbonSavedKg: _carbonSavedKg,
             favoritePlaces: _favoritePlaces,
             tripHistory: _tripHistory,
+            vouchers: _redeemedVouchers,
+            onVoucherUsed: _markVoucherUsed,
             onTopUp: _topUp,
             onRemoveFavorite: _removeFavoritePlace,
             onRevisitFavorite: _revisitFavoritePlace,

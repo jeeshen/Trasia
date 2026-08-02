@@ -329,9 +329,9 @@ class _AuthFormPanel extends StatelessWidget {
             key: const Key('login-submit'),
             onPressed: loading ? null : onSubmit,
             icon: loading
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                ? const TrasiaLoadingCompass(
+                    size: 18,
+                    semanticLabel: 'Signing in',
                   )
                 : const Icon(Icons.arrow_forward_rounded),
             label: Text(signingUp ? 'Sign up' : 'Log in'),

@@ -1,0 +1,150 @@
+Batu Caves	batu-caves.png	trasia://kl-blind-box/check-in/batu-caves
+National Mosque	national-mosque.png	trasia://kl-blind-box/check-in/national-mosque
+Central Market	central-market.png	trasia://kl-blind-box/check-in/central-market
+Merdeka Square	merdeka-square.png	trasia://kl-blind-box/check-in/merdeka-square
+Petronas Twin Towers	petronas-twin-towers.png	trasia://kl-blind-box/check-in/petronas-twin-towers
+KLCC Park	klcc-park.png	trasia://kl-blind-box/check-in/klcc-park
+Aquaria KLCC	aquaria-klcc.png	trasia://kl-blind-box/check-in/aquaria-klcc
+Perdana Botanical Garden	perdana-botanical-garden.png	trasia://kl-blind-box/check-in/perdana-botanical-garden
+Thean Hou Temple	thean-hou-temple.png	trasia://kl-blind-box/check-in/thean-hou-temple
+Islamic Arts Museum Malaysia	islamic-arts-museum-malaysia.png	trasia://kl-blind-box/check-in/islamic-arts-museum-malaysia
+KL Tower	kl-tower.png	trasia://kl-blind-box/check-in/kl-tower
+Masjid Jamek	masjid-jamek.png	trasia://kl-blind-box/check-in/masjid-jamek
+River of Life	river-of-life.png	trasia://kl-blind-box/check-in/river-of-life
+Royal Selangor Visitor Centre	royal-selangor-visitor-centre.png	trasia://kl-blind-box/check-in/royal-selangor-visitor-centre
+Muzium Negara	muzium-negara.png	trasia://kl-blind-box/check-in/muzium-negara
+Little India Brickfields	little-india-brickfields.png	trasia://kl-blind-box/check-in/little-india-brickfields
+Jalan Alor	jalan-alor.png	trasia://kl-blind-box/check-in/jalan-alor
+Kwai Chai Hong	kwai-chai-hong.png	trasia://kl-blind-box/check-in/kwai-chai-hong
+REXKL	rexkl.png	trasia://kl-blind-box/check-in/rexkl
+Tugu Negara	tugu-negara.png	trasia://kl-blind-box/check-in/tugu-negara
+Berjaya Times Square	berjaya-times-square.png	trasia://kl-blind-box/check-in/berjaya-times-square
+Pavilion Kuala Lumpur	pavilion-kuala-lumpur.png	trasia://kl-blind-box/check-in/pavilion-kuala-lumpur
+Titiwangsa Lake Gardens	titiwangsa-lake-gardens.png	trasia://kl-blind-box/check-in/titiwangsa-lake-gardens
+Bank Negara Malaysia Museum	bank-negara-malaysia-museum.png	trasia://kl-blind-box/check-in/bank-negara-malaysia-museum
+Bukit Bintang Food Discovery	bukit-bintang-food-discovery.png	trasia://kl-blind-box/check-in/bukit-bintang-food-discovery
+Bukit Bintang Cafe Corner	bukit-bintang-cafe-corner.png	trasia://kl-blind-box/check-in/bukit-bintang-cafe-corner
+Bukit Bintang Night Market	bukit-bintang-night-market.png	trasia://kl-blind-box/check-in/bukit-bintang-night-market
+Bukit Bintang Heritage Walk	bukit-bintang-heritage-walk.png	trasia://kl-blind-box/check-in/bukit-bintang-heritage-walk
+Bukit Bintang Green Escape	bukit-bintang-green-escape.png	trasia://kl-blind-box/check-in/bukit-bintang-green-escape
+Bukit Bintang Family Stop	bukit-bintang-family-stop.png	trasia://kl-blind-box/check-in/bukit-bintang-family-stop
+Chinatown Food Discovery	chinatown-food-discovery.png	trasia://kl-blind-box/check-in/chinatown-food-discovery
+Chinatown Cafe Corner	chinatown-cafe-corner.png	trasia://kl-blind-box/check-in/chinatown-cafe-corner
+Chinatown Night Market	chinatown-night-market.png	trasia://kl-blind-box/check-in/chinatown-night-market
+Chinatown Heritage Walk	chinatown-heritage-walk.png	trasia://kl-blind-box/check-in/chinatown-heritage-walk
+Chinatown Green Escape	chinatown-green-escape.png	trasia://kl-blind-box/check-in/chinatown-green-escape
+Chinatown Family Stop	chinatown-family-stop.png	trasia://kl-blind-box/check-in/chinatown-family-stop
+KLCC Food Discovery	klcc-food-discovery.png	trasia://kl-blind-box/check-in/klcc-food-discovery
+KLCC Cafe Corner	klcc-cafe-corner.png	trasia://kl-blind-box/check-in/klcc-cafe-corner
+KLCC Night Market	klcc-night-market.png	trasia://kl-blind-box/check-in/klcc-night-market
+KLCC Heritage Walk	klcc-heritage-walk.png	trasia://kl-blind-box/check-in/klcc-heritage-walk
+KLCC Green Escape	klcc-green-escape.png	trasia://kl-blind-box/check-in/klcc-green-escape
+KLCC Family Stop	klcc-family-stop.png	trasia://kl-blind-box/check-in/klcc-family-stop
+Brickfields Food Discovery	brickfields-food-discovery.png	trasia://kl-blind-box/check-in/brickfields-food-discovery
+Brickfields Cafe Corner	brickfields-cafe-corner.png	trasia://kl-blind-box/check-in/brickfields-cafe-corner
+Brickfields Night Market	brickfields-night-market.png	trasia://kl-blind-box/check-in/brickfields-night-market
+Brickfields Heritage Walk	brickfields-heritage-walk.png	trasia://kl-blind-box/check-in/brickfields-heritage-walk
+Brickfields Green Escape	brickfields-green-escape.png	trasia://kl-blind-box/check-in/brickfields-green-escape
+Brickfields Family Stop	brickfields-family-stop.png	trasia://kl-blind-box/check-in/brickfields-family-stop
+Chow Kit Food Discovery	chow-kit-food-discovery.png	trasia://kl-blind-box/check-in/chow-kit-food-discovery
+Chow Kit Cafe Corner	chow-kit-cafe-corner.png	trasia://kl-blind-box/check-in/chow-kit-cafe-corner
+Chow Kit Night Market	chow-kit-night-market.png	trasia://kl-blind-box/check-in/chow-kit-night-market
+Chow Kit Heritage Walk	chow-kit-heritage-walk.png	trasia://kl-blind-box/check-in/chow-kit-heritage-walk
+Chow Kit Green Escape	chow-kit-green-escape.png	trasia://kl-blind-box/check-in/chow-kit-green-escape
+Chow Kit Family Stop	chow-kit-family-stop.png	trasia://kl-blind-box/check-in/chow-kit-family-stop
+Kampung Baru Food Discovery	kampung-baru-food-discovery.png	trasia://kl-blind-box/check-in/kampung-baru-food-discovery
+Kampung Baru Cafe Corner	kampung-baru-cafe-corner.png	trasia://kl-blind-box/check-in/kampung-baru-cafe-corner
+Kampung Baru Night Market	kampung-baru-night-market.png	trasia://kl-blind-box/check-in/kampung-baru-night-market
+Kampung Baru Heritage Walk	kampung-baru-heritage-walk.png	trasia://kl-blind-box/check-in/kampung-baru-heritage-walk
+Kampung Baru Green Escape	kampung-baru-green-escape.png	trasia://kl-blind-box/check-in/kampung-baru-green-escape
+Kampung Baru Family Stop	kampung-baru-family-stop.png	trasia://kl-blind-box/check-in/kampung-baru-family-stop
+Bangsar Food Discovery	bangsar-food-discovery.png	trasia://kl-blind-box/check-in/bangsar-food-discovery
+Bangsar Cafe Corner	bangsar-cafe-corner.png	trasia://kl-blind-box/check-in/bangsar-cafe-corner
+Bangsar Night Market	bangsar-night-market.png	trasia://kl-blind-box/check-in/bangsar-night-market
+Bangsar Heritage Walk	bangsar-heritage-walk.png	trasia://kl-blind-box/check-in/bangsar-heritage-walk
+Bangsar Green Escape	bangsar-green-escape.png	trasia://kl-blind-box/check-in/bangsar-green-escape
+Bangsar Family Stop	bangsar-family-stop.png	trasia://kl-blind-box/check-in/bangsar-family-stop
+Mont Kiara Food Discovery	mont-kiara-food-discovery.png	trasia://kl-blind-box/check-in/mont-kiara-food-discovery
+Mont Kiara Cafe Corner	mont-kiara-cafe-corner.png	trasia://kl-blind-box/check-in/mont-kiara-cafe-corner
+Mont Kiara Night Market	mont-kiara-night-market.png	trasia://kl-blind-box/check-in/mont-kiara-night-market
+Mont Kiara Heritage Walk	mont-kiara-heritage-walk.png	trasia://kl-blind-box/check-in/mont-kiara-heritage-walk
+Mont Kiara Green Escape	mont-kiara-green-escape.png	trasia://kl-blind-box/check-in/mont-kiara-green-escape
+Mont Kiara Family Stop	mont-kiara-family-stop.png	trasia://kl-blind-box/check-in/mont-kiara-family-stop
+TTDI Food Discovery	ttdi-food-discovery.png	trasia://kl-blind-box/check-in/ttdi-food-discovery
+TTDI Cafe Corner	ttdi-cafe-corner.png	trasia://kl-blind-box/check-in/ttdi-cafe-corner
+TTDI Night Market	ttdi-night-market.png	trasia://kl-blind-box/check-in/ttdi-night-market
+TTDI Heritage Walk	ttdi-heritage-walk.png	trasia://kl-blind-box/check-in/ttdi-heritage-walk
+TTDI Green Escape	ttdi-green-escape.png	trasia://kl-blind-box/check-in/ttdi-green-escape
+TTDI Family Stop	ttdi-family-stop.png	trasia://kl-blind-box/check-in/ttdi-family-stop
+Cheras Food Discovery	cheras-food-discovery.png	trasia://kl-blind-box/check-in/cheras-food-discovery
+Cheras Cafe Corner	cheras-cafe-corner.png	trasia://kl-blind-box/check-in/cheras-cafe-corner
+Cheras Night Market	cheras-night-market.png	trasia://kl-blind-box/check-in/cheras-night-market
+Cheras Heritage Walk	cheras-heritage-walk.png	trasia://kl-blind-box/check-in/cheras-heritage-walk
+Cheras Green Escape	cheras-green-escape.png	trasia://kl-blind-box/check-in/cheras-green-escape
+Cheras Family Stop	cheras-family-stop.png	trasia://kl-blind-box/check-in/cheras-family-stop
+Ampang Food Discovery	ampang-food-discovery.png	trasia://kl-blind-box/check-in/ampang-food-discovery
+Ampang Cafe Corner	ampang-cafe-corner.png	trasia://kl-blind-box/check-in/ampang-cafe-corner
+Ampang Night Market	ampang-night-market.png	trasia://kl-blind-box/check-in/ampang-night-market
+Ampang Heritage Walk	ampang-heritage-walk.png	trasia://kl-blind-box/check-in/ampang-heritage-walk
+Ampang Green Escape	ampang-green-escape.png	trasia://kl-blind-box/check-in/ampang-green-escape
+Ampang Family Stop	ampang-family-stop.png	trasia://kl-blind-box/check-in/ampang-family-stop
+Setapak Food Discovery	setapak-food-discovery.png	trasia://kl-blind-box/check-in/setapak-food-discovery
+Setapak Cafe Corner	setapak-cafe-corner.png	trasia://kl-blind-box/check-in/setapak-cafe-corner
+Setapak Night Market	setapak-night-market.png	trasia://kl-blind-box/check-in/setapak-night-market
+Setapak Heritage Walk	setapak-heritage-walk.png	trasia://kl-blind-box/check-in/setapak-heritage-walk
+Setapak Green Escape	setapak-green-escape.png	trasia://kl-blind-box/check-in/setapak-green-escape
+Setapak Family Stop	setapak-family-stop.png	trasia://kl-blind-box/check-in/setapak-family-stop
+Sentul Food Discovery	sentul-food-discovery.png	trasia://kl-blind-box/check-in/sentul-food-discovery
+Sentul Cafe Corner	sentul-cafe-corner.png	trasia://kl-blind-box/check-in/sentul-cafe-corner
+Sentul Night Market	sentul-night-market.png	trasia://kl-blind-box/check-in/sentul-night-market
+Sentul Heritage Walk	sentul-heritage-walk.png	trasia://kl-blind-box/check-in/sentul-heritage-walk
+Sentul Green Escape	sentul-green-escape.png	trasia://kl-blind-box/check-in/sentul-green-escape
+Sentul Family Stop	sentul-family-stop.png	trasia://kl-blind-box/check-in/sentul-family-stop
+Titiwangsa Food Discovery	titiwangsa-food-discovery.png	trasia://kl-blind-box/check-in/titiwangsa-food-discovery
+Titiwangsa Cafe Corner	titiwangsa-cafe-corner.png	trasia://kl-blind-box/check-in/titiwangsa-cafe-corner
+Titiwangsa Night Market	titiwangsa-night-market.png	trasia://kl-blind-box/check-in/titiwangsa-night-market
+Titiwangsa Heritage Walk	titiwangsa-heritage-walk.png	trasia://kl-blind-box/check-in/titiwangsa-heritage-walk
+Titiwangsa Green Escape	titiwangsa-green-escape.png	trasia://kl-blind-box/check-in/titiwangsa-green-escape
+Titiwangsa Family Stop	titiwangsa-family-stop.png	trasia://kl-blind-box/check-in/titiwangsa-family-stop
+Petaling Jaya Food Discovery	petaling-jaya-food-discovery.png	trasia://kl-blind-box/check-in/petaling-jaya-food-discovery
+Petaling Jaya Cafe Corner	petaling-jaya-cafe-corner.png	trasia://kl-blind-box/check-in/petaling-jaya-cafe-corner
+Petaling Jaya Night Market	petaling-jaya-night-market.png	trasia://kl-blind-box/check-in/petaling-jaya-night-market
+Petaling Jaya Heritage Walk	petaling-jaya-heritage-walk.png	trasia://kl-blind-box/check-in/petaling-jaya-heritage-walk
+Petaling Jaya Green Escape	petaling-jaya-green-escape.png	trasia://kl-blind-box/check-in/petaling-jaya-green-escape
+Petaling Jaya Family Stop	petaling-jaya-family-stop.png	trasia://kl-blind-box/check-in/petaling-jaya-family-stop
+Subang Jaya Food Discovery	subang-jaya-food-discovery.png	trasia://kl-blind-box/check-in/subang-jaya-food-discovery
+Subang Jaya Cafe Corner	subang-jaya-cafe-corner.png	trasia://kl-blind-box/check-in/subang-jaya-cafe-corner
+Subang Jaya Night Market	subang-jaya-night-market.png	trasia://kl-blind-box/check-in/subang-jaya-night-market
+Subang Jaya Heritage Walk	subang-jaya-heritage-walk.png	trasia://kl-blind-box/check-in/subang-jaya-heritage-walk
+Subang Jaya Green Escape	subang-jaya-green-escape.png	trasia://kl-blind-box/check-in/subang-jaya-green-escape
+Subang Jaya Family Stop	subang-jaya-family-stop.png	trasia://kl-blind-box/check-in/subang-jaya-family-stop
+Shah Alam Food Discovery	shah-alam-food-discovery.png	trasia://kl-blind-box/check-in/shah-alam-food-discovery
+Shah Alam Cafe Corner	shah-alam-cafe-corner.png	trasia://kl-blind-box/check-in/shah-alam-cafe-corner
+Shah Alam Night Market	shah-alam-night-market.png	trasia://kl-blind-box/check-in/shah-alam-night-market
+Shah Alam Heritage Walk	shah-alam-heritage-walk.png	trasia://kl-blind-box/check-in/shah-alam-heritage-walk
+Shah Alam Green Escape	shah-alam-green-escape.png	trasia://kl-blind-box/check-in/shah-alam-green-escape
+Shah Alam Family Stop	shah-alam-family-stop.png	trasia://kl-blind-box/check-in/shah-alam-family-stop
+Puchong Food Discovery	puchong-food-discovery.png	trasia://kl-blind-box/check-in/puchong-food-discovery
+Puchong Cafe Corner	puchong-cafe-corner.png	trasia://kl-blind-box/check-in/puchong-cafe-corner
+Puchong Night Market	puchong-night-market.png	trasia://kl-blind-box/check-in/puchong-night-market
+Puchong Heritage Walk	puchong-heritage-walk.png	trasia://kl-blind-box/check-in/puchong-heritage-walk
+Puchong Green Escape	puchong-green-escape.png	trasia://kl-blind-box/check-in/puchong-green-escape
+Puchong Family Stop	puchong-family-stop.png	trasia://kl-blind-box/check-in/puchong-family-stop
+Sri Petaling Food Discovery	sri-petaling-food-discovery.png	trasia://kl-blind-box/check-in/sri-petaling-food-discovery
+Sri Petaling Cafe Corner	sri-petaling-cafe-corner.png	trasia://kl-blind-box/check-in/sri-petaling-cafe-corner
+Sri Petaling Night Market	sri-petaling-night-market.png	trasia://kl-blind-box/check-in/sri-petaling-night-market
+Sri Petaling Heritage Walk	sri-petaling-heritage-walk.png	trasia://kl-blind-box/check-in/sri-petaling-heritage-walk
+Sri Petaling Green Escape	sri-petaling-green-escape.png	trasia://kl-blind-box/check-in/sri-petaling-green-escape
+Sri Petaling Family Stop	sri-petaling-family-stop.png	trasia://kl-blind-box/check-in/sri-petaling-family-stop
+Kepong Food Discovery	kepong-food-discovery.png	trasia://kl-blind-box/check-in/kepong-food-discovery
+Kepong Cafe Corner	kepong-cafe-corner.png	trasia://kl-blind-box/check-in/kepong-cafe-corner
+Kepong Night Market	kepong-night-market.png	trasia://kl-blind-box/check-in/kepong-night-market
+Kepong Heritage Walk	kepong-heritage-walk.png	trasia://kl-blind-box/check-in/kepong-heritage-walk
+Kepong Green Escape	kepong-green-escape.png	trasia://kl-blind-box/check-in/kepong-green-escape
+Kepong Family Stop	kepong-family-stop.png	trasia://kl-blind-box/check-in/kepong-family-stop
+Batu Caves Food Discovery	batu-caves-food-discovery.png	trasia://kl-blind-box/check-in/batu-caves-food-discovery
+Batu Caves Cafe Corner	batu-caves-cafe-corner.png	trasia://kl-blind-box/check-in/batu-caves-cafe-corner
+Batu Caves Night Market	batu-caves-night-market.png	trasia://kl-blind-box/check-in/batu-caves-night-market
+Batu Caves Heritage Walk	batu-caves-heritage-walk.png	trasia://kl-blind-box/check-in/batu-caves-heritage-walk
+Batu Caves Green Escape	batu-caves-green-escape.png	trasia://kl-blind-box/check-in/batu-caves-green-escape
+Batu Caves Family Stop	batu-caves-family-stop.png	trasia://kl-blind-box/check-in/batu-caves-family-stop

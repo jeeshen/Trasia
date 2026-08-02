@@ -9,6 +9,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
+import 'loading_compass.dart';
 
 import 'main.dart' show DestinationCandidate, TransitOption, TrasiaColors;
 
@@ -275,7 +276,13 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
         if (!_isMapLoaded)
           Container(
             color: const Color(0xFFF1F3F4),
-            child: const Center(child: CircularProgressIndicator()),
+            child: const Center(
+              child: TrasiaLoadingCompass(
+                key: ValueKey('map-loading-compass'),
+                size: 80,
+                semanticLabel: 'Loading map',
+              ),
+            ),
           ),
       ],
     );

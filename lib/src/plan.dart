@@ -14,6 +14,10 @@ class PelancongPlanScreen extends StatefulWidget {
     required this.onDemoArrivalCompleted,
     required this.onGoNow,
     required this.onCancelDestination,
+    required this.rewardPoints,
+    required this.onRedeemReward,
+    required this.checkedInPlaceKeys,
+    required this.onCheckInPlace,
     super.key,
   });
 
@@ -30,6 +34,11 @@ class PelancongPlanScreen extends StatefulWidget {
   final void Function(String destination, BlindBoxTravelMode travelMode)
   onGoNow;
   final ValueChanged<String> onCancelDestination;
+  final int rewardPoints;
+  final bool Function(String voucherId, int pointCost, double hubPoolCredit)
+  onRedeemReward;
+  final Set<String> checkedInPlaceKeys;
+  final bool Function(String placeName) onCheckInPlace;
 
   @override
   State<PelancongPlanScreen> createState() => _PelancongPlanScreenState();
@@ -55,6 +64,73 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   bool _completionInProgress = false;
   late final List<Attraction> _blindBoxLocations = _buildBlindBoxLocations();
   PriceTier get _priceTier => PriceTier.values[_priceIndex.round()];
+
+  void _openRewards() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => RewardsPage(
+          initialPoints: widget.rewardPoints,
+          onRedeem: widget.onRedeemReward,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openCheckInScanner(ItineraryStop stop) async {
+    if (widget.checkedInPlaceKeys.contains(
+      _placeCheckInKey(stop.attraction.name),
+    )) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${stop.attraction.name} already checked in')),
+      );
+      return;
+    }
+    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    try {
+      final image = await _pickCheckInImage();
+      if (!mounted || image == null) {
+        return;
+      }
+      final earned = widget.onCheckInPlace(stop.attraction.name);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            earned
+                ? '${stop.attraction.name} checked in. +50 points'
+                : '${stop.attraction.name} already checked in',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Camera scanner is not available on this device.'),
+        ),
+      );
+    } finally {
+      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    }
+  }
+
+  Future<XFile?> _pickCheckInImage() async {
+    final picker = ImagePicker();
+    try {
+      return await picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+        imageQuality: 70,
+      );
+    } catch (_) {
+      return picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+        imageQuality: 70,
+      );
+    }
+  }
 
   @override
   void didUpdateWidget(covariant PelancongPlanScreen oldWidget) {
@@ -299,12 +375,16 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
 
   Future<void> _showMapStopAction(ItineraryStop stop) async {
     final canGo = identical(stop, _activeTripStop);
+    final checkedIn = widget.checkedInPlaceKeys.contains(
+      _placeCheckInKey(stop.attraction.name),
+    );
     final action = await showModalBottomSheet<_MapStopAction>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      builder: (context) => _MapStopActionSheet(stop: stop, canGo: canGo),
+      builder: (context) =>
+          _MapStopActionSheet(stop: stop, canGo: canGo, checkedIn: checkedIn),
     );
     if (!mounted || action == null) {
       return;
@@ -318,6 +398,9 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
           });
           unawaited(_focusActiveTripStop());
         }
+        break;
+      case _MapStopAction.checkIn:
+        _openCheckInScanner(stop);
         break;
       case _MapStopAction.cancel:
         final confirmed = await _confirmCancel(stop);
@@ -893,6 +976,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
                 tripTotalStops: _tripTotalStops,
                 completedStopCount: _completedStopCount,
                 completedStopNames: _completedStopNames,
+                checkedInPlaceKeys: widget.checkedInPlaceKeys,
                 onClose: () => setState(() => _itineraryListVisible = false),
                 onCancel: _confirmCancel,
                 onFocusStop: _focusItineraryStop,
@@ -902,6 +986,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
                 onArrived: _markActiveStopArrived,
                 onNextPlace: _goToNextFeatureCStop,
                 onFinishTrip: _finishFeatureCTrip,
+                onCheckIn: _openCheckInScanner,
               ),
           ],
         ),
@@ -1008,6 +1093,8 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 14),
+            _RewardsEntryCard(points: widget.rewardPoints, onTap: _openRewards),
           ],
         ),
       ),

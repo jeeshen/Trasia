@@ -1,0 +1,1060 @@
+part of '../main.dart';
+
+const _kfcVoucherImage = 'assets/branding/kfc_voucher.png';
+
+class RedeemedVoucher {
+  const RedeemedVoucher({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.code,
+    required this.redeemedAt,
+    this.usedAt,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final String code;
+  final DateTime redeemedAt;
+  final DateTime? usedAt;
+
+  RedeemedVoucher copyWith({DateTime? usedAt}) {
+    return RedeemedVoucher(
+      id: id,
+      title: title,
+      description: description,
+      code: code,
+      redeemedAt: redeemedAt,
+      usedAt: usedAt ?? this.usedAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'description': description,
+    'code': code,
+    'redeemedAt': redeemedAt.toIso8601String(),
+    'usedAt': usedAt?.toIso8601String(),
+  };
+
+  factory RedeemedVoucher.fromJson(Map<String, dynamic> json) {
+    return RedeemedVoucher(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? 'Voucher',
+      description: json['description'] as String? ?? '',
+      code: json['code'] as String? ?? '',
+      redeemedAt:
+          DateTime.tryParse(json['redeemedAt'] as String? ?? '') ??
+          DateTime.now(),
+      usedAt: DateTime.tryParse(json['usedAt'] as String? ?? ''),
+    );
+  }
+}
+
+enum _RewardKind { hubPool, kfc }
+
+class _RewardVoucher {
+  const _RewardVoucher({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.pointCost,
+    required this.kind,
+    required this.icon,
+    required this.accentColor,
+    this.hubPoolCredit = 0,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final int pointCost;
+  final _RewardKind kind;
+  final IconData icon;
+  final Color accentColor;
+  final double hubPoolCredit;
+}
+
+const _rewardVouchers = <_RewardVoucher>[
+  _RewardVoucher(
+    id: 'hubpool-5',
+    title: 'RM5 HubPool Credit',
+    description: 'Add RM5 credit to your Trasia HubPool wallet.',
+    pointCost: 100,
+    kind: _RewardKind.hubPool,
+    icon: Icons.local_taxi_rounded,
+    accentColor: Color(0xFF0B7CFF),
+    hubPoolCredit: 5,
+  ),
+  _RewardVoucher(
+    id: 'hubpool-10',
+    title: 'RM10 HubPool Credit',
+    description: 'Add RM10 credit to your Trasia HubPool wallet.',
+    pointCost: 150,
+    kind: _RewardKind.hubPool,
+    icon: Icons.directions_car_rounded,
+    accentColor: Color(0xFF0057C8),
+    hubPoolCredit: 10,
+  ),
+  _RewardVoucher(
+    id: 'kfc-5',
+    title: 'RM5 KFC Voucher',
+    description: 'Show the demo voucher code at KFC for RM5 off.',
+    pointCost: 120,
+    kind: _RewardKind.kfc,
+    icon: Icons.restaurant_rounded,
+    accentColor: Color(0xFFE1251B),
+  ),
+];
+
+class _RewardsEntryCard extends StatelessWidget {
+  const _RewardsEntryCard({required this.points, required this.onTap});
+
+  final int points;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF064D9F), Color(0xFF0B7CFF)],
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x260B7CFF),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: InkWell(
+          key: const Key('blind-box-rewards'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.card_giftcard_rounded,
+                    color: Colors.white,
+                    size: 29,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Rewards',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$points points available · Redeem vouchers',
+                        style: const TextStyle(
+                          color: Color(0xFFDCEEFF),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RewardsPage extends StatefulWidget {
+  const RewardsPage({
+    required this.initialPoints,
+    required this.onRedeem,
+    super.key,
+  });
+
+  final int initialPoints;
+  final bool Function(String voucherId, int pointCost, double hubPoolCredit)
+  onRedeem;
+
+  @override
+  State<RewardsPage> createState() => _RewardsPageState();
+}
+
+class _RewardsPageState extends State<RewardsPage> {
+  late int _points = widget.initialPoints;
+
+  Future<void> _openVoucher(_RewardVoucher voucher) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) => _RewardDetailsSheet(
+        voucher: voucher,
+        availablePoints: _points,
+        onRedeem: () {
+          final redeemed = widget.onRedeem(
+            voucher.id,
+            voucher.pointCost,
+            voucher.hubPoolCredit,
+          );
+          if (!redeemed) {
+            return;
+          }
+          setState(() => _points -= voucher.pointCost);
+          Navigator.of(sheetContext).pop();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (voucher.kind == _RewardKind.kfc) {
+              _showVoucherSaved();
+            } else {
+              _showCreditSuccess(voucher);
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  Future<void> _showCreditSuccess(_RewardVoucher voucher) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(
+          Icons.check_circle_rounded,
+          color: TrasiaColors.primary,
+          size: 52,
+        ),
+        title: const Text('Reward redeemed!'),
+        content: Text(
+          'RM${voucher.hubPoolCredit.toStringAsFixed(0)} has been added to your HubPool credit.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showVoucherSaved() {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        child: Container(
+          key: const Key('reward-voucher-saved'),
+          padding: const EdgeInsets.all(26),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF086EDB), Color(0xFF0B7CFF)],
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Image.asset(
+                  _kfcVoucherImage,
+                  width: 76,
+                  height: 76,
+                  fit: BoxFit.cover,
+                  semanticLabel: 'KFC',
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Voucher redeemed!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Your KFC voucher has been added to My Vouchers.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFFDCEEFF), height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Open it from Profile > My Vouchers to show the code.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: TrasiaColors.primary,
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Done'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F8FC),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.large(
+            pinned: true,
+            foregroundColor: Colors.white,
+            backgroundColor: TrasiaColors.primary,
+            expandedHeight: 230,
+            title: const Text('Rewards'),
+            flexibleSpace: FlexibleSpaceBar(
+              background: _RewardPointsHeader(points: _points),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 22, 18, 36),
+            sliver: SliverList.list(
+              children: [
+                const Text(
+                  'Redeem vouchers',
+                  style: TextStyle(
+                    color: Color(0xFF172033),
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Use your KL Blind Box points for Trasia credit and partner rewards.',
+                  style: TextStyle(color: Color(0xFF687386), height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                for (final voucher in _rewardVouchers) ...[
+                  _RewardVoucherCard(
+                    voucher: voucher,
+                    availablePoints: _points,
+                    onTap: () => _openVoucher(voucher),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class VoucherWalletPage extends StatefulWidget {
+  const VoucherWalletPage({
+    required this.vouchers,
+    required this.onVoucherUsed,
+    super.key,
+  });
+
+  final List<RedeemedVoucher> vouchers;
+  final ValueChanged<String> onVoucherUsed;
+
+  @override
+  State<VoucherWalletPage> createState() => _VoucherWalletPageState();
+}
+
+class _VoucherWalletPageState extends State<VoucherWalletPage> {
+  late List<RedeemedVoucher> _vouchers = List.of(widget.vouchers);
+
+  Future<void> _openVoucher(RedeemedVoucher voucher, {required bool history}) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) => _RedeemedVoucherDetailsSheet(
+        voucher: voucher,
+        history: history,
+        onMarkUsed: () {
+          Navigator.of(sheetContext).pop();
+          _markUsed(voucher);
+        },
+      ),
+    );
+  }
+
+  void _markUsed(RedeemedVoucher voucher) {
+    widget.onVoucherUsed(voucher.id);
+    setState(() {
+      _vouchers = [
+        for (final item in _vouchers)
+          if (item.id == voucher.id)
+            item.copyWith(usedAt: DateTime.now())
+          else
+            item,
+      ];
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Voucher moved to History')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final available = [
+      for (final voucher in _vouchers)
+        if (voucher.usedAt == null) voucher,
+    ];
+    final history = [
+      for (final voucher in _vouchers)
+        if (voucher.usedAt != null) voucher,
+    ];
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        key: const Key('voucher-wallet-page'),
+        backgroundColor: const Color(0xFFF5F8FC),
+        appBar: AppBar(
+          title: const Text('My Vouchers'),
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF172033),
+          bottom: TabBar(
+            tabs: [
+              Tab(text: 'Available (${available.length})'),
+              Tab(text: 'History (${history.length})'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _VoucherList(
+              vouchers: available,
+              emptyTitle: 'No available vouchers',
+              emptyMessage:
+                  'Code-based rewards you redeem from KL Blind Box will appear here.',
+              onOpenVoucher: (voucher) => _openVoucher(voucher, history: false),
+            ),
+            _VoucherList(
+              vouchers: history,
+              emptyTitle: 'No voucher history',
+              emptyMessage: 'Vouchers you have used will appear here.',
+              history: true,
+              onOpenVoucher: (voucher) => _openVoucher(voucher, history: true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VoucherList extends StatelessWidget {
+  const _VoucherList({
+    required this.vouchers,
+    required this.emptyTitle,
+    required this.emptyMessage,
+    required this.onOpenVoucher,
+    this.history = false,
+  });
+
+  final List<RedeemedVoucher> vouchers;
+  final String emptyTitle;
+  final String emptyMessage;
+  final ValueChanged<RedeemedVoucher> onOpenVoucher;
+  final bool history;
+
+  @override
+  Widget build(BuildContext context) {
+    if (vouchers.isNotEmpty) {
+      return ListView.separated(
+        padding: const EdgeInsets.all(18),
+        itemCount: vouchers.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 14),
+        itemBuilder: (context, index) => _RedeemedVoucherCard(
+          voucher: vouchers[index],
+          history: history,
+          onTap: () => onOpenVoucher(vouchers[index]),
+        ),
+      );
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.confirmation_number_outlined,
+              color: TrasiaColors.primary,
+              size: 58,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              emptyTitle,
+              style: const TextStyle(
+                color: Color(0xFF172033),
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              emptyMessage,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF687386), height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RedeemedVoucherCard extends StatelessWidget {
+  const _RedeemedVoucherCard({
+    required this.voucher,
+    required this.history,
+    required this.onTap,
+  });
+
+  final RedeemedVoucher voucher;
+  final bool history;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: Key('saved-voucher-${voucher.id}'),
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      elevation: 2,
+      shadowColor: const Color(0x14001844),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: _KfcVoucherImage(width: 58, height: 58, used: history),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      voucher.title,
+                      style: const TextStyle(
+                        color: Color(0xFF172033),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      voucher.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF687386),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      history
+                          ? 'Used ${_voucherDate(voucher.usedAt!)}'
+                          : 'Redeemed ${_voucherDate(voucher.redeemedAt)}',
+                      style: const TextStyle(
+                        color: Color(0xFF8A98AA),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.grey.shade400,
+                size: 17,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RedeemedVoucherDetailsSheet extends StatelessWidget {
+  const _RedeemedVoucherDetailsSheet({
+    required this.voucher,
+    required this.history,
+    required this.onMarkUsed,
+  });
+
+  final RedeemedVoucher voucher;
+  final bool history;
+  final VoidCallback onMarkUsed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: _KfcVoucherImage(width: 92, height: 92, used: history),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                voucher.title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF172033),
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                voucher.description,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF687386), height: 1.4),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              key: const Key('saved-voucher-code'),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2F6FB),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFDDE7F3)),
+              ),
+              child: Text(
+                voucher.code,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF172033),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Center(
+              child: Text(
+                history
+                    ? 'Used ${_voucherDate(voucher.usedAt!)} - Demo voucher'
+                    : 'Redeemed ${_voucherDate(voucher.redeemedAt)} - Demo voucher',
+                style: const TextStyle(color: Color(0xFF8A98AA), fontSize: 12),
+              ),
+            ),
+            if (!history) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  key: const Key('mark-voucher-used'),
+                  onPressed: onMarkUsed,
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text('Mark as used'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _KfcVoucherImage extends StatelessWidget {
+  const _KfcVoucherImage({
+    required this.width,
+    required this.height,
+    required this.used,
+  });
+
+  final double width;
+  final double height;
+  final bool used;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const Key('saved-voucher-kfc-image'),
+      width: width,
+      height: height,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            _kfcVoucherImage,
+            fit: BoxFit.cover,
+            semanticLabel: 'KFC voucher',
+          ),
+          if (used) ...[
+            ColoredBox(color: Colors.black.withValues(alpha: .30)),
+            Center(
+              child: Transform.rotate(
+                angle: -0.20,
+                child: Container(
+                  key: const Key('saved-voucher-used-stamp'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .88),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE1251B)),
+                  ),
+                  child: const Text(
+                    'USED',
+                    style: TextStyle(
+                      color: Color(0xFFE1251B),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+String _voucherDate(DateTime dateTime) {
+  final localDate = dateTime.toLocal();
+  return '${localDate.day.toString().padLeft(2, '0')}/${localDate.month.toString().padLeft(2, '0')}/${localDate.year}';
+}
+
+class _RewardPointsHeader extends StatelessWidget {
+  const _RewardPointsHeader({required this.points});
+
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF064D9F), Color(0xFF0B7CFF), Color(0xFF31A8FF)],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 88, 24, 24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          const Icon(Icons.stars_rounded, color: Color(0xFFFFD166), size: 38),
+          const SizedBox(height: 8),
+          Text(
+            '$points',
+            key: const Key('reward-points-balance'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 42,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'Available points',
+            style: TextStyle(
+              color: Color(0xFFDCEEFF),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardBrandMark extends StatelessWidget {
+  const _RewardBrandMark({required this.voucher, required this.iconSize});
+
+  final _RewardVoucher voucher;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    if (voucher.kind == _RewardKind.kfc) {
+      return Image.asset(
+        _kfcVoucherImage,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        semanticLabel: 'KFC',
+      );
+    }
+    return Icon(voucher.icon, color: voucher.accentColor, size: iconSize);
+  }
+}
+
+class _RewardVoucherCard extends StatelessWidget {
+  const _RewardVoucherCard({
+    required this.voucher,
+    required this.availablePoints,
+    required this.onTap,
+  });
+
+  final _RewardVoucher voucher;
+  final int availablePoints;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final canRedeem = availablePoints >= voucher.pointCost;
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      elevation: 2,
+      shadowColor: const Color(0x18001844),
+      child: InkWell(
+        key: Key('reward-${voucher.id}'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: voucher.accentColor.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _RewardBrandMark(voucher: voucher, iconSize: 30),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      voucher.title,
+                      style: const TextStyle(
+                        color: Color(0xFF172033),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      voucher.description,
+                      style: const TextStyle(
+                        color: Color(0xFF687386),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: canRedeem
+                      ? TrasiaColors.primary.withValues(alpha: .10)
+                      : const Color(0xFFF0F2F5),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.stars_rounded,
+                      size: 16,
+                      color: canRedeem
+                          ? TrasiaColors.primary
+                          : const Color(0xFF98A2B3),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${voucher.pointCost}',
+                      style: TextStyle(
+                        color: canRedeem
+                            ? TrasiaColors.primary
+                            : const Color(0xFF667085),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RewardDetailsSheet extends StatelessWidget {
+  const _RewardDetailsSheet({
+    required this.voucher,
+    required this.availablePoints,
+    required this.onRedeem,
+  });
+
+  final _RewardVoucher voucher;
+  final int availablePoints;
+  final VoidCallback onRedeem;
+
+  @override
+  Widget build(BuildContext context) {
+    final canRedeem = availablePoints >= voucher.pointCost;
+    final missingPoints = max(0, voucher.pointCost - availablePoints);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 78,
+              height: 78,
+              decoration: BoxDecoration(
+                color: voucher.accentColor.withValues(alpha: .12),
+                shape: BoxShape.circle,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _RewardBrandMark(voucher: voucher, iconSize: 40),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              voucher.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF172033),
+                fontSize: 23,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              voucher.description,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF687386), height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF3FF),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.stars_rounded, color: TrasiaColors.primary),
+                  const SizedBox(width: 7),
+                  Text(
+                    '${voucher.pointCost} points',
+                    style: const TextStyle(
+                      color: TrasiaColors.primary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const Key('reward-redeem-button'),
+                onPressed: canRedeem ? onRedeem : null,
+                icon: const Icon(Icons.redeem_rounded),
+                label: Text(
+                  canRedeem
+                      ? 'Redeem points'
+                      : 'Need $missingPoints more points',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

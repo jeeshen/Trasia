@@ -10,6 +10,8 @@ class AccountConsoleScreen extends StatefulWidget {
     required this.carbonSavedKg,
     required this.favoritePlaces,
     required this.tripHistory,
+    required this.vouchers,
+    required this.onVoucherUsed,
     required this.onTopUp,
     required this.onRemoveFavorite,
     required this.onRevisitFavorite,
@@ -26,6 +28,8 @@ class AccountConsoleScreen extends StatefulWidget {
   final double carbonSavedKg;
   final List<FavoritePlace> favoritePlaces;
   final List<TripHistoryEntry> tripHistory;
+  final List<RedeemedVoucher> vouchers;
+  final ValueChanged<String> onVoucherUsed;
   final ValueChanged<double> onTopUp;
   final ValueChanged<FavoritePlace> onRemoveFavorite;
   final ValueChanged<FavoritePlace> onRevisitFavorite;
@@ -178,6 +182,17 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
           entries: widget.tripHistory,
           scrollController: scrollController,
           onRevisit: _confirmRevisit,
+        ),
+      ),
+    );
+  }
+
+  void _showVouchers() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => VoucherWalletPage(
+          vouchers: widget.vouchers,
+          onVoucherUsed: widget.onVoucherUsed,
         ),
       ),
     );
@@ -346,9 +361,9 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
                           child: _savingAvatar
                               ? const Padding(
                                   padding: EdgeInsets.all(7),
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
+                                  child: TrasiaLoadingCompass(
+                                    size: 20,
+                                    semanticLabel: 'Saving profile photo',
                                   ),
                                 )
                               : const Icon(
@@ -402,6 +417,15 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
               onTap: _showWallet,
             ),
             _ProfileSettingRow(
+              key: const Key('profile-vouchers'),
+              icon: Icons.confirmation_number_outlined,
+              title: 'Vouchers',
+              subtitle: widget.vouchers.isEmpty
+                  ? 'Redeemed voucher codes appear here'
+                  : '${widget.vouchers.length} available ${widget.vouchers.length == 1 ? 'voucher' : 'vouchers'}',
+              onTap: _showVouchers,
+            ),
+            _ProfileSettingRow(
               icon: Icons.history_rounded,
               title: 'History',
               subtitle: widget.tripHistory.isEmpty
@@ -410,6 +434,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
               onTap: _showHistory,
             ),
             _ProfileSettingRow(
+              key: const Key('profile-favorites'),
               icon: Icons.favorite_border_rounded,
               title: 'Favorites',
               subtitle: widget.favoritePlaces.isEmpty
@@ -1218,6 +1243,7 @@ class _DataDetailBlock extends StatelessWidget {
 
 class _ProfileSettingRow extends StatelessWidget {
   const _ProfileSettingRow({
+    super.key,
     required this.icon,
     required this.title,
     required this.onTap,

@@ -254,9 +254,9 @@ class _MapSearchWindow extends StatelessWidget {
                   suffixIcon: searchingDestination
                       ? const Padding(
                           padding: EdgeInsets.all(13),
-                          child: SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2.2),
+                          child: TrasiaLoadingCompass(
+                            size: 18,
+                            semanticLabel: 'Searching destinations',
                           ),
                         )
                       : value.text.isEmpty
@@ -371,12 +371,9 @@ class _MapLocationButton extends StatelessWidget {
           dimension: 48,
           child: Center(
             child: loading
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.4,
-                      color: Colors.black87,
-                    ),
+                ? const TrasiaLoadingCompass(
+                    size: 20,
+                    semanticLabel: 'Finding current location',
                   )
                 : const Icon(
                     Icons.my_location_rounded,
@@ -1016,18 +1013,7 @@ class _MapLoadingPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Loading',
-      child: Image.asset(
-        'assets/branding/logo_loading.gif',
-        width: 64,
-        height: 64,
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-        filterQuality: FilterQuality.high,
-        excludeFromSemantics: true,
-      ),
-    );
+    return const TrasiaLoadingCompass();
   }
 }
 
@@ -1276,7 +1262,7 @@ class _BlindBoxTravelModeSelector extends StatelessWidget {
   }
 }
 
-enum _MapStopAction { proceed, cancel }
+enum _MapStopAction { proceed, checkIn, cancel }
 
 class _FeatureCResultsToggle extends StatelessWidget {
   const _FeatureCResultsToggle({
@@ -1372,6 +1358,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
     required this.tripTotalStops,
     required this.completedStopCount,
     required this.completedStopNames,
+    required this.checkedInPlaceKeys,
     required this.onClose,
     required this.onCancel,
     required this.onFocusStop,
@@ -1380,6 +1367,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
     required this.onArrived,
     required this.onNextPlace,
     required this.onFinishTrip,
+    required this.onCheckIn,
   });
 
   final List<ItineraryStop> stops;
@@ -1390,6 +1378,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
   final int tripTotalStops;
   final int completedStopCount;
   final Set<String> completedStopNames;
+  final Set<String> checkedInPlaceKeys;
   final VoidCallback onClose;
   final Future<bool> Function(ItineraryStop stop) onCancel;
   final ValueChanged<ItineraryStop> onFocusStop;
@@ -1398,6 +1387,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
   final VoidCallback onArrived;
   final VoidCallback onNextPlace;
   final VoidCallback onFinishTrip;
+  final ValueChanged<ItineraryStop> onCheckIn;
 
   @override
   Widget build(BuildContext context) {
@@ -1461,10 +1451,12 @@ class _FeatureCResultsSheet extends StatelessWidget {
                     activeStopIndex: activeStopIndex,
                     totalStops: tripTotalStops,
                     completedStops: completedStopCount,
+                    checkedInPlaceKeys: checkedInPlaceKeys,
                     onStartTrip: onStartTrip,
                     onArrived: onArrived,
                     onNextPlace: onNextPlace,
                     onFinishTrip: onFinishTrip,
+                    onCheckIn: onCheckIn,
                   ),
                   const SizedBox(height: 12),
                   Flexible(
@@ -1527,10 +1519,15 @@ class _FeatureCResultsSheet extends StatelessWidget {
 }
 
 class _MapStopActionSheet extends StatelessWidget {
-  const _MapStopActionSheet({required this.stop, required this.canGo});
+  const _MapStopActionSheet({
+    required this.stop,
+    required this.canGo,
+    required this.checkedIn,
+  });
 
   final ItineraryStop stop;
   final bool canGo;
+  final bool checkedIn;
 
   @override
   Widget build(BuildContext context) {
@@ -1630,6 +1627,22 @@ class _MapStopActionSheet extends StatelessWidget {
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
+                child: FilledButton.tonalIcon(
+                  key: const Key('map-stop-check-in-button'),
+                  onPressed: checkedIn
+                      ? null
+                      : () => Navigator.of(context).pop(_MapStopAction.checkIn),
+                  icon: Icon(
+                    checkedIn
+                        ? Icons.verified_rounded
+                        : Icons.qr_code_scanner_rounded,
+                  ),
+                  label: Text(checkedIn ? 'Already checked in' : 'Check in'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: () =>
                       Navigator.of(context).pop(_MapStopAction.cancel),
@@ -1678,6 +1691,10 @@ class _MapStopDetailRow extends StatelessWidget {
   }
 }
 
+String _placeCheckInKey(String placeName) {
+  return placeName.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '-');
+}
+
 class _FeatureCTripProgressPanel extends StatelessWidget {
   const _FeatureCTripProgressPanel({
     required this.stops,
@@ -1685,10 +1702,12 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
     required this.activeStopIndex,
     required this.totalStops,
     required this.completedStops,
+    required this.checkedInPlaceKeys,
     required this.onStartTrip,
     required this.onArrived,
     required this.onNextPlace,
     required this.onFinishTrip,
+    required this.onCheckIn,
   });
 
   final List<ItineraryStop> stops;
@@ -1696,10 +1715,12 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
   final int activeStopIndex;
   final int totalStops;
   final int completedStops;
+  final Set<String> checkedInPlaceKeys;
   final VoidCallback onStartTrip;
   final VoidCallback onArrived;
   final VoidCallback onNextPlace;
   final VoidCallback onFinishTrip;
+  final ValueChanged<ItineraryStop> onCheckIn;
 
   @override
   Widget build(BuildContext context) {
@@ -1707,6 +1728,11 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
         .clamp(0, max(0, stops.length - 1))
         .toInt();
     final activeStop = stops.isEmpty ? null : stops[safeIndex];
+    final activeCheckedIn =
+        activeStop != null &&
+        checkedInPlaceKeys.contains(
+          _placeCheckInKey(activeStop.attraction.name),
+        );
     final total = max(1, totalStops == 0 ? stops.length : totalStops);
     final completed = completedStops.clamp(0, total).toDouble();
     final progress = switch (status) {
@@ -1799,19 +1825,25 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.end,
-                children: [
-                  FilledButton(
-                    onPressed: actionCallback,
-                    child: Text(actionLabel),
-                  ),
-                ],
-              ),
+              FilledButton(onPressed: actionCallback, child: Text(actionLabel)),
             ],
           ),
+          if (status == FeatureCTripStatus.traveling && activeStop != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                key: const Key('kl-check-in-button'),
+                onPressed: activeCheckedIn ? null : () => onCheckIn(activeStop),
+                icon: Icon(
+                  activeCheckedIn
+                      ? Icons.verified_rounded
+                      : Icons.qr_code_scanner_rounded,
+                ),
+                label: Text(activeCheckedIn ? 'Checked in' : 'Check in'),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(99),

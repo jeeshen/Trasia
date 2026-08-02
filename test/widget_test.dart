@@ -4,9 +4,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:trasia/loading_compass.dart';
 import 'package:trasia/main.dart';
 
 void main() {
+  testWidgets('shared loader uses the Trasia compass animation', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TrasiaLoadingCompass(
+          key: Key('test-loading-compass'),
+          semanticLabel: 'Loading map',
+        ),
+      ),
+    );
+
+    final image = tester.widget<Image>(
+      find.descendant(
+        of: find.byKey(const Key('test-loading-compass')),
+        matching: find.byType(Image),
+      ),
+    );
+    expect(
+      image.image,
+      isA<AssetImage>().having(
+        (asset) => asset.assetName,
+        'assetName',
+        'assets/branding/logo_loading.gif',
+      ),
+    );
+    expect(find.bySemanticsLabel('Loading map'), findsOneWidget);
+  });
+
   testWidgets('Trasia user dashboard smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(const TrasiaApp());
 
@@ -42,6 +72,7 @@ void main() {
   testWidgets('Feature C shows map after generating results', (
     WidgetTester tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const TrasiaApp());
 
     await tester.ensureVisible(find.byKey(const Key('login-user')));
@@ -97,6 +128,15 @@ void main() {
 
     expect(find.byIcon(Icons.alt_route_rounded), findsNothing);
     expect(find.text('Arrived'), findsOneWidget);
+    expect(find.byKey(const Key('kl-check-in-button')), findsOneWidget);
+
+    final checkInButton = tester.widget<FilledButton>(
+      find.byKey(const Key('kl-check-in-button')),
+    );
+    expect(checkInButton.onPressed, isNotNull);
+    checkInButton.onPressed!();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('kl-check-in-scanner')), findsNothing);
 
     await tester.tap(find.byKey(const Key('nav-dashboard')));
     await tester.pump(const Duration(milliseconds: 300));
@@ -109,16 +149,28 @@ void main() {
     await tester.tap(find.text('Arrived'));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.drag(
-      find.byKey(const Key('feature-c-results-list')),
-      const Offset(0, -700),
+    await tester.scrollUntilVisible(
+      find.text('Done'),
+      260,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('feature-c-results-list')),
+            matching: find.byType(Scrollable),
+          )
+          .last,
     );
     await tester.pump();
 
     expect(find.text('Done'), findsOneWidget);
-    await tester.drag(
-      find.byKey(const Key('feature-c-results-list')),
-      const Offset(0, 700),
+    await tester.scrollUntilVisible(
+      find.text('Going'),
+      -260,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('feature-c-results-list')),
+            matching: find.byType(Scrollable),
+          )
+          .last,
     );
     await tester.pump();
 
@@ -130,6 +182,128 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Search and Navigate'), findsOneWidget);
+  });
+
+  testWidgets('KL Blind Box reward redeems a KFC voucher code', (
+    WidgetTester tester,
+  ) async {
+    final accountKey = base64Url
+        .encode(utf8.encode('preview-user@trasia.local'))
+        .replaceAll('=', '');
+    SharedPreferences.setMockInitialValues({
+      'trasia.reward.points.$accountKey': 40,
+    });
+    await tester.pumpWidget(const TrasiaApp());
+
+    await tester.ensureVisible(find.byKey(const Key('login-user')));
+    await tester.tap(find.byKey(const Key('login-user')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.byKey(const Key('nav-plan')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('blind-box-rewards')),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const Key('blind-box-rewards')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rewards'), findsWidgets);
+    expect(find.byKey(const Key('reward-points-balance')), findsOneWidget);
+    expect(find.text('600'), findsOneWidget);
+    expect(find.text('RM5 HubPool Credit'), findsOneWidget);
+    expect(find.text('RM10 HubPool Credit'), findsOneWidget);
+    expect(find.text('RM5 KFC Voucher'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('reward-kfc-5')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('reward-redeem-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('reward-voucher-saved')), findsOneWidget);
+    expect(
+      find.text('Your KFC voucher has been added to My Vouchers.'),
+      findsOneWidget,
+    );
+    expect(find.text('TRASIA-KFC-RM5'), findsNothing);
+
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byType(RewardsPage))).pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('nav-account')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('profile-vouchers')),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const Key('profile-vouchers')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('voucher-wallet-page')), findsOneWidget);
+    expect(find.text('My Vouchers'), findsOneWidget);
+    expect(find.text('Available (1)'), findsOneWidget);
+    expect(find.text('History (0)'), findsOneWidget);
+    expect(find.byKey(const Key('saved-voucher-kfc-image')), findsOneWidget);
+    expect(find.byKey(const Key('saved-voucher-code')), findsNothing);
+    expect(find.text('TRASIA-KFC-RM5'), findsNothing);
+
+    await tester.tap(find.text('RM5 KFC Voucher'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('saved-voucher-code')), findsOneWidget);
+    expect(find.text('TRASIA-KFC-RM5'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('mark-voucher-used')));
+    await tester.pumpAndSettle();
+    expect(find.text('Available (0)'), findsOneWidget);
+    expect(find.text('History (1)'), findsOneWidget);
+    expect(find.byKey(const Key('confirm-voucher-used')), findsNothing);
+
+    await tester.tap(find.text('History (1)'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('saved-voucher-code')), findsNothing);
+    expect(find.text('TRASIA-KFC-RM5'), findsNothing);
+    expect(find.byKey(const Key('saved-voucher-used-stamp')), findsOneWidget);
+
+    await tester.tap(find.text('RM5 KFC Voucher'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('saved-voucher-code')), findsOneWidget);
+    expect(find.text('TRASIA-KFC-RM5'), findsOneWidget);
+    expect(find.byKey(const Key('mark-voucher-used')), findsNothing);
+  });
+
+  testWidgets('HubPool rewards exchange points for app credit', (
+    WidgetTester tester,
+  ) async {
+    var redeemedPoints = 0;
+    var addedCredit = 0.0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RewardsPage(
+          initialPoints: 500,
+          onRedeem: (voucherId, pointCost, hubPoolCredit) {
+            redeemedPoints += pointCost;
+            addedCredit += hubPoolCredit;
+            return true;
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('reward-hubpool-5')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('reward-redeem-button')));
+    await tester.pumpAndSettle();
+
+    expect(redeemedPoints, 100);
+    expect(addedCredit, 5);
+    expect(
+      find.text('RM5 has been added to your HubPool credit.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Profile shows the account and requested settings', (
@@ -253,8 +427,12 @@ void main() {
 
     await tester.tap(find.byKey(const Key('nav-account')));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.ensureVisible(find.text('Favorites'));
-    await tester.tap(find.text('Favorites'));
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('profile-favorites')),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const Key('profile-favorites')));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.scrollUntilVisible(
       find.text('Suria KLCC'),
@@ -312,8 +490,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byKey(const Key('nav-account')));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.ensureVisible(find.text('Favorites'));
-    await tester.tap(find.text('Favorites'));
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('profile-favorites')),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const Key('profile-favorites')));
     await tester.pump(const Duration(milliseconds: 300));
     final favoriteCard = tester.widget<InkWell>(
       find

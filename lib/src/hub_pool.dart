@@ -1366,9 +1366,9 @@ class _HubPoolOverlay extends StatelessWidget {
                 suffixIcon: searchingDestination
                     ? const Padding(
                         padding: EdgeInsets.all(13),
-                        child: SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                        child: TrasiaLoadingCompass(
+                          size: 18,
+                          semanticLabel: 'Searching destinations',
                         ),
                       )
                     : controller.text.trim().isEmpty
