@@ -88,6 +88,11 @@ class AuthProfile {
     required this.savedTransitRoutes,
     required this.hubPoolTransactions,
     required this.carbonSavedKg,
+    required this.rewardPoints,
+    required this.redeemedVouchers,
+    required this.checkedInPlaces,
+    required this.favoritePlaces,
+    required this.tripHistory,
   });
 
   final String email;
@@ -96,12 +101,22 @@ class AuthProfile {
   final int savedTransitRoutes;
   final int hubPoolTransactions;
   final double carbonSavedKg;
+  final int rewardPoints;
+  final List<RedeemedVoucher> redeemedVouchers;
+  final Map<String, CheckedInPlace> checkedInPlaces;
+  final List<FavoritePlace> favoritePlaces;
+  final List<TripHistoryEntry> tripHistory;
 
   AuthProfile copyWith({
     double? credit,
     int? savedTransitRoutes,
     int? hubPoolTransactions,
     double? carbonSavedKg,
+    int? rewardPoints,
+    List<RedeemedVoucher>? redeemedVouchers,
+    Map<String, CheckedInPlace>? checkedInPlaces,
+    List<FavoritePlace>? favoritePlaces,
+    List<TripHistoryEntry>? tripHistory,
   }) {
     return AuthProfile(
       email: email,
@@ -110,6 +125,11 @@ class AuthProfile {
       savedTransitRoutes: savedTransitRoutes ?? this.savedTransitRoutes,
       hubPoolTransactions: hubPoolTransactions ?? this.hubPoolTransactions,
       carbonSavedKg: carbonSavedKg ?? this.carbonSavedKg,
+      rewardPoints: rewardPoints ?? this.rewardPoints,
+      redeemedVouchers: redeemedVouchers ?? this.redeemedVouchers,
+      checkedInPlaces: checkedInPlaces ?? this.checkedInPlaces,
+      favoritePlaces: favoritePlaces ?? this.favoritePlaces,
+      tripHistory: tripHistory ?? this.tripHistory,
     );
   }
 }
@@ -159,12 +179,7 @@ class AuthService {
 
   Future<void> signOut() => _client.auth.signOut();
 
-  Future<void> updateStats({
-    required double credit,
-    required int savedTransitRoutes,
-    required int hubPoolTransactions,
-    required double carbonSavedKg,
-  }) async {
+  Future<void> updateProfile(AuthProfile profile) async {
     final user = _client.auth.currentUser;
     if (user == null) {
       return;
@@ -172,10 +187,15 @@ class AuthService {
     await _client
         .from('profiles')
         .update({
-          'credit': credit,
-          'saved_transit_routes': savedTransitRoutes,
-          'hub_pool_transactions': hubPoolTransactions,
-          'carbon_saved_kg': carbonSavedKg,
+          'credit': profile.credit,
+          'saved_transit_routes': profile.savedTransitRoutes,
+          'hub_pool_transactions': profile.hubPoolTransactions,
+          'carbon_saved_kg': profile.carbonSavedKg,
+          'reward_points': profile.rewardPoints,
+          'redeemed_vouchers': profile.redeemedVouchers.map((v) => v.toJson()).toList(),
+          'checked_in_places': profile.checkedInPlaces.map((k, v) => MapEntry(k, v.toJson())),
+          'favorite_places': profile.favoritePlaces.map((v) => v.toJson()).toList(),
+          'trip_history': profile.tripHistory.map((v) => v.toJson()).toList(),
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', user.id);
@@ -186,19 +206,42 @@ class AuthService {
     final row = await _client
         .from('profiles')
         .select(
-          'role,email,credit,saved_transit_routes,hub_pool_transactions,carbon_saved_kg',
+          'role,email,credit,saved_transit_routes,hub_pool_transactions,carbon_saved_kg,reward_points,redeemed_vouchers,checked_in_places,favorite_places,trip_history',
         )
         .eq('id', user.id)
         .maybeSingle();
+    
     final role = row?['role'] == 'admin' ? UserRole.admin : UserRole.user;
+    
+    final rawVouchers = row?['redeemed_vouchers'] as List<dynamic>? ?? const [];
+    final vouchers = rawVouchers.map((v) => RedeemedVoucher.fromJson(v as Map<String, dynamic>)).toList();
+    
+    final rawPlaces = row?['checked_in_places'];
+    final checkedInPlaces = <String, CheckedInPlace>{};
+    if (rawPlaces is Map<String, dynamic>) {
+      for (final entry in rawPlaces.entries) {
+        checkedInPlaces[entry.key] = CheckedInPlace.fromJson(entry.value as Map<String, dynamic>);
+      }
+    }
+    
+    final rawFavorites = row?['favorite_places'] as List<dynamic>? ?? const [];
+    final favorites = rawFavorites.map((v) => FavoritePlace.fromJson(v as Map<String, dynamic>)).toList();
+    
+    final rawHistory = row?['trip_history'] as List<dynamic>? ?? const [];
+    final history = rawHistory.map((v) => TripHistoryEntry.fromJson(v as Map<String, dynamic>)).toList();
+    
     return AuthProfile(
       email: (row?['email'] as String?) ?? user.email ?? '',
       role: role,
       credit: ((row?['credit'] as num?) ?? 128.40).toDouble(),
       savedTransitRoutes: ((row?['saved_transit_routes'] as num?) ?? 0).toInt(),
-      hubPoolTransactions: ((row?['hub_pool_transactions'] as num?) ?? 0)
-          .toInt(),
+      hubPoolTransactions: ((row?['hub_pool_transactions'] as num?) ?? 0).toInt(),
       carbonSavedKg: ((row?['carbon_saved_kg'] as num?) ?? 0).toDouble(),
+      rewardPoints: ((row?['reward_points'] as num?) ?? 600).toInt(),
+      redeemedVouchers: vouchers,
+      checkedInPlaces: checkedInPlaces,
+      favoritePlaces: favorites,
+      tripHistory: history,
     );
   }
 
@@ -219,6 +262,11 @@ class AuthService {
       'saved_transit_routes': 0,
       'hub_pool_transactions': 0,
       'carbon_saved_kg': 0,
+      'reward_points': 600,
+      'redeemed_vouchers': [],
+      'checked_in_places': {},
+      'favorite_places': [],
+      'trip_history': [],
     });
   }
 }

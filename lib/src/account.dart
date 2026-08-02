@@ -45,12 +45,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
   Uint8List? _avatarBytes;
   bool _savingAvatar = false;
 
-  String get _avatarStorageKey {
-    final accountKey = base64Url
-        .encode(utf8.encode(widget.email.toLowerCase()))
-        .replaceAll('=', '');
-    return 'trasia.profile.avatar.$accountKey';
-  }
+
 
   @override
   void initState() {
@@ -72,31 +67,14 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null || !mounted) return;
       
-      final data = await Supabase.instance.client
-          .from('profiles')
-          .select('avatar_base64')
-          .eq('id', user.id)
-          .maybeSingle();
+      final bytes = await Supabase.instance.client.storage
+          .from('avatars')
+          .download('${user.id}/profile.jpg');
           
-      if (data != null && data['avatar_base64'] != null) {
-        if (mounted) {
-          setState(() => _avatarBytes = base64Decode(data['avatar_base64'] as String));
-        }
-        return;
+      if (mounted) {
+        setState(() => _avatarBytes = bytes);
       }
     } catch (_) {}
-
-    // Fallback to local storage
-    final preferences = await SharedPreferences.getInstance();
-    final encoded = preferences.getString(_avatarStorageKey);
-    if (encoded == null || !mounted) {
-      return;
-    }
-    try {
-      setState(() => _avatarBytes = base64Decode(encoded));
-    } on FormatException {
-      await preferences.remove(_avatarStorageKey);
-    }
   }
 
   Future<void> _pickAvatar() async {
@@ -113,21 +91,22 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       }
       setState(() => _savingAvatar = true);
       final bytes = await image.readAsBytes();
-      final base64String = base64Encode(bytes);
 
-      // Save to database
+      // Save to storage
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
-        await Supabase.instance.client
-            .from('profiles')
-            .update({'avatar_base64': base64String})
-            .eq('id', user.id);
+        await Supabase.instance.client.storage
+            .from('avatars')
+            .uploadBinary(
+              '${user.id}/profile.jpg',
+              bytes,
+              fileOptions: const FileOptions(
+                upsert: true,
+                contentType: 'image/jpeg',
+              ),
+            );
       }
-
-      // Save locally as cache
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(_avatarStorageKey, base64String);
-
+      
       if (mounted) {
         setState(() {
           _avatarBytes = bytes;

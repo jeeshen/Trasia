@@ -105,12 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (_, _, _) => DashboardScreen(
-          role: profile.role,
-          email: profile.email,
-          credit: profile.credit,
-          savedTransitRoutes: profile.savedTransitRoutes,
-          hubPoolTransactions: profile.hubPoolTransactions,
-          carbonSavedKg: profile.carbonSavedKg,
+          profile: profile,
           onLogout: _logoutFromDashboard,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -144,6 +139,11 @@ class _LoginScreenState extends State<LoginScreen> {
         savedTransitRoutes: 14,
         hubPoolTransactions: 6,
         carbonSavedKg: 28.4,
+        rewardPoints: 600,
+        redeemedVouchers: const [],
+        checkedInPlaces: const {},
+        favoritePlaces: const [],
+        tripHistory: const [],
       ),
     );
   }

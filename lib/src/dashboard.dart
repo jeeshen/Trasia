@@ -2,22 +2,12 @@ part of '../main.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
-    required this.role,
-    required this.email,
-    required this.credit,
-    required this.savedTransitRoutes,
-    required this.hubPoolTransactions,
-    required this.carbonSavedKg,
+    required this.profile,
     required this.onLogout,
     super.key,
   });
 
-  final UserRole role;
-  final String email;
-  final double credit;
-  final int savedTransitRoutes;
-  final int hubPoolTransactions;
-  final double carbonSavedKg;
+  final AuthProfile profile;
   final Future<void> Function(BuildContext context) onLogout;
 
   @override
@@ -25,7 +15,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  static const _demoPointGrantVersion = 1;
+  
   int _tab = 0;
   int _previousTab = 0;
   late double _wallet;
@@ -53,53 +43,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   bool _hasCenteredOnInitialLocation = false;
 
-  String get _accountStorageKey => base64Url
-      .encode(utf8.encode(widget.email.toLowerCase()))
-      .replaceAll('=', '');
-
-  String get _walletStorageKey => 'trasia.wallet.credit.$_accountStorageKey';
-
-  String get _rewardPointsStorageKey {
-    return 'trasia.reward.points.$_accountStorageKey';
-  }
-
-  String get _demoPointGrantStorageKey {
-    return 'trasia.reward.demo-grant-version.$_accountStorageKey';
-  }
-
-  String get _redeemedVouchersStorageKey {
-    return 'trasia.redeemed.vouchers.$_accountStorageKey';
-  }
-
-  String get _checkedInPlacesStorageKey {
-    return 'trasia.checked-in.places.$_accountStorageKey';
-  }
-
-  String get _favoritesStorageKey {
-    return 'trasia.favorite.places.$_accountStorageKey';
-  }
-
-  String get _historyStorageKey {
-    return 'trasia.trip.history.$_accountStorageKey';
-  }
-
   @override
   void initState() {
     super.initState();
-    _wallet = widget.credit;
-    _savedTransitRoutes = widget.savedTransitRoutes;
-    _hubPoolTransactions = widget.hubPoolTransactions;
-    _carbonSavedKg = widget.carbonSavedKg;
+    _wallet = widget.profile.credit;
+    _savedTransitRoutes = widget.profile.savedTransitRoutes;
+    _hubPoolTransactions = widget.profile.hubPoolTransactions;
+    _carbonSavedKg = widget.profile.carbonSavedKg;
+    _rewardPoints = widget.profile.rewardPoints;
+    _redeemedVouchers = widget.profile.redeemedVouchers;
+    _checkedInPlaces = widget.profile.checkedInPlaces;
+    _favoritePlaces = widget.profile.favoritePlaces;
+    _tripHistory = widget.profile.tripHistory;
+    
     globalMapController.addListener(_onMapControllerChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         unawaited(_loadInitialLocation());
-        unawaited(_loadWallet());
-        unawaited(_loadRewardPoints());
-        unawaited(_loadRedeemedVouchers());
-        unawaited(_loadCheckedInPlaces());
-        unawaited(_loadFavoritePlaces());
-        unawaited(_loadTripHistory());
       }
     });
   }
@@ -146,12 +106,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _wallet = max(0, _wallet - fare);
       _hubPoolTransactions++;
     });
-    _persistProfileStats();
+    _saveProfile();
   }
 
   void _topUp(double amount) {
     setState(() => _wallet += amount);
-    _persistProfileStats();
+    _saveProfile();
   }
 
   bool _redeemReward(String voucherId, int pointCost, double hubPoolCredit) {
@@ -174,9 +134,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ];
       }
     });
-    unawaited(_persistRewardPoints());
-    unawaited(_persistRedeemedVouchers());
-    _persistProfileStats();
+    
+    _saveProfile();
+    _saveProfile();
     return true;
   }
 
@@ -195,8 +155,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       };
       _rewardPoints += 50;
     });
-    unawaited(_persistCheckedInPlaces());
-    unawaited(_persistRewardPoints());
+    _saveProfile();
+    
     return true;
   }
 
@@ -216,7 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _redeemedVouchers[i],
       ];
     });
-    unawaited(_persistRedeemedVouchers());
+    _saveProfile();
   }
 
   void _saveTransitRoute(DestinationCandidate? destination) {
@@ -228,8 +188,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         detail: '',
       );
     });
-    _persistTripHistory();
-    _persistProfileStats();
+    _saveProfile();
+    _saveProfile();
   }
 
   Future<void> _saveDemoPlanCompletion(List<ItineraryStop> stops) async {
@@ -245,8 +205,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       }
     });
-    await _persistTripHistory();
-    _persistProfileStats();
+    _saveProfile();
     if (!mounted) {
       return;
     }
@@ -264,7 +223,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         amountPaid: fare,
       );
     });
-    _persistTripHistory();
+    _saveProfile();
   }
 
   void _completeDemoArrival() {
@@ -307,166 +266,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _openTransitFor(place.name, null);
   }
 
-  Future<void> _loadFavoritePlaces() async {
-    final preferences = await SharedPreferences.getInstance();
-    final encoded = preferences.getString(_favoritesStorageKey);
-    if (encoded == null || !mounted) {
-      return;
-    }
-    try {
-      final rawPlaces = jsonDecode(encoded) as List<dynamic>;
-      final places = [
-        for (final rawPlace in rawPlaces)
-          if (rawPlace is Map<String, dynamic>)
-            FavoritePlace.fromJson(rawPlace),
-      ];
-      setState(() => _favoritePlaces = places);
-    } catch (_) {
-      await preferences.remove(_favoritesStorageKey);
-    }
-  }
+  
 
-  Future<void> _loadWallet() async {
-    final preferences = await SharedPreferences.getInstance();
-    final savedWallet = preferences.getDouble(_walletStorageKey);
-    if (savedWallet == null || !mounted) {
-      return;
-    }
-    setState(() => _wallet = savedWallet);
-  }
+  
 
-  Future<void> _loadRewardPoints() async {
-    final preferences = await SharedPreferences.getInstance();
-    final savedPoints = preferences.getInt(_rewardPointsStorageKey);
-    final grantVersion = preferences.getInt(_demoPointGrantStorageKey) ?? 0;
-    if (grantVersion < _demoPointGrantVersion) {
-      final grantedPoints = max(savedPoints ?? 0, 600);
-      await preferences.setInt(_rewardPointsStorageKey, grantedPoints);
-      await preferences.setInt(
-        _demoPointGrantStorageKey,
-        _demoPointGrantVersion,
-      );
-      if (mounted) {
-        setState(() => _rewardPoints = grantedPoints);
-      }
-      return;
-    }
-    if (savedPoints == null || !mounted) {
-      return;
-    }
-    setState(() => _rewardPoints = savedPoints);
-  }
+  
 
-  Future<void> _loadRedeemedVouchers() async {
-    final preferences = await SharedPreferences.getInstance();
-    final encoded = preferences.getString(_redeemedVouchersStorageKey);
-    if (encoded == null || !mounted) {
-      return;
-    }
-    try {
-      final rawVouchers = jsonDecode(encoded) as List<dynamic>;
-      setState(() {
-        _redeemedVouchers = [
-          for (final rawVoucher in rawVouchers)
-            if (rawVoucher is Map<String, dynamic>)
-              RedeemedVoucher.fromJson(rawVoucher),
-        ];
-      });
-    } catch (_) {
-      await preferences.remove(_redeemedVouchersStorageKey);
-    }
-  }
+  
 
-  Future<void> _loadCheckedInPlaces() async {
-    final preferences = await SharedPreferences.getInstance();
-    final encoded = preferences.getString(_checkedInPlacesStorageKey);
-    if (encoded == null || !mounted) {
-      return;
-    }
-    try {
-      final rawPlaces = jsonDecode(encoded);
-      setState(() {
-        if (rawPlaces is List<dynamic>) {
-          _checkedInPlaces = {
-            for (final rawPlace in rawPlaces)
-              if (rawPlace is String)
-                rawPlace: CheckedInPlace(
-                  placeKey: rawPlace,
-                  checkedInAt: DateTime.now(),
-                )
-              else if (rawPlace is Map<String, dynamic>)
-                CheckedInPlace.fromJson(rawPlace).placeKey:
-                    CheckedInPlace.fromJson(rawPlace),
-          };
-        } else if (rawPlaces is Map<String, dynamic>) {
-          _checkedInPlaces = {
-            for (final entry in rawPlaces.entries)
-              entry.key: CheckedInPlace(
-                placeKey: entry.key,
-                checkedInAt:
-                    DateTime.tryParse(entry.value as String? ?? '') ??
-                    DateTime.now(),
-              ),
-          };
-        }
-      });
-    } catch (_) {
-      await preferences.remove(_checkedInPlacesStorageKey);
-    }
-  }
+  
 
-  Future<void> _persistWallet() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setDouble(_walletStorageKey, _wallet);
-  }
+  
 
-  Future<void> _persistRewardPoints() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setInt(_rewardPointsStorageKey, _rewardPoints);
-  }
+  
 
-  Future<void> _persistRedeemedVouchers() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(
-      _redeemedVouchersStorageKey,
-      jsonEncode([for (final voucher in _redeemedVouchers) voucher.toJson()]),
-    );
-  }
+  
 
-  Future<void> _persistCheckedInPlaces() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(
-      _checkedInPlacesStorageKey,
-      jsonEncode([for (final place in _checkedInPlaces.values) place.toJson()]),
-    );
-  }
+  
 
-  Future<void> _loadTripHistory() async {
-    final preferences = await SharedPreferences.getInstance();
-    final encoded = preferences.getString(_historyStorageKey);
-    if (encoded == null || !mounted) {
-      return;
-    }
-    try {
-      final rawEntries = jsonDecode(encoded) as List<dynamic>;
-      final entries = [
-        for (final rawEntry in rawEntries)
-          if (rawEntry is Map<String, dynamic>)
-            TripHistoryEntry.fromJson(rawEntry),
-      ];
-      setState(() => _tripHistory = entries);
-    } catch (_) {
-      await preferences.remove(_historyStorageKey);
-    }
-  }
+  
 
-  Future<void> _persistTripHistory() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(
-      _historyStorageKey,
-      jsonEncode([for (final entry in _tripHistory) entry.toJson()]),
-    );
-  }
+  
 
   void _addTripHistory({
     required String placeName,
@@ -487,13 +307,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ].take(50).toList();
   }
 
-  Future<void> _persistFavoritePlaces() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(
-      _favoritesStorageKey,
-      jsonEncode([for (final place in _favoritePlaces) place.toJson()]),
-    );
-  }
+  
 
   void _toggleFavoritePlace(Attraction attraction) {
     final place = FavoritePlace.fromAttraction(attraction);
@@ -515,7 +329,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ]
           : [place, ..._favoritePlaces];
     });
-    unawaited(_persistFavoritePlaces());
+    _saveProfile();
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         content: Text(
@@ -534,7 +348,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (favorite.key != place.key) favorite,
       ];
     });
-    unawaited(_persistFavoritePlaces());
+    _saveProfile();
   }
 
   void _showMapFavorites() {
@@ -558,19 +372,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _persistProfileStats() {
-    unawaited(_persistWallet());
-    if (!SupabaseConfig.isReady) {
-      return;
-    }
-    unawaited(
-      const AuthService().updateStats(
-        credit: _wallet,
-        savedTransitRoutes: _savedTransitRoutes,
-        hubPoolTransactions: _hubPoolTransactions,
-        carbonSavedKg: _carbonSavedKg,
-      ),
+  void _saveProfile() {
+    if (!SupabaseConfig.isReady) return;
+    final updatedProfile = widget.profile.copyWith(
+      credit: _wallet,
+      savedTransitRoutes: _savedTransitRoutes,
+      hubPoolTransactions: _hubPoolTransactions,
+      carbonSavedKg: _carbonSavedKg,
+      rewardPoints: _rewardPoints,
+      redeemedVouchers: _redeemedVouchers,
+      checkedInPlaces: _checkedInPlaces,
+      favoritePlaces: _favoritePlaces,
+      tripHistory: _tripHistory,
     );
+    unawaited(const AuthService().updateProfile(updatedProfile));
   }
 
   void _updateMapView(SharedMapView view) {
@@ -862,8 +677,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: Colors.white,
         child: SafeArea(
           child: AccountConsoleScreen(
-            role: widget.role,
-            email: widget.email,
+            role: widget.profile.role,
+            email: widget.profile.email,
             wallet: _wallet,
             savedTransitRoutes: _savedTransitRoutes,
             hubPoolTransactions: _hubPoolTransactions,
