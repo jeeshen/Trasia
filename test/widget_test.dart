@@ -136,7 +136,19 @@ void main() {
     expect(checkInButton.onPressed, isNotNull);
     checkInButton.onPressed!();
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('kl-check-in-scanner')), findsNothing);
+    expect(find.byKey(const Key('kl-check-in-scanner')), findsOneWidget);
+
+    Navigator.of(
+      tester.element(find.byKey(const Key('kl-check-in-scanner'))),
+    ).pop('trasia://kl-blind-box/check-in/wrong-place');
+    await tester.pumpAndSettle();
+    expect(find.text('This is not the QR for this place.'), findsOneWidget);
+    final preferences = await SharedPreferences.getInstance();
+    final accountKey = base64Url
+        .encode(utf8.encode('preview-user@trasia.local'))
+        .replaceAll('=', '');
+    expect(preferences.getInt('trasia.reward.points.$accountKey'), 600);
+    expect(find.text('Checked in'), findsNothing);
 
     await tester.tap(find.byKey(const Key('nav-dashboard')));
     await tester.pump(const Duration(milliseconds: 300));
@@ -273,6 +285,42 @@ void main() {
     expect(find.byKey(const Key('saved-voucher-code')), findsOneWidget);
     expect(find.text('TRASIA-KFC-RM5'), findsOneWidget);
     expect(find.byKey(const Key('mark-voucher-used')), findsNothing);
+  });
+
+  testWidgets('KL Blind Box shows checked-in place memories', (
+    WidgetTester tester,
+  ) async {
+    final accountKey = base64Url
+        .encode(utf8.encode('preview-user@trasia.local'))
+        .replaceAll('=', '');
+    SharedPreferences.setMockInitialValues({
+      'trasia.checked-in.places.$accountKey': jsonEncode([
+        {'placeKey': 'jalan-alor', 'checkedInAt': '2026-08-02T15:48:00.000'},
+      ]),
+    });
+    await tester.pumpWidget(const TrasiaApp());
+
+    await tester.ensureVisible(find.byKey(const Key('login-user')));
+    await tester.tap(find.byKey(const Key('login-user')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.byKey(const Key('nav-plan')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('blind-box-check-in-memories')),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Check-in Memories'), findsOneWidget);
+    expect(find.text('1 places checked in'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('blind-box-check-in-memories')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('check-in-memories-page')), findsOneWidget);
+    expect(find.text('Jalan Alor'), findsOneWidget);
+    expect(find.text('Checked in on 02/08/2026'), findsOneWidget);
+    expect(find.text('Time: 15:48'), findsOneWidget);
   });
 
   testWidgets('HubPool rewards exchange points for app credit', (

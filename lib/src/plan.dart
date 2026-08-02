@@ -16,7 +16,7 @@ class PelancongPlanScreen extends StatefulWidget {
     required this.onCancelDestination,
     required this.rewardPoints,
     required this.onRedeemReward,
-    required this.checkedInPlaceKeys,
+    required this.checkedInPlaces,
     required this.onCheckInPlace,
     super.key,
   });
@@ -37,7 +37,7 @@ class PelancongPlanScreen extends StatefulWidget {
   final int rewardPoints;
   final bool Function(String voucherId, int pointCost, double hubPoolCredit)
   onRedeemReward;
-  final Set<String> checkedInPlaceKeys;
+  final Map<String, CheckedInPlace> checkedInPlaces;
   final bool Function(String placeName) onCheckInPlace;
 
   @override
@@ -76,8 +76,19 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     );
   }
 
+  void _openCheckInMemories() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => CheckInMemoriesPage(
+          checkedInPlaces: widget.checkedInPlaces,
+          allPlaces: _blindBoxLocations,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openCheckInScanner(ItineraryStop stop) async {
-    if (widget.checkedInPlaceKeys.contains(
+    if (widget.checkedInPlaces.containsKey(
       _placeCheckInKey(stop.attraction.name),
     )) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -85,12 +96,25 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       );
       return;
     }
-    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    final targetPayload = _checkInPayloadForPlaceName(stop.attraction.name);
+    final scannedPayload = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (context) => _CheckInScannerPage(
+          targetName: stop.attraction.name,
+          targetPayload: targetPayload,
+        ),
+      ),
+    );
+    if (!mounted || scannedPayload == null) {
+      return;
+    }
+    if (scannedPayload != targetPayload) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This is not the QR for this place.')),
+      );
+      return;
+    }
     try {
-      final image = await _pickCheckInImage();
-      if (!mounted || image == null) {
-        return;
-      }
       final earned = widget.onCheckInPlace(stop.attraction.name);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -102,33 +126,11 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         ),
       );
     } catch (_) {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to save check-in.')),
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Camera scanner is not available on this device.'),
-        ),
-      );
-    } finally {
-      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    }
-  }
-
-  Future<XFile?> _pickCheckInImage() async {
-    final picker = ImagePicker();
-    try {
-      return await picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
-        imageQuality: 70,
-      );
-    } catch (_) {
-      return picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
-        imageQuality: 70,
-      );
     }
   }
 
@@ -375,7 +377,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
 
   Future<void> _showMapStopAction(ItineraryStop stop) async {
     final canGo = identical(stop, _activeTripStop);
-    final checkedIn = widget.checkedInPlaceKeys.contains(
+    final checkedIn = widget.checkedInPlaces.containsKey(
       _placeCheckInKey(stop.attraction.name),
     );
     final action = await showModalBottomSheet<_MapStopAction>(
@@ -976,7 +978,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
                 tripTotalStops: _tripTotalStops,
                 completedStopCount: _completedStopCount,
                 completedStopNames: _completedStopNames,
-                checkedInPlaceKeys: widget.checkedInPlaceKeys,
+                checkedInPlaceKeys: widget.checkedInPlaces.keys.toSet(),
                 onClose: () => setState(() => _itineraryListVisible = false),
                 onCancel: _confirmCancel,
                 onFocusStop: _focusItineraryStop,
@@ -1095,6 +1097,11 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
             ),
             const SizedBox(height: 14),
             _RewardsEntryCard(points: widget.rewardPoints, onTap: _openRewards),
+            const SizedBox(height: 12),
+            _CheckInMemoriesEntryCard(
+              checkedInCount: widget.checkedInPlaces.length,
+              onTap: _openCheckInMemories,
+            ),
           ],
         ),
       ),

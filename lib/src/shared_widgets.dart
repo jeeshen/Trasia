@@ -1695,6 +1695,186 @@ String _placeCheckInKey(String placeName) {
   return placeName.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '-');
 }
 
+String _checkInPayloadForPlaceName(String placeName) {
+  return 'trasia://kl-blind-box/check-in/${_placeCheckInKey(placeName)}';
+}
+
+class _CheckInScannerPage extends StatefulWidget {
+  const _CheckInScannerPage({
+    required this.targetName,
+    required this.targetPayload,
+  });
+
+  final String targetName;
+  final String targetPayload;
+
+  @override
+  State<_CheckInScannerPage> createState() => _CheckInScannerPageState();
+}
+
+class _CheckInScannerPageState extends State<_CheckInScannerPage> {
+  late MobileScannerController _controller;
+  bool _handledScan = false;
+  bool _usingFrontCamera = false;
+  DateTime? _lastWrongScanAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = MobileScannerController(
+      autoStart: false,
+      facing: CameraFacing.back,
+      formats: const [BarcodeFormat.qrCode],
+      detectionSpeed: DetectionSpeed.normal,
+    );
+    unawaited(
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_startScanner());
+      }
+    });
+  }
+
+  Future<void> _startScanner() async {
+    await _controller.start(cameraDirection: CameraFacing.back);
+    if (!mounted || _controller.value.isRunning) {
+      return;
+    }
+    setState(() => _usingFrontCamera = true);
+    await _controller.start(cameraDirection: CameraFacing.front);
+  }
+
+  @override
+  void dispose() {
+    unawaited(SystemChrome.setPreferredOrientations(DeviceOrientation.values));
+    unawaited(_controller.dispose());
+    super.dispose();
+  }
+
+  void _handleDetect(BarcodeCapture capture) {
+    if (_handledScan) {
+      return;
+    }
+    final payload = capture.barcodes
+        .map((barcode) => barcode.rawValue)
+        .whereType<String>()
+        .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    if (payload.isEmpty) {
+      return;
+    }
+    if (payload != widget.targetPayload) {
+      final now = DateTime.now();
+      final last = _lastWrongScanAt;
+      if (last == null || now.difference(last).inSeconds >= 2) {
+        _lastWrongScanAt = now;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Wrong QR for this place.')),
+        );
+      }
+      return;
+    }
+    _handledScan = true;
+    unawaited(_controller.stop());
+    Navigator.of(context).pop(payload);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          MobileScanner(
+            key: const Key('kl-check-in-scanner'),
+            controller: _controller,
+            fit: BoxFit.cover,
+            onDetect: _handleDetect,
+            errorBuilder: (context, error) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'Camera scanner is not available on this device.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              );
+            },
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      IconButton.filledTonal(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Scan ${widget.targetName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: .55),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      _usingFrontCamera
+                          ? 'No back camera found. Using front camera.'
+                          : 'Scan the matching QR only',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                ],
+              ),
+            ),
+          ),
+          Center(
+            child: IgnorePointer(
+              child: Container(
+                width: 230,
+                height: 230,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white, width: 3),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FeatureCTripProgressPanel extends StatelessWidget {
   const _FeatureCTripProgressPanel({
     required this.stops,

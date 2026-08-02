@@ -53,6 +53,27 @@ class RedeemedVoucher {
   }
 }
 
+class CheckedInPlace {
+  const CheckedInPlace({required this.placeKey, required this.checkedInAt});
+
+  final String placeKey;
+  final DateTime checkedInAt;
+
+  Map<String, dynamic> toJson() => {
+    'placeKey': placeKey,
+    'checkedInAt': checkedInAt.toIso8601String(),
+  };
+
+  factory CheckedInPlace.fromJson(Map<String, dynamic> json) {
+    return CheckedInPlace(
+      placeKey: json['placeKey'] as String? ?? '',
+      checkedInAt:
+          DateTime.tryParse(json['checkedInAt'] as String? ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
 enum _RewardKind { hubPool, kfc }
 
 class _RewardVoucher {
@@ -193,6 +214,401 @@ class _RewardsEntryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CheckInMemoriesEntryCard extends StatelessWidget {
+  const _CheckInMemoriesEntryCard({
+    required this.checkedInCount,
+    required this.onTap,
+  });
+
+  final int checkedInCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFDDE7F3)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12001844),
+              blurRadius: 14,
+              offset: Offset(0, 7),
+            ),
+          ],
+        ),
+        child: InkWell(
+          key: const Key('blind-box-check-in-memories'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: TrasiaColors.primary.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.confirmation_number_rounded,
+                    color: TrasiaColors.primary,
+                    size: 29,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Check-in Memories',
+                        style: TextStyle(
+                          color: Color(0xFF172033),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$checkedInCount places checked in',
+                        style: const TextStyle(
+                          color: Color(0xFF687386),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Color(0xFF98A2B3),
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class CheckInMemoriesPage extends StatelessWidget {
+  const CheckInMemoriesPage({
+    required this.checkedInPlaces,
+    required this.allPlaces,
+    super.key,
+  });
+
+  final Map<String, CheckedInPlace> checkedInPlaces;
+  final List<Attraction> allPlaces;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeByKey = {
+      for (final place in allPlaces) _placeCheckInKey(place.name): place,
+    };
+    final memories = checkedInPlaces.values.toList()
+      ..sort((a, b) => b.checkedInAt.compareTo(a.checkedInAt));
+    return Scaffold(
+      key: const Key('check-in-memories-page'),
+      backgroundColor: const Color(0xFFF5F8FC),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.large(
+            pinned: true,
+            foregroundColor: Colors.white,
+            backgroundColor: const Color(0xFF051EA8),
+            expandedHeight: 210,
+            title: const Text('Check-in Memories'),
+            flexibleSpace: FlexibleSpaceBar(
+              background: _CheckInMemoriesHeader(count: memories.length),
+            ),
+          ),
+          if (memories.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: _EmptyCheckInMemories(),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(18, 22, 18, 36),
+              sliver: SliverList.separated(
+                itemCount: memories.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 14),
+                itemBuilder: (context, index) {
+                  final memory = memories[index];
+                  final place = placeByKey[memory.placeKey];
+                  return _CheckInMemoryTicket(
+                    memory: memory,
+                    place: place,
+                    fallbackName: memory.placeKey.replaceAll('-', ' '),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckInMemoriesHeader extends StatelessWidget {
+  const _CheckInMemoriesHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF051EA8),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF00179D), Color(0xFF0B7CFF)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: 28,
+            top: 72,
+            child: _MemoryBubble(size: 68, opacity: .22),
+          ),
+          Positioned(
+            left: 76,
+            bottom: 20,
+            child: _MemoryBubble(size: 92, opacity: .16),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 84, 24, 26),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$count',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 40,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Checked-in places',
+                    style: TextStyle(
+                      color: Color(0xFFDCEEFF),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemoryBubble extends StatelessWidget {
+  const _MemoryBubble({required this.size, required this.opacity});
+
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: opacity),
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+class _EmptyCheckInMemories extends StatelessWidget {
+  const _EmptyCheckInMemories();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(
+              Icons.confirmation_number_outlined,
+              color: TrasiaColors.primary,
+              size: 58,
+            ),
+            SizedBox(height: 14),
+            Text(
+              'No check-ins yet',
+              style: TextStyle(
+                color: Color(0xFF172033),
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            SizedBox(height: 7),
+            Text(
+              'Places you check in from KL Blind Box will appear here as memories.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF687386), height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckInMemoryTicket extends StatelessWidget {
+  const _CheckInMemoryTicket({
+    required this.memory,
+    required this.place,
+    required this.fallbackName,
+  });
+
+  final CheckedInPlace memory;
+  final Attraction? place;
+  final String fallbackName;
+
+  @override
+  Widget build(BuildContext context) {
+    final checkedInAt = memory.checkedInAt.toLocal();
+    final date = _voucherDate(checkedInAt);
+    final time =
+        '${checkedInAt.hour.toString().padLeft(2, '0')}:${checkedInAt.minute.toString().padLeft(2, '0')}';
+    final title = place?.name ?? _titleCase(fallbackName);
+    return Container(
+      key: Key('check-in-memory-${memory.placeKey}'),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFDDE7F3)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14001844),
+            blurRadius: 14,
+            offset: Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 126,
+            color: const Color(0xFFFFD7B5),
+            alignment: Alignment.center,
+            child: const RotatedBox(
+              quarterTurns: 3,
+              child: Text(
+                'CHECK IN',
+                style: TextStyle(
+                  color: Color(0xFF051EA8),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 3,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  ClipOval(
+                    child: place == null
+                        ? Container(
+                            width: 62,
+                            height: 62,
+                            color: TrasiaColors.primary.withValues(alpha: .12),
+                            child: const Icon(
+                              Icons.place_rounded,
+                              color: TrasiaColors.primary,
+                            ),
+                          )
+                        : Image.asset(
+                            place!.imageAsset,
+                            width: 62,
+                            height: 62,
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF172033),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Checked in on $date',
+                          style: const TextStyle(
+                            color: Color(0xFF687386),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Time: $time',
+                          style: const TextStyle(
+                            color: Color(0xFF8A98AA),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _titleCase(String value) {
+  return value
+      .split(' ')
+      .where((word) => word.isNotEmpty)
+      .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+      .join(' ');
 }
 
 class RewardsPage extends StatefulWidget {
@@ -762,25 +1178,30 @@ class _KfcVoucherImage extends StatelessWidget {
             ColoredBox(color: Colors.black.withValues(alpha: .30)),
             Center(
               child: Transform.rotate(
-                angle: -0.20,
+                angle: -0.16,
                 child: Container(
                   key: const Key('saved-voucher-used-stamp'),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 4,
+                    horizontal: 7,
+                    vertical: 3,
                   ),
+                  constraints: BoxConstraints(maxWidth: width - 6),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: .88),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(99),
                     border: Border.all(color: const Color(0xFFE1251B)),
                   ),
                   child: const Text(
                     'USED',
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
                     style: TextStyle(
                       color: Color(0xFFE1251B),
-                      fontSize: 13,
+                      fontSize: 10,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+                      letterSpacing: .8,
+                      height: 1,
                     ),
                   ),
                 ),

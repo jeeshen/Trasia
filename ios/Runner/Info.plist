@@ -6,6 +6,8 @@
 	<string>$(GOOGLE_MAPS_API_KEY)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Trasia uses your location to show nearby transit routes and directions.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Trasia uses your camera to scan KL Blind Box check-in QR codes.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

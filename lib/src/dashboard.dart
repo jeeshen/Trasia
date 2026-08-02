@@ -34,7 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late double _carbonSavedKg;
   int _rewardPoints = 600;
   List<RedeemedVoucher> _redeemedVouchers = const [];
-  Set<String> _checkedInPlaceKeys = const {};
+  Map<String, CheckedInPlace> _checkedInPlaces = const {};
   String _transitDestination = 'KLCC';
   int _transitRequest = 0;
   DestinationCandidate? _hubPoolRequestedDestination;
@@ -182,11 +182,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   bool _checkInPlace(String placeName) {
     final placeKey = _placeCheckInKey(placeName);
-    if (_checkedInPlaceKeys.contains(placeKey)) {
+    if (_checkedInPlaces.containsKey(placeKey)) {
       return false;
     }
     setState(() {
-      _checkedInPlaceKeys = {..._checkedInPlaceKeys, placeKey};
+      _checkedInPlaces = {
+        ..._checkedInPlaces,
+        placeKey: CheckedInPlace(
+          placeKey: placeKey,
+          checkedInAt: DateTime.now(),
+        ),
+      };
       _rewardPoints += 50;
     });
     unawaited(_persistCheckedInPlaces());
@@ -378,12 +384,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
     try {
-      final rawPlaces = jsonDecode(encoded) as List<dynamic>;
+      final rawPlaces = jsonDecode(encoded);
       setState(() {
-        _checkedInPlaceKeys = {
-          for (final rawPlace in rawPlaces)
-            if (rawPlace is String) rawPlace,
-        };
+        if (rawPlaces is List<dynamic>) {
+          _checkedInPlaces = {
+            for (final rawPlace in rawPlaces)
+              if (rawPlace is String)
+                rawPlace: CheckedInPlace(
+                  placeKey: rawPlace,
+                  checkedInAt: DateTime.now(),
+                )
+              else if (rawPlace is Map<String, dynamic>)
+                CheckedInPlace.fromJson(rawPlace).placeKey:
+                    CheckedInPlace.fromJson(rawPlace),
+          };
+        } else if (rawPlaces is Map<String, dynamic>) {
+          _checkedInPlaces = {
+            for (final entry in rawPlaces.entries)
+              entry.key: CheckedInPlace(
+                placeKey: entry.key,
+                checkedInAt:
+                    DateTime.tryParse(entry.value as String? ?? '') ??
+                    DateTime.now(),
+              ),
+          };
+        }
       });
     } catch (_) {
       await preferences.remove(_checkedInPlacesStorageKey);
@@ -412,7 +437,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(
       _checkedInPlacesStorageKey,
-      jsonEncode(_checkedInPlaceKeys.toList()..sort()),
+      jsonEncode([for (final place in _checkedInPlaces.values) place.toJson()]),
     );
   }
 
@@ -830,7 +855,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onCancelDestination: _cancelDestination,
         rewardPoints: _rewardPoints,
         onRedeemReward: _redeemReward,
-        checkedInPlaceKeys: _checkedInPlaceKeys,
+        checkedInPlaces: _checkedInPlaces,
         onCheckInPlace: _checkInPlace,
       ),
       ColoredBox(
