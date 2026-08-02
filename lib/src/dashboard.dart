@@ -1274,26 +1274,12 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
                 ],
               ),
               const SizedBox(height: 16),
-              SegmentedButton<int>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(value: 0, label: Text('Fuel')),
-                  ButtonSegment(value: 1, label: Text('Rapid')),
-                  ButtonSegment(value: 2, label: Text('Public')),
-                  ButtonSegment(value: 3, label: Text('KTMB')),
-                ],
-                selected: {_section},
-                onSelectionChanged: (selection) {
-                  setState(() => _section = selection.first);
+              _AnimatedSegmentedBar(
+                tabs: const ['Fuel', 'Rapid', 'Public', 'KTMB'],
+                selectedIndex: _section,
+                onChanged: (index) {
+                  setState(() => _section = index);
                 },
-                style: ButtonStyle(
-                  textStyle: WidgetStateProperty.all(
-                    const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-                  ),
-                  padding: WidgetStateProperty.all(
-                    const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                ),
               ),
               const SizedBox(height: 18),
               if (_loading)
@@ -2126,4 +2112,81 @@ String _ktmbServiceLabel(String service) {
     'tebrau' => 'Shuttle Tebrau',
     _ => service,
   };
+}
+
+class _AnimatedSegmentedBar extends StatelessWidget {
+  const _AnimatedSegmentedBar({
+    required this.tabs,
+    required this.selectedIndex,
+    required this.onChanged,
+  });
+
+  final List<String> tabs;
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F6FF), // Light blue background
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment(
+              -1.0 + (selectedIndex / (tabs.length > 1 ? tabs.length - 1 : 1)) * 2.0,
+              0,
+            ),
+            child: FractionallySizedBox(
+              widthFactor: 1.0 / tabs.length,
+              heightFactor: 1.0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B7CFF), // Primary blue active pill
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0B7CFF).withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: List.generate(tabs.length, (index) {
+              final isSelected = index == selectedIndex;
+              return Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(index),
+                  child: Center(
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      style: TextStyle(
+                        fontFamily: 'Roboto',
+                        fontSize: 14,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                        color: isSelected ? Colors.white : const Color(0xFF0B7CFF),
+                      ),
+                      child: Text(tabs[index]),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
 }

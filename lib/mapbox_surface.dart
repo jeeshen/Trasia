@@ -260,6 +260,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
           },
           child: mapbox.MapWidget(
             key: const ValueKey('mapWidget'),
+            textureView: true,
             cameraOptions: mapbox.CameraOptions(
               center: mapbox.Point(
                 coordinates: mapbox.Position(target.longitude, target.latitude),

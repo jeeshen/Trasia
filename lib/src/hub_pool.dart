@@ -1459,7 +1459,7 @@ class _HubPoolOverlay extends StatelessWidget {
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.tonalIcon(
+                child: FilledButton.icon(
                   onPressed: onCancel,
                   icon: const Icon(Icons.cancel_rounded),
                   label: const Text('Cancel Ride'),

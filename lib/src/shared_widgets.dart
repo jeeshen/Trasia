@@ -1624,22 +1624,24 @@ class _MapStopActionSheet extends StatelessWidget {
                   label: Text(canGo ? 'Going' : 'Queue'),
                 ),
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.tonalIcon(
-                  key: const Key('map-stop-check-in-button'),
-                  onPressed: checkedIn
-                      ? null
-                      : () => Navigator.of(context).pop(_MapStopAction.checkIn),
-                  icon: Icon(
-                    checkedIn
-                        ? Icons.verified_rounded
-                        : Icons.qr_code_scanner_rounded,
+              if (canGo) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    key: const Key('map-stop-check-in-button'),
+                    onPressed: checkedIn
+                        ? null
+                        : () => Navigator.of(context).pop(_MapStopAction.checkIn),
+                    icon: Icon(
+                      checkedIn
+                          ? Icons.verified_rounded
+                          : Icons.qr_code_scanner_rounded,
+                    ),
+                    label: Text(checkedIn ? 'Already checked in' : 'Check in'),
                   ),
-                  label: Text(checkedIn ? 'Already checked in' : 'Check in'),
                 ),
-              ),
+              ],
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
@@ -1647,7 +1649,7 @@ class _MapStopActionSheet extends StatelessWidget {
                   onPressed: () =>
                       Navigator.of(context).pop(_MapStopAction.cancel),
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.black,
+                    backgroundColor: TrasiaColors.primary,
                     foregroundColor: Colors.white,
                   ),
                   icon: const Icon(Icons.cancel_rounded),

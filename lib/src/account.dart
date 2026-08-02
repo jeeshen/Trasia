@@ -68,6 +68,25 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
   }
 
   Future<void> _loadAvatar() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null || !mounted) return;
+      
+      final data = await Supabase.instance.client
+          .from('profiles')
+          .select('avatar_base64')
+          .eq('id', user.id)
+          .maybeSingle();
+          
+      if (data != null && data['avatar_base64'] != null) {
+        if (mounted) {
+          setState(() => _avatarBytes = base64Decode(data['avatar_base64'] as String));
+        }
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback to local storage
     final preferences = await SharedPreferences.getInstance();
     final encoded = preferences.getString(_avatarStorageKey);
     if (encoded == null || !mounted) {
@@ -94,8 +113,21 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       }
       setState(() => _savingAvatar = true);
       final bytes = await image.readAsBytes();
+      final base64String = base64Encode(bytes);
+
+      // Save to database
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await Supabase.instance.client
+            .from('profiles')
+            .update({'avatar_base64': base64String})
+            .eq('id', user.id);
+      }
+
+      // Save locally as cache
       final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(_avatarStorageKey, base64Encode(bytes));
+      await preferences.setString(_avatarStorageKey, base64String);
+
       if (mounted) {
         setState(() {
           _avatarBytes = bytes;
@@ -151,7 +183,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton(
+                  child: FilledButton(
                     onPressed: () {
                       widget.onTopUp(50);
                       Navigator.pop(context);
@@ -483,58 +515,79 @@ class _RevisitConfirmDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Icon(Icons.near_me_rounded, color: TrasiaColors.primary),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Go again?',
-                    style: TextStyle(
-                      color: Color(0xFF102033),
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: TrasiaColors.primary.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.near_me_rounded,
+                    color: TrasiaColors.primary,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Go again?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF102033),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Do you want to go to $placeName again?',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF536477),
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('No'),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Yes'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Do you want to go to $placeName again?',
-              style: const TextStyle(
-                color: Color(0xFF536477),
-                fontSize: 14,
-                height: 1.4,
-              ),
+          ),
+          Positioned(
+            top: 12,
+            right: 12,
+            child: IconButton(
+              icon: const Icon(Icons.close_rounded, color: Color(0xFF8A98AA)),
+              onPressed: () => Navigator.of(context).pop(),
             ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('No'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text('Yes'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

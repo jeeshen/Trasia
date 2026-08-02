@@ -882,6 +882,9 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
           backgroundColor: Colors.white,
           foregroundColor: const Color(0xFF172033),
           bottom: TabBar(
+            labelColor: TrasiaColors.primary,
+            unselectedLabelColor: const Color(0xFF687386),
+            indicatorColor: TrasiaColors.primary,
             tabs: [
               Tab(text: 'Available (${available.length})'),
               Tab(text: 'History (${history.length})'),
