@@ -111,7 +111,7 @@ class _AdminDashboardView extends StatefulWidget {
   });
   final AuthProfile profile;
   final ValueChanged<_AdminView> onNavigate;
-  final VoidCallback onProfileRefresh;
+  final Future<void> Function() onProfileRefresh;
 
   @override
   State<_AdminDashboardView> createState() => _AdminDashboardViewState();
@@ -193,7 +193,12 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
               count: null,
               icon: Icons.person_rounded,
               color: Colors.blueGrey,
-              onTap: () {
+              onTap: () async {
+                showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                await widget.onProfileRefresh();
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+
                 Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (context) => _SettingsPage(
                     currentUsername: widget.profile.username,

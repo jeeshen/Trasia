@@ -110,6 +110,7 @@ class AuthProfile {
   final List<TripHistoryEntry> tripHistory;
 
   AuthProfile copyWith({
+    String? email,
     String? username,
     double? credit,
     int? savedTransitRoutes,
@@ -122,7 +123,7 @@ class AuthProfile {
     List<TripHistoryEntry>? tripHistory,
   }) {
     return AuthProfile(
-      email: email,
+      email: email ?? this.email,
       role: role,
       username: username ?? this.username,
       credit: credit ?? this.credit,
@@ -198,17 +199,23 @@ class AuthService {
         .maybeSingle();
         
     if (res != null) {
-      throw Exception('This email address is already in use.');
+      throw const AuthException('This email address is already in use.');
     }
 
-    await _client.auth.updateUser(UserAttributes(email: newEmail));
+    try {
+      await _client.auth.updateUser(UserAttributes(email: newEmail));
+    } catch (e) {
+      // Re-throw the raw exception so account.dart can catch it and display a friendly message
+      rethrow;
+    }
 
     try {
       await _client.from('profiles').update({'email': newEmail}).eq('id', user.id);
       final updated = await currentProfile();
       if (updated != null) globalAuthProfileNotifier.value = updated;
-    } catch (_) {
-      throw Exception('Profile could not be synchronized.');
+    } catch (e, stack) {
+      debugPrint("Caught exception in AuthService.updateEmail (profiles sync): $e\\n$stack");
+      throw const AuthException('Profile could not be synchronized.');
     }
   }
 
@@ -227,6 +234,20 @@ class AuthService {
     return res == true;
   }
 
+  Future<bool> isEmailAvailable(String email) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return false;
+    
+    final res = await _client
+        .from('profiles')
+        .select('id')
+        .ilike('email', email)
+        .neq('id', user.id)
+        .maybeSingle();
+        
+    return res == null;
+  }
+
   Future<void> updateProfile(AuthProfile profile) async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -235,6 +256,7 @@ class AuthService {
     await _client
         .from('profiles')
         .update({
+          'email': profile.email,
           'username': profile.username,
           'credit': profile.credit,
           'saved_transit_routes': profile.savedTransitRoutes,

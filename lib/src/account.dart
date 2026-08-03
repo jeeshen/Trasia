@@ -1460,6 +1460,7 @@ class _SettingsPage extends StatelessWidget {
       valueListenable: globalAuthProfileNotifier,
       builder: (context, profile, _) {
         final currentUsername = profile?.username ?? this.currentUsername;
+        final currentEmail = Supabase.instance.client.auth.currentUser?.email ?? profile?.email ?? '';
         return Theme(
       data: ThemeData(
         brightness: Brightness.light,
@@ -1491,7 +1492,10 @@ class _SettingsPage extends StatelessWidget {
               icon: Icons.email_outlined,
               title: 'Email',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (context) => _EditEmailPage(onEmailChanged: onEmailChanged),
+                builder: (context) => _EditEmailPage(
+                  currentEmail: currentEmail,
+                  onEmailChanged: onEmailChanged,
+                ),
               )),
             ),
             _ProfileSettingRow(
@@ -1512,30 +1516,114 @@ class _SettingsPage extends StatelessWidget {
 }
 
 class _EditEmailPage extends StatefulWidget {
-  const _EditEmailPage({this.onEmailChanged});
+  const _EditEmailPage({this.currentEmail, this.onEmailChanged});
+  final String? currentEmail;
   final ValueChanged<String>? onEmailChanged;
   @override
   State<_EditEmailPage> createState() => _EditEmailPageState();
 }
 
 class _EditEmailPageState extends State<_EditEmailPage> {
-  final emailController = TextEditingController();
+  late final TextEditingController _controller;
+  Timer? _debounce;
   bool _isLoading = false;
+  bool _isChecking = false;
+  bool? _isAvailable;
+  String? _errorMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentEmail);
+    _controller.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    final text = _controller.text.trim();
+    if (text == widget.currentEmail) {
+      setState(() {
+        _isAvailable = null;
+        _errorMsg = null;
+      });
+      return;
+    }
+    if (text.isEmpty) {
+      setState(() {
+        _isAvailable = null;
+        _errorMsg = 'Email cannot be empty';
+      });
+      return;
+    }
+    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(text)) {
+      setState(() {
+        _isAvailable = null;
+        _errorMsg = 'Invalid email format';
+      });
+      return;
+    }
+    
+    setState(() {
+      _isChecking = true;
+      _isAvailable = null;
+      _errorMsg = null;
+    });
+    
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () => _checkAvailability(text));
+  }
+
+  Future<void> _checkAvailability(String email) async {
+    final authService = const AuthService();
+    final available = await authService.isEmailAvailable(email);
+    
+    if (!mounted) return;
+    
+    if (available) {
+      setState(() {
+        _isAvailable = true;
+        _isChecking = false;
+      });
+    } else {
+      setState(() {
+        _isAvailable = false;
+        _isChecking = false;
+      });
+    }
+  }
 
   Future<void> _save() async {
-    final email = emailController.text.trim();
-    
-    if (email.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address.')));
+    final newEmail = _controller.text.trim();
+    if (newEmail.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(newEmail)) {
+      setState(() => _errorMsg = 'Please enter a valid email address');
+      return;
+    }
+    if (newEmail == widget.currentEmail) {
+      Navigator.of(context).pop();
       return;
     }
     
     setState(() => _isLoading = true);
     
+    final authService = const AuthService();
+    final available = await authService.isEmailAvailable(newEmail);
+    if (!available) {
+      setState(() {
+        _isLoading = false;
+        _isAvailable = false;
+      });
+      return;
+    }
+    
     try {
-      await const AuthService().updateEmail(email);
-      widget.onEmailChanged?.call(email);
-      
+      await authService.updateEmail(newEmail);
+      widget.onEmailChanged?.call(newEmail);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Email updated successfully. Please use your new email next time you sign in.'),
@@ -1559,12 +1647,6 @@ class _EditEmailPageState extends State<_EditEmailPage> {
   }
 
   @override
-  void dispose() {
-    emailController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Theme(
       data: ThemeData(
@@ -1584,10 +1666,10 @@ class _EditEmailPageState extends State<_EditEmailPage> {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              const Text('Enter a new email address. We will send a verification link to confirm the change.', style: TextStyle(color: Color(0xFF68788C), fontSize: 14)),
+              const Text('Enter a new email address. This will be used for your account.', style: TextStyle(color: Color(0xFF68788C), fontSize: 14)),
               const SizedBox(height: 24),
               TextField(
-                controller: emailController,
+                controller: _controller,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: 'New Email',
@@ -1596,11 +1678,29 @@ class _EditEmailPageState extends State<_EditEmailPage> {
                   fillColor: const Color(0xFFF2F6FB),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  errorText: _errorMsg,
+                  suffixIcon: _isChecking 
+                      ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                      : _isAvailable == true
+                          ? const Icon(Icons.check_circle_rounded, color: Colors.green)
+                          : _isAvailable == false
+                              ? const Icon(Icons.error_outline_rounded, color: Colors.red)
+                              : null,
                 ),
               ),
+              if (_isAvailable == false && _errorMsg == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8, left: 16),
+                  child: Text('Email is already taken.', style: TextStyle(color: Colors.red, fontSize: 12)),
+                ),
+              if (_isAvailable == true && _errorMsg == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8, left: 16),
+                  child: Text('Email is available.', style: TextStyle(color: Colors.green, fontSize: 12)),
+                ),
               const SizedBox(height: 32),
               FilledButton(
-                onPressed: _isLoading ? null : _save,
+                onPressed: _isLoading || _isAvailable == false || _isChecking || _errorMsg != null ? null : _save,
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   backgroundColor: TrasiaColors.primary,
@@ -1984,4 +2084,5 @@ class _EditUsernamePageState extends State<_EditUsernamePage> {
     );
   }
 }
+
 
