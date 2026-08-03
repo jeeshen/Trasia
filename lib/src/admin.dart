@@ -198,6 +198,7 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
                   builder: (context) => _SettingsPage(
                     currentUsername: widget.profile.username,
                     onUsernameChanged: (_) => widget.onProfileRefresh(),
+                    onEmailChanged: (_) => widget.onProfileRefresh(),
                   ),
                 ));
               },

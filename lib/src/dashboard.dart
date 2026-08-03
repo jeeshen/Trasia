@@ -48,17 +48,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _currentProfile = widget.profile;
-    _username = _currentProfile.username;
-    _wallet = _currentProfile.credit;
-    _savedTransitRoutes = _currentProfile.savedTransitRoutes;
-    _hubPoolTransactions = _currentProfile.hubPoolTransactions;
-    _carbonSavedKg = _currentProfile.carbonSavedKg;
-    _rewardPoints = _currentProfile.rewardPoints;
-    _redeemedVouchers = _currentProfile.redeemedVouchers;
-    _checkedInPlaces = _currentProfile.checkedInPlaces;
-    _favoritePlaces = _currentProfile.favoritePlaces;
-    _tripHistory = _currentProfile.tripHistory;
+    _syncWithProfile(widget.profile);
+    globalAuthProfileNotifier.addListener(_onGlobalProfileChanged);
     
     globalMapController.addListener(_onMapControllerChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -70,27 +61,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    globalAuthProfileNotifier.removeListener(_onGlobalProfileChanged);
     globalMapController.removeListener(_onMapControllerChanged);
     super.dispose();
   }
 
-  Future<void> _refreshProfile() async {
-    final updated = await const AuthService().currentProfile();
+  void _syncWithProfile(AuthProfile p) {
+    _currentProfile = p;
+    _username = p.username;
+    _wallet = p.credit;
+    _savedTransitRoutes = p.savedTransitRoutes;
+    _hubPoolTransactions = p.hubPoolTransactions;
+    _carbonSavedKg = p.carbonSavedKg;
+    _rewardPoints = p.rewardPoints;
+    _redeemedVouchers = p.redeemedVouchers;
+    _checkedInPlaces = p.checkedInPlaces;
+    _favoritePlaces = p.favoritePlaces;
+    _tripHistory = p.tripHistory;
+  }
+
+  void _onGlobalProfileChanged() {
+    final updated = globalAuthProfileNotifier.value;
     if (updated != null && mounted) {
-      setState(() {
-        _currentProfile = updated;
-        _username = updated.username;
-        _wallet = updated.credit;
-        _savedTransitRoutes = updated.savedTransitRoutes;
-        _hubPoolTransactions = updated.hubPoolTransactions;
-        _carbonSavedKg = updated.carbonSavedKg;
-        _rewardPoints = updated.rewardPoints;
-        _redeemedVouchers = updated.redeemedVouchers;
-        _checkedInPlaces = updated.checkedInPlaces;
-        _favoritePlaces = updated.favoritePlaces;
-        _tripHistory = updated.tripHistory;
-      });
+      setState(() => _syncWithProfile(updated));
     }
+  }
+
+  Future<void> _refreshProfile() async {
+    await const AuthService().currentProfile();
   }
 
   void _onMapControllerChanged() {
@@ -703,6 +701,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             role: _currentProfile.role,
             username: _username,
             onUsernameChanged: (_) => _refreshProfile(),
+            onEmailChanged: (_) => _refreshProfile(),
             email: _currentProfile.email,
             wallet: _wallet,
             savedTransitRoutes: _savedTransitRoutes,
@@ -2030,3 +2029,5 @@ class _AnimatedSegmentedBar extends StatelessWidget {
     );
   }
 }
+
+

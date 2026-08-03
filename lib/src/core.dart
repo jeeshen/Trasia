@@ -178,7 +178,10 @@ class AuthService {
 
   Future<AuthProfile?> currentProfile() async {
     final user = _client.auth.currentUser;
-    return user == null ? null : _profileFor(user);
+    if (user == null) return null;
+    final profile = await _profileFor(user);
+    globalAuthProfileNotifier.value = profile;
+    return profile;
   }
 
   Future<void> signOut() => _client.auth.signOut();
@@ -197,14 +200,15 @@ class AuthService {
     if (res != null) {
       throw Exception('This email address is already in use.');
     }
-    
+
+    await _client.auth.updateUser(UserAttributes(email: newEmail));
+
     try {
       await _client.from('profiles').update({'email': newEmail}).eq('id', user.id);
-    } on PostgrestException catch (e) {
-      if (e.code == '23505') {
-        throw Exception('This email address is already in use.');
-      }
-      rethrow;
+      final updated = await currentProfile();
+      if (updated != null) globalAuthProfileNotifier.value = updated;
+    } catch (_) {
+      throw Exception('Profile could not be synchronized.');
     }
   }
 
@@ -244,6 +248,7 @@ class AuthService {
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', user.id);
+    globalAuthProfileNotifier.value = profile;
   }
 
   Future<AuthProfile> _profileFor(User user) async {
@@ -402,3 +407,6 @@ final globalMapViewNotifier = ValueNotifier<SharedMapView>(
   SharedMapView.initial,
 );
 final globalMapController = ValueNotifier<AppMapController?>(null);
+final globalAuthProfileNotifier = ValueNotifier<AuthProfile?>(null);
+
+

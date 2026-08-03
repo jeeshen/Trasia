@@ -5,6 +5,7 @@ class AccountConsoleScreen extends StatefulWidget {
     required this.role,
     this.username,
     this.onUsernameChanged,
+    this.onEmailChanged,
     required this.email,
     required this.wallet,
     required this.savedTransitRoutes,
@@ -25,6 +26,7 @@ class AccountConsoleScreen extends StatefulWidget {
   final UserRole role;
   final String? username;
   final ValueChanged<String>? onUsernameChanged;
+  final ValueChanged<String>? onEmailChanged;
   final String email;
   final double wallet;
   final int savedTransitRoutes;
@@ -490,6 +492,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
                     builder: (context) => _SettingsPage(
                       currentUsername: widget.username,
                       onUsernameChanged: widget.onUsernameChanged,
+                      onEmailChanged: widget.onEmailChanged,
                     ),
                   ),
                 );
@@ -1446,13 +1449,18 @@ class _ProfileSheet extends StatelessWidget {
 }
 
 class _SettingsPage extends StatelessWidget {
-  const _SettingsPage({this.currentUsername, this.onUsernameChanged});
+  const _SettingsPage({this.currentUsername, this.onUsernameChanged, this.onEmailChanged});
   final String? currentUsername;
   final ValueChanged<String>? onUsernameChanged;
+  final ValueChanged<String>? onEmailChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
+    return ValueListenableBuilder<AuthProfile?>(
+      valueListenable: globalAuthProfileNotifier,
+      builder: (context, profile, _) {
+        final currentUsername = profile?.username ?? this.currentUsername;
+        return Theme(
       data: ThemeData(
         brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(seedColor: TrasiaColors.primary, brightness: Brightness.light),
@@ -1483,7 +1491,7 @@ class _SettingsPage extends StatelessWidget {
               icon: Icons.email_outlined,
               title: 'Email',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (context) => const _EditEmailPage(),
+                builder: (context) => _EditEmailPage(onEmailChanged: onEmailChanged),
               )),
             ),
             _ProfileSettingRow(
@@ -1498,11 +1506,14 @@ class _SettingsPage extends StatelessWidget {
         ),
       ),
     );
+    },
+    );
   }
 }
 
 class _EditEmailPage extends StatefulWidget {
-  const _EditEmailPage();
+  const _EditEmailPage({this.onEmailChanged});
+  final ValueChanged<String>? onEmailChanged;
   @override
   State<_EditEmailPage> createState() => _EditEmailPageState();
 }
@@ -1513,7 +1524,6 @@ class _EditEmailPageState extends State<_EditEmailPage> {
 
   Future<void> _save() async {
     final email = emailController.text.trim();
-    debugPrint("Updating email: $email");
     
     if (email.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address.')));
@@ -1521,38 +1531,29 @@ class _EditEmailPageState extends State<_EditEmailPage> {
     }
     
     setState(() => _isLoading = true);
+    
     try {
-      final userId = Supabase.instance.client.auth.currentUser!.id;
-      
-      final res = await Supabase.instance.client
-          .from('profiles')
-          .select('id')
-          .ilike('email', email)
-          .neq('id', userId)
-          .maybeSingle();
-
-      if (res != null) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This email address is already in use.')));
-        }
-        return;
-      }
-
-      await Supabase.instance.client.from('profiles').update({'email': email}).eq('id', userId);
+      await const AuthService().updateEmail(email);
+      widget.onEmailChanged?.call(email);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email updated successfully.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Email updated successfully. Please use your new email next time you sign in.'),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 90),
+          duration: Duration(seconds: 2),
+        ));
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        if (e is PostgrestException && e.code == '23505') {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This email address is already in use.')));
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update email: $e')));
-        }
+        final msg = e is AuthException 
+            ? e.message 
+            : e is Exception 
+                ? e.toString().replaceFirst('Exception: ', '') 
+                : e.toString();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     }
   }
@@ -1646,7 +1647,12 @@ class _EditPasswordPageState extends State<_EditPasswordPage> {
     try {
       await const AuthService().updatePassword(p1);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password updated successfully')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Password updated successfully.'),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 90),
+          duration: Duration(seconds: 2),
+        ));
         Navigator.of(context).pop();
       }
     } catch (e) {
@@ -1869,7 +1875,12 @@ class _EditUsernamePageState extends State<_EditUsernamePage> {
         await authService.updateProfile(updated);
         widget.onUsernameChanged?.call(newUsername);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username updated successfully')));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Username updated successfully'),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 90),
+          duration: Duration(seconds: 2),
+        ));
           Navigator.of(context).pop();
         }
       }
@@ -1973,3 +1984,4 @@ class _EditUsernamePageState extends State<_EditUsernamePage> {
     );
   }
 }
+
