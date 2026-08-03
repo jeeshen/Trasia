@@ -782,8 +782,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: BackdropFilter(
                       filter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
                       child: Container(
-                        height: 80,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        height: 72,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.75),
                           borderRadius: BorderRadius.circular(40),
@@ -800,18 +800,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ],
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        child: Stack(
+                          alignment: Alignment.centerLeft,
                           children: [
-                            _buildNavItem(Icons.map_rounded, 'Transit', 0),
-                            const SizedBox(width: 4),
-                            _buildNavItem(Icons.directions_car_rounded, 'Ride', 1),
-                            const SizedBox(width: 4),
-                            _buildNavItem(Icons.dashboard_rounded, 'Dashboard', 2),
-                            const SizedBox(width: 4),
-                            _buildNavItem(Icons.backpack_rounded, 'Plan', 3),
-                            const SizedBox(width: 4),
-                            _buildNavItem(Icons.account_circle_rounded, 'Account', 4),
+                            AnimatedPositioned(
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeOutCirc,
+                              left: _tab * (50.0 + 8.0),
+                              child: Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      const Color(0xFF0B7CFF),
+                                      const Color(0xFF0B7CFF).withValues(alpha: 0.8),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(25),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF0B7CFF).withValues(alpha: 0.4),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 6),
+                                    )
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildNavItem(Icons.map_rounded, 'Transit', 0),
+                                const SizedBox(width: 8),
+                                _buildNavItem(Icons.directions_car_rounded, 'Ride', 1),
+                                const SizedBox(width: 8),
+                                _buildNavItem(Icons.dashboard_rounded, 'Dashboard', 2),
+                                const SizedBox(width: 8),
+                                _buildNavItem(Icons.backpack_rounded, 'Plan', 3),
+                                const SizedBox(width: 8),
+                                _buildNavItem(Icons.account_circle_rounded, 'Account', 4),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -892,75 +924,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _tab = index;
           }),
           behavior: HitTestBehavior.opaque,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOutCirc,
-            padding: EdgeInsets.symmetric(
-              horizontal: isSelected ? 18 : 12,
-              vertical: 14,
-            ),
-            decoration: BoxDecoration(
-              gradient: isSelected
-                  ? LinearGradient(
-                      colors: [
-                        const Color(0xFF0B7CFF),
-                        const Color(0xFF0B7CFF).withValues(alpha: 0.8),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : null,
-              color: isSelected ? null : Colors.transparent,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFF0B7CFF).withValues(alpha: 0.4),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      )
-                    ]
-                  : [],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (child, animation) {
-                     return ScaleTransition(
-                       scale: animation,
-                       child: child,
-                     );
-                  },
-                  child: Icon(
-                    icon,
-                    key: ValueKey(isSelected),
-                    color: isSelected
-                        ? Colors.white
-                        : const Color(0xFF102033).withValues(alpha: 0.4),
-                    size: 26,
-                  ),
-                ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeOutCirc,
-                  child: isSelected
-                      ? Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Text(
-                            label,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+          child: SizedBox(
+            width: 50,
+            height: 50,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, animation) {
+                 return ScaleTransition(
+                   scale: animation,
+                   child: child,
+                 );
+              },
+              child: Icon(
+                icon,
+                key: ValueKey(isSelected),
+                color: isSelected
+                    ? Colors.white
+                    : const Color(0xFF102033).withValues(alpha: 0.4),
+                size: 26,
+              ),
             ),
           ),
         ),
