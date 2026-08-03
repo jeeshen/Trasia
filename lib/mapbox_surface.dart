@@ -225,10 +225,20 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   final Map<int, Future<Uint8List>> _vehicleMarkerBytes = {};
   bool _isMapLoaded = false;
 
+  bool _isMapboxInitialized = false;
+
   @override
   void initState() {
     super.initState();
-    mapbox.MapboxOptions.setAccessToken(_mapboxAccessToken);
+    _initMapbox();
+  }
+
+  Future<void> _initMapbox() async {
+    mapbox.LogConfiguration.registerLogWriterBackend(SilentLogBackend());
+    await mapbox.MapboxOptions.setAccessToken(_mapboxAccessToken);
+    if (mounted) {
+      setState(() => _isMapboxInitialized = true);
+    }
   }
 
   @override
@@ -258,21 +268,26 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
               });
             }
           },
-          child: mapbox.MapWidget(
-            key: const ValueKey('mapWidget'),
-            textureView: true,
-            cameraOptions: mapbox.CameraOptions(
-              center: mapbox.Point(
-                coordinates: mapbox.Position(target.longitude, target.latitude),
-              ),
-              zoom: widget.initialZoom ?? 14.5,
-            ),
-            styleUri: _mapboxStyleUri,
-            onMapCreated: _onMapCreated,
-            onCameraChangeListener: (_) => widget.onCameraMove(),
-            onStyleLoadedListener: (_) => _markLoaded(),
-            onMapLoadedListener: (_) => _markLoaded(),
-          ),
+          child: _isMapboxInitialized
+              ? mapbox.MapWidget(
+                  key: const ValueKey('mapWidget'),
+                  textureView: true,
+                  cameraOptions: mapbox.CameraOptions(
+                    center: mapbox.Point(
+                      coordinates: mapbox.Position(
+                        target.longitude,
+                        target.latitude,
+                      ),
+                    ),
+                    zoom: widget.initialZoom ?? 14.5,
+                  ),
+                  styleUri: _mapboxStyleUri,
+                  onMapCreated: _onMapCreated,
+                  onCameraChangeListener: (_) => widget.onCameraMove(),
+                  onStyleLoadedListener: (_) => _markLoaded(),
+                  onMapLoadedListener: (_) => _markLoaded(),
+                )
+              : const SizedBox.shrink(),
         ),
         if (!_isMapLoaded)
           Container(
@@ -503,8 +518,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
         color: Colors.green,
         strokeColor: Colors.white,
       );
-      if (widget.candidate == null ||
-          widget.candidate!.location != routePoints.last) {
+      if (widget.candidate == null) {
         await _createDestinationMarker(routePoints.last);
       }
     }
@@ -996,5 +1010,12 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       debugPrint('Failed to load marker image: $e');
     }
     return null;
+  }
+}
+
+class SilentLogBackend extends mapbox.LogWriterBackend {
+  @override
+  void writeLog(mapbox.LoggingLevel level, String message) {
+    // Do nothing. Stay silent!
   }
 }

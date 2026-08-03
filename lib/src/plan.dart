@@ -62,7 +62,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   int _completedStopCount = 0;
   final Set<String> _completedStopNames = <String>{};
   bool _completionInProgress = false;
-  late final List<Attraction> _blindBoxLocations = _buildBlindBoxLocations();
+  late final List<Attraction> _blindBoxLocations = TrasiaData.attractions;
   PriceTier get _priceTier => PriceTier.values[_priceIndex.round()];
 
   void _openRewards() {
@@ -1004,7 +1004,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
             18,
             MediaQuery.paddingOf(context).top + 8,
             18,
-            110,
+            160,
           ),
           children: [
             const _PlanSectionTitle(
@@ -1106,5 +1106,10 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 }

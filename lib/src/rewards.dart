@@ -1,5 +1,40 @@
 part of '../main.dart';
 
+class _RewardsData {
+  static List<_RewardVoucher> vouchers = [];
+
+  static Future<void> load() async {
+    final data = await Supabase.instance.client.from('vouchers').select();
+    vouchers = data
+        .map(
+          (d) => _RewardVoucher(
+            id: d['id'] as String,
+            title: d['title'] as String,
+            description: d['description'] as String,
+            pointCost: d['point_cost'] as int,
+            kind: _RewardKind.values.firstWhere((e) => e.name == d['kind']),
+            icon: _getIconData(d['icon'] as String),
+            accentColor: Color(int.parse(d['accent_color'] as String)),
+            hubPoolCredit: (d['hub_pool_credit'] as num).toDouble(),
+          ),
+        )
+        .toList();
+  }
+
+  static IconData _getIconData(String name) {
+    switch (name) {
+      case 'Icons.local_taxi_rounded':
+        return Icons.local_taxi_rounded;
+      case 'Icons.directions_car_rounded':
+        return Icons.directions_car_rounded;
+      case 'Icons.restaurant_rounded':
+        return Icons.restaurant_rounded;
+      default:
+        return Icons.star_rounded;
+    }
+  }
+}
+
 const _kfcVoucherImage = 'assets/branding/kfc_voucher.png';
 
 class RedeemedVoucher {
@@ -97,38 +132,6 @@ class _RewardVoucher {
   final Color accentColor;
   final double hubPoolCredit;
 }
-
-const _rewardVouchers = <_RewardVoucher>[
-  _RewardVoucher(
-    id: 'hubpool-5',
-    title: 'RM5 HubPool Credit',
-    description: 'Add RM5 credit to your Trasia HubPool wallet.',
-    pointCost: 100,
-    kind: _RewardKind.hubPool,
-    icon: Icons.local_taxi_rounded,
-    accentColor: Color(0xFF0B7CFF),
-    hubPoolCredit: 5,
-  ),
-  _RewardVoucher(
-    id: 'hubpool-10',
-    title: 'RM10 HubPool Credit',
-    description: 'Add RM10 credit to your Trasia HubPool wallet.',
-    pointCost: 150,
-    kind: _RewardKind.hubPool,
-    icon: Icons.directions_car_rounded,
-    accentColor: Color(0xFF0057C8),
-    hubPoolCredit: 10,
-  ),
-  _RewardVoucher(
-    id: 'kfc-5',
-    title: 'RM5 KFC Voucher',
-    description: 'Show the demo voucher code at KFC for RM5 off.',
-    pointCost: 120,
-    kind: _RewardKind.kfc,
-    icon: Icons.restaurant_rounded,
-    accentColor: Color(0xFFE1251B),
-  ),
-];
 
 class _RewardsEntryCard extends StatelessWidget {
   const _RewardsEntryCard({required this.points, required this.onTap});
@@ -235,13 +238,6 @@ class _CheckInMemoriesEntryCard extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: const Color(0xFFDDE7F3)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x12001844),
-              blurRadius: 14,
-              offset: Offset(0, 7),
-            ),
-          ],
         ),
         child: InkWell(
           key: const Key('blind-box-check-in-memories'),
@@ -795,7 +791,7 @@ class _RewardsPageState extends State<RewardsPage> {
                   style: TextStyle(color: Color(0xFF687386), height: 1.4),
                 ),
                 const SizedBox(height: 16),
-                for (final voucher in _rewardVouchers) ...[
+                for (final voucher in _RewardsData.vouchers) ...[
                   _RewardVoucherCard(
                     voucher: voucher,
                     availablePoints: _points,
@@ -809,6 +805,11 @@ class _RewardsPageState extends State<RewardsPage> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 }
 
@@ -911,6 +912,11 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 }
 

@@ -5,10 +5,7 @@
 *.swp
 .DS_Store
 .env
-.env.*.local
 !.env.example
-!.env.local.example
-!.env.local
 .atom/
 .build/
 .buildlog/
@@ -62,8 +59,11 @@ app.*.map.json
 
 # Android local build files
 local.properties
-**/GeneratedPluginRegistrant.java
 **/google-services.json
+
+# Generated Plugin Registrants (all platforms)
+**/GeneratedPluginRegistrant.*
+**/generated_plugin_registrant.*
 
 # iOS/macOS local build files
 **/Pods/

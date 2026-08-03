@@ -41,29 +41,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   final _destinationController = TextEditingController();
   AppMapController? _mapController;
   static const _maxApproachSeconds = 60;
-  final _drivers = const [
-    Driver(
-      'Ali',
-      'EV Proton e.MAS 7',
-      '4.9',
-      Color(0xFF00E2A7),
-      LatLng(3.1529, 101.7049),
-    ),
-    Driver(
-      'Candy',
-      'Hyundai Ioniq 5',
-      '4.8',
-      Color(0xFF40A9FF),
-      LatLng(3.1421, 101.6953),
-    ),
-    Driver(
-      'Jenny',
-      'BYD Dolphin',
-      '4.7',
-      Color(0xFFFFCE3D),
-      LatLng(3.1623, 101.7118),
-    ),
-  ];
   late final AnimationController _carController;
   Timer? _timer;
   Timer? _destinationRouteRefreshTimer;
@@ -316,12 +293,14 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     final pickupLocation = _pickupLocation;
     final pickupAccuracyMeters = _pickupAccuracyMeters;
     final fare = _fareForDistance(rideDistanceKm);
+
     if (widget.wallet < fare) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Top up credit before booking.')),
+        const SnackBar(content: Text('Insufficient credit to book this ride.')),
       );
       return;
     }
+
     _timer?.cancel();
     _stopRideLocationUpdates();
     _carController.reset();
@@ -352,8 +331,8 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     if (!mounted || _stage != RideStage.matching) {
       return;
     }
-    final index = DateTime.now().millisecond % _drivers.length;
-    final driverProfile = _drivers[index];
+    final index = DateTime.now().millisecond % TrasiaData.drivers.length;
+    final driverProfile = TrasiaData.drivers[index];
     try {
       final arrival = await _findNearbyDriverArrival(driverProfile);
       if (!mounted || _stage != RideStage.matching) {
@@ -412,13 +391,17 @@ class _HubPoolScreenState extends State<HubPoolScreen>
         final pickupRoadPoint = _route?.points.isNotEmpty ?? false
             ? _route!.points.last
             : _pickupLocation;
+        final fare = _fareForDistance(_rideChargeDistanceKm ?? _rideDistanceKm(destination.location));
+        if (!_fareDeducted && fare > 0) {
+          widget.onFareDeducted(fare);
+        }
         setState(() {
           _seconds = 0;
           _stage = RideStage.onboard;
           _snappedRideLocation = pickupRoadPoint;
           _route = _destinationRoute(destination);
           _approachAnimationPoints = const [];
-          _fareDeducted = false;
+          _fareDeducted = true;
         });
         _startRideLocationUpdates();
         unawaited(_fitRoute(_route?.points ?? const []));
@@ -437,6 +420,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _stage = RideStage.cancelled;
       _seconds = 0;
       _route = null;
+      _driver = null;
       _approachAnimationPoints = const [];
       _snappedRideLocation = null;
       _rideChargeDistanceKm = null;

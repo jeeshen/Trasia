@@ -383,8 +383,9 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
     final formKey = GlobalKey<FormState>();
     bool saving = false;
 
-    await showDialog<void>(
-      context: context,
+    try {
+      await showDialog<void>(
+        context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
@@ -494,6 +495,10 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
         }
       ),
     );
+    } finally {
+      nameCtrl.dispose();
+      vehicleCtrl.dispose();
+    }
   }
 
   @override
@@ -1053,8 +1058,9 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
     final creditCtrl = TextEditingController(text: voucher?['hub_pool_credit']?.toString());
     final iconCtrl = TextEditingController(text: voucher?['icon'] ?? 'local_offer');
 
-    final result = await showDialog<bool>(
-      context: context,
+    try {
+      final result = await showDialog<bool>(
+        context: context,
       builder: (context) => AlertDialog(
         title: Text(voucher == null ? 'Add Voucher' : 'Edit Voucher'),
         content: SingleChildScrollView(
@@ -1118,6 +1124,13 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    }
+    } finally {
+      titleCtrl.dispose();
+      descCtrl.dispose();
+      costCtrl.dispose();
+      creditCtrl.dispose();
+      iconCtrl.dispose();
     }
   }
 

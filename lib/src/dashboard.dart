@@ -15,7 +15,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  
   int _tab = 0;
   int _previousTab = 0;
   late double _wallet;
@@ -50,7 +49,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _syncWithProfile(widget.profile);
     globalAuthProfileNotifier.addListener(_onGlobalProfileChanged);
-    
+
     globalMapController.addListener(_onMapControllerChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -155,7 +154,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ];
       }
     });
-    
+
     _saveProfile();
     _saveProfile();
     return true;
@@ -177,7 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _rewardPoints += 50;
     });
     _saveProfile();
-    
+
     return true;
   }
 
@@ -287,28 +286,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _openTransitFor(place.name, null);
   }
 
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
   void _addTripHistory({
     required String placeName,
     required String category,
@@ -327,8 +304,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ..._tripHistory,
     ].take(50).toList();
   }
-
-  
 
   void _toggleFavoritePlace(Attraction attraction) {
     final place = FavoritePlace.fromAttraction(attraction);
@@ -774,31 +749,77 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 24),
-          child: Container(
-            height: 64,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(32),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 20,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(Icons.map_rounded, 'Transit', 0),
-                _buildNavItem(Icons.directions_car_rounded, 'Ride', 1),
-                _buildNavItem(Icons.dashboard_rounded, 'Dashboard', 2),
-                _buildNavItem(Icons.backpack_rounded, 'Plan', 3),
-                _buildNavItem(Icons.grid_view_rounded, 'Account', 4),
-              ],
-            ),
+          padding: const EdgeInsets.only(bottom: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(40),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0B7CFF).withValues(alpha: 0.15),
+                            blurRadius: 32,
+                            spreadRadius: -4,
+                            offset: const Offset(0, 16),
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 24,
+                            spreadRadius: -4,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(40),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                      child: Container(
+                        height: 80,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(40),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            width: 1.5,
+                          ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withValues(alpha: 0.85),
+                              Colors.white.withValues(alpha: 0.5),
+                            ],
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildNavItem(Icons.map_rounded, 'Transit', 0),
+                            const SizedBox(width: 4),
+                            _buildNavItem(Icons.directions_car_rounded, 'Ride', 1),
+                            const SizedBox(width: 4),
+                            _buildNavItem(Icons.dashboard_rounded, 'Dashboard', 2),
+                            const SizedBox(width: 4),
+                            _buildNavItem(Icons.backpack_rounded, 'Plan', 3),
+                            const SizedBox(width: 4),
+                            _buildNavItem(Icons.account_circle_rounded, 'Account', 4),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -857,40 +878,89 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildNavItem(IconData icon, String label, int index) {
     final isSelected = _tab == index;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
-    return Expanded(
-      child: Semantics(
-        label: label,
-        button: true,
-        selected: isSelected,
-        child: Tooltip(
-          message: label,
-          child: GestureDetector(
-            key: Key('nav-${label.toLowerCase()}'),
-            onTap: () => setState(() {
-              _previousTab = _tab;
-              _tab = index;
-            }),
-            behavior: HitTestBehavior.opaque,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              height: 48,
-              decoration: BoxDecoration(
-                color: isSelected ? colorScheme.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Center(
-                child: Icon(
-                  icon,
-                  color: isSelected
-                      ? colorScheme.onPrimary
-                      : TrasiaColors.darkIcon,
-                  size: 22,
+    return Semantics(
+      label: label,
+      button: true,
+      selected: isSelected,
+      child: Tooltip(
+        message: label,
+        child: GestureDetector(
+          key: Key('nav-${label.toLowerCase()}'),
+          onTap: () => setState(() {
+            _previousTab = _tab;
+            _tab = index;
+          }),
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutCirc,
+            padding: EdgeInsets.symmetric(
+              horizontal: isSelected ? 18 : 12,
+              vertical: 14,
+            ),
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? LinearGradient(
+                      colors: [
+                        const Color(0xFF0B7CFF),
+                        const Color(0xFF0B7CFF).withValues(alpha: 0.8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: isSelected ? null : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF0B7CFF).withValues(alpha: 0.4),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      )
+                    ]
+                  : [],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, animation) {
+                     return ScaleTransition(
+                       scale: animation,
+                       child: child,
+                     );
+                  },
+                  child: Icon(
+                    icon,
+                    key: ValueKey(isSelected),
+                    color: isSelected
+                        ? Colors.white
+                        : const Color(0xFF102033).withValues(alpha: 0.4),
+                    size: 26,
+                  ),
                 ),
-              ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOutCirc,
+                  child: isSelected
+                      ? Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Text(
+                            label,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
             ),
           ),
         ),
@@ -1398,6 +1468,11 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       reverseMonthly: (reverse['monthly'] as num?)?.toDouble() ?? 0,
     );
   }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
 }
 
 class _GovernmentLoading extends StatelessWidget {
@@ -1639,9 +1714,35 @@ class _GovernmentDropdown extends StatelessWidget {
     return DropdownButtonFormField<String>(
       initialValue: options.contains(value) ? value : null,
       isExpanded: true,
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF68788C)),
+      dropdownColor: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      style: const TextStyle(
+        color: Color(0xFF102033),
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+      ),
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
+        labelStyle: const TextStyle(
+          color: Color(0xFF68788C),
+          fontWeight: FontWeight.w600,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF1F5F9),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: TrasiaColors.primary, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
       items: [
         for (final option in options)
@@ -1979,7 +2080,9 @@ class _AnimatedSegmentedBar extends StatelessWidget {
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,
             alignment: Alignment(
-              -1.0 + (selectedIndex / (tabs.length > 1 ? tabs.length - 1 : 1)) * 2.0,
+              -1.0 +
+                  (selectedIndex / (tabs.length > 1 ? tabs.length - 1 : 1)) *
+                      2.0,
               0,
             ),
             child: FractionallySizedBox(
@@ -2014,8 +2117,12 @@ class _AnimatedSegmentedBar extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'Roboto',
                         fontSize: 14,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                        color: isSelected ? Colors.white : const Color(0xFF0B7CFF),
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF0B7CFF),
                       ),
                       child: Text(tabs[index]),
                     ),
@@ -2029,5 +2136,3 @@ class _AnimatedSegmentedBar extends StatelessWidget {
     );
   }
 }
-
-

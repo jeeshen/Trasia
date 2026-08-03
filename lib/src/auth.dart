@@ -112,10 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
       PageRouteBuilder(
         pageBuilder: (_, _, _) {
           if (profile.role == UserRole.admin) {
-            return AdminPanel(
-              profile: profile,
-              onLogout: _logoutFromDashboard,
-            );
+            return AdminPanel(profile: profile, onLogout: _logoutFromDashboard);
           }
           return DashboardScreen(
             profile: profile,
@@ -149,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ? 'preview-admin@trasia.local'
             : 'preview-user@trasia.local',
         role: role,
-        credit: 128.40,
+        credit: 0.0,
         savedTransitRoutes: 14,
         hubPoolTransactions: 6,
         carbonSavedKg: 28.4,

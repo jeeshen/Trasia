@@ -13,8 +13,8 @@ final class MapboxOptions {
   }
 
   /// The access token that is used to access resources provided by Mapbox services.
-  static void setAccessToken(String token) {
-    _options.setAccessToken(token);
+  static Future<void> setAccessToken(String token) {
+    return _options.setAccessToken(token);
   }
 }
 

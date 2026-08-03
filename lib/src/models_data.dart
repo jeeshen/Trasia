@@ -1,5 +1,67 @@
 part of '../main.dart';
 
+class TrasiaData {
+  static List<Driver> drivers = [];
+  static List<Attraction> attractions = [];
+  static List<DestinationCandidate> localSuggestions = [];
+
+  static Future<void> load() async {
+    final client = Supabase.instance.client;
+
+    // Load drivers
+    final driversData = await client.from('drivers').select();
+    drivers = driversData
+        .map(
+          (d) => Driver(
+            d['name'] as String,
+            d['vehicle'] as String,
+            d['rating'] as String,
+            Color(int.parse(d['color'] as String)),
+            LatLng(d['lat'] as double, d['lng'] as double),
+          ),
+        )
+        .toList();
+
+    // Load local suggestions
+    final localSuggestionsData = await client
+        .from('local_suggestions')
+        .select();
+    localSuggestions = localSuggestionsData
+        .map(
+          (d) => DestinationCandidate(
+            name: d['name'] as String,
+            address: d['address'] as String,
+            placeId: d['place_id'] as String,
+            location: LatLng(d['lat'] as double, d['lng'] as double),
+          ),
+        )
+        .toList();
+
+    // Load attractions
+    final attractionsData = await client.from('attractions').select();
+    attractions = attractionsData
+        .map(
+          (d) => Attraction(
+            name: d['name'] as String,
+            hours: d['hours'] as String,
+            openMinute: d['open_minute'] as int,
+            closeMinute: d['close_minute'] as int,
+            baseCost: d['base_cost'] as int,
+            stayMinutes: d['stay_minutes'] as int,
+            suggestedDistanceKm: (d['suggested_distance_km'] as num).toDouble(),
+            priceTier: PriceTier.values.firstWhere(
+              (e) => e.name == d['price_tier'],
+            ),
+            imageAsset: d['image_asset'] as String,
+            color: Color(int.parse(d['color'] as String)),
+
+            location: LatLng(d['lat'] as double, d['lng'] as double),
+          ),
+        )
+        .toList();
+  }
+}
+
 class DestinationCandidate {
   const DestinationCandidate({
     required this.name,
@@ -87,38 +149,7 @@ class _GoogleMapsApi {
     if (normalized.isEmpty) {
       return const [];
     }
-    final suggestions = [
-      const DestinationCandidate(
-        name: 'Suria KLCC',
-        address: 'Kuala Lumpur City Centre, 50088 Kuala Lumpur, Malaysia',
-        location: LatLng(3.1579, 101.7123),
-        placeId: 'local-suria-klcc',
-      ),
-      const DestinationCandidate(
-        name: 'KLCC LRT Station',
-        address: 'Kelana Jaya Line, Kuala Lumpur City Centre, Malaysia',
-        location: LatLng(3.1590, 101.7132),
-        placeId: 'local-klcc-lrt',
-      ),
-      const DestinationCandidate(
-        name: 'Petronas Twin Towers',
-        address: 'Kuala Lumpur City Centre, Kuala Lumpur, Malaysia',
-        location: LatLng(3.1578, 101.7117),
-        placeId: 'local-petronas-twin-towers',
-      ),
-      const DestinationCandidate(
-        name: 'Aquaria KLCC',
-        address: 'Kuala Lumpur Convention Centre, Kuala Lumpur, Malaysia',
-        location: LatLng(3.1539, 101.7131),
-        placeId: 'local-aquaria-klcc',
-      ),
-      const DestinationCandidate(
-        name: 'KLCC Park',
-        address: 'Kuala Lumpur City Centre, Kuala Lumpur, Malaysia',
-        location: LatLng(3.1559, 101.7155),
-        placeId: 'local-klcc-park',
-      ),
-    ];
+    final suggestions = TrasiaData.localSuggestions;
     return [
       for (final suggestion in suggestions)
         if (suggestion.name.toLowerCase().contains(normalized) ||
@@ -1829,552 +1860,4 @@ String _pointKey(LatLng? point) {
     return 'none';
   }
   return '${point.latitude.toStringAsFixed(5)},${point.longitude.toStringAsFixed(5)}';
-}
-
-class _BlindBoxArea {
-  const _BlindBoxArea(this.name, this.location, this.imageAsset);
-
-  final String name;
-  final LatLng location;
-  final String imageAsset;
-}
-
-class _BlindBoxTheme {
-  const _BlindBoxTheme({
-    required this.name,
-    required this.hours,
-    required this.openMinute,
-    required this.closeMinute,
-    required this.baseCost,
-    required this.stayMinutes,
-    required this.priceTier,
-    required this.color,
-  });
-
-  final String name;
-  final String hours;
-  final int openMinute;
-  final int closeMinute;
-  final int baseCost;
-  final int stayMinutes;
-  final PriceTier priceTier;
-  final Color color;
-}
-
-List<Attraction> _buildBlindBoxLocations() {
-  final verifiedPlaces = [
-    const Attraction(
-      name: 'Batu Caves',
-      hours: '07:00 - 21:00',
-      openMinute: 7 * 60,
-      closeMinute: 21 * 60,
-      baseCost: 12,
-      stayMinutes: 75,
-      suggestedDistanceKm: 16,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/batu_caves.jpg',
-      color: Color(0xFFFFCE3D),
-      location: LatLng(3.2379, 101.6840),
-    ),
-    const Attraction(
-      name: 'National Mosque',
-      hours: '09:00 - 17:30',
-      openMinute: 9 * 60,
-      closeMinute: 17 * 60 + 30,
-      baseCost: 0,
-      stayMinutes: 45,
-      suggestedDistanceKm: 6,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/national_mosque.jpg',
-      color: Color(0xFF38D9FF),
-      location: LatLng(3.1412, 101.6915),
-    ),
-    const Attraction(
-      name: 'Central Market',
-      hours: '10:00 - 20:00',
-      openMinute: 10 * 60,
-      closeMinute: 20 * 60,
-      baseCost: 35,
-      stayMinutes: 70,
-      suggestedDistanceKm: 5,
-      priceTier: PriceTier.midRange,
-      imageAsset: 'assets/attractions/central_market.jpg',
-      color: Color(0xFF00E2A7),
-      location: LatLng(3.1457, 101.6953),
-    ),
-    const Attraction(
-      name: 'Merdeka Square',
-      hours: 'Open 24 hours',
-      openMinute: 0,
-      closeMinute: 24 * 60,
-      baseCost: 0,
-      stayMinutes: 40,
-      suggestedDistanceKm: 4,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/merdeka_square.jpg',
-      color: Color(0xFF7C5CFF),
-      location: LatLng(3.1478, 101.6937),
-    ),
-    const Attraction(
-      name: 'Petronas Twin Towers',
-      hours: '09:00 - 21:00',
-      openMinute: 9 * 60,
-      closeMinute: 21 * 60,
-      baseCost: 98,
-      stayMinutes: 90,
-      suggestedDistanceKm: 7,
-      priceTier: PriceTier.luxury,
-      imageAsset: 'assets/attractions/petronas_twin_towers.jpg',
-      color: Color(0xFF40A9FF),
-      location: LatLng(3.1579, 101.7116),
-    ),
-    const Attraction(
-      name: 'KLCC Park',
-      hours: '10:00 - 22:00',
-      openMinute: 10 * 60,
-      closeMinute: 22 * 60,
-      baseCost: 0,
-      stayMinutes: 45,
-      suggestedDistanceKm: 3,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/klcc_park.jpg',
-      color: Color(0xFFFF7A59),
-      location: LatLng(3.1555, 101.7153),
-    ),
-    const Attraction(
-      name: 'Aquaria KLCC',
-      hours: '10:00 - 20:00',
-      openMinute: 10 * 60,
-      closeMinute: 20 * 60,
-      baseCost: 62,
-      stayMinutes: 75,
-      suggestedDistanceKm: 6,
-      priceTier: PriceTier.luxury,
-      imageAsset: 'assets/attractions/aquaria_klcc.jpg',
-      color: Color(0xFF00A9CE),
-      location: LatLng(3.1538, 101.7134),
-    ),
-    const Attraction(
-      name: 'Perdana Botanical Garden',
-      hours: '07:00 - 20:00',
-      openMinute: 7 * 60,
-      closeMinute: 20 * 60,
-      baseCost: 0,
-      stayMinutes: 70,
-      suggestedDistanceKm: 8,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/perdana_botanical_garden.jpg',
-      color: Color(0xFF3CCB7F),
-      location: LatLng(3.1390, 101.6889),
-    ),
-    const Attraction(
-      name: 'Thean Hou Temple',
-      hours: '08:00 - 22:00',
-      openMinute: 8 * 60,
-      closeMinute: 22 * 60,
-      baseCost: 0,
-      stayMinutes: 55,
-      suggestedDistanceKm: 9,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/thean_hou_temple.jpg',
-      color: Color(0xFFFF7A59),
-      location: LatLng(3.1219, 101.6870),
-    ),
-    const Attraction(
-      name: 'Islamic Arts Museum Malaysia',
-      hours: '09:30 - 18:00',
-      openMinute: 9 * 60 + 30,
-      closeMinute: 18 * 60,
-      baseCost: 20,
-      stayMinutes: 80,
-      suggestedDistanceKm: 7,
-      priceTier: PriceTier.midRange,
-      imageAsset: 'assets/attractions/islamic_arts_museum.jpg',
-      color: Color(0xFF38D9FF),
-      location: LatLng(3.1418, 101.6897),
-    ),
-    const Attraction(
-      name: 'KL Tower',
-      hours: '09:00 - 22:00',
-      openMinute: 9 * 60,
-      closeMinute: 22 * 60,
-      baseCost: 110,
-      stayMinutes: 80,
-      suggestedDistanceKm: 8,
-      priceTier: PriceTier.luxury,
-      imageAsset: 'assets/attractions/kl_tower.jpg',
-      color: Color(0xFF40A9FF),
-      location: LatLng(3.1528, 101.7037),
-    ),
-    const Attraction(
-      name: 'Masjid Jamek',
-      hours: '10:00 - 18:00',
-      openMinute: 10 * 60,
-      closeMinute: 18 * 60,
-      baseCost: 0,
-      stayMinutes: 40,
-      suggestedDistanceKm: 4,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/jamek_mosque.jpg',
-      color: Color(0xFF38D9FF),
-      location: LatLng(3.1489, 101.6956),
-    ),
-    const Attraction(
-      name: 'River of Life',
-      hours: '07:00 - 23:00',
-      openMinute: 7 * 60,
-      closeMinute: 23 * 60,
-      baseCost: 0,
-      stayMinutes: 45,
-      suggestedDistanceKm: 4,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/river_of_life.jpg',
-      color: Color(0xFF40A9FF),
-      location: LatLng(3.1483, 101.6965),
-    ),
-    const Attraction(
-      name: 'Royal Selangor Visitor Centre',
-      hours: '09:00 - 17:00',
-      openMinute: 9 * 60,
-      closeMinute: 17 * 60,
-      baseCost: 80,
-      stayMinutes: 85,
-      suggestedDistanceKm: 12,
-      priceTier: PriceTier.luxury,
-      imageAsset: 'assets/attractions/royal_selangor.jpg',
-      color: Color(0xFF8793A4),
-      location: LatLng(3.1967, 101.7246),
-    ),
-    const Attraction(
-      name: 'Muzium Negara',
-      hours: '09:00 - 17:00',
-      openMinute: 9 * 60,
-      closeMinute: 17 * 60,
-      baseCost: 5,
-      stayMinutes: 60,
-      suggestedDistanceKm: 7,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/museum_negara.jpg',
-      color: Color(0xFF7C5CFF),
-      location: LatLng(3.1379, 101.6870),
-    ),
-    const Attraction(
-      name: 'Little India Brickfields',
-      hours: '10:00 - 22:00',
-      openMinute: 10 * 60,
-      closeMinute: 22 * 60,
-      baseCost: 25,
-      stayMinutes: 65,
-      suggestedDistanceKm: 8,
-      priceTier: PriceTier.midRange,
-      imageAsset: 'assets/attractions/little_india_brickfields.jpg',
-      color: Color(0xFFFFCE3D),
-      location: LatLng(3.1291, 101.6841),
-    ),
-    const Attraction(
-      name: 'Jalan Alor',
-      hours: '17:00 - 00:00',
-      openMinute: 17 * 60,
-      closeMinute: 24 * 60,
-      baseCost: 45,
-      stayMinutes: 75,
-      suggestedDistanceKm: 6,
-      priceTier: PriceTier.midRange,
-      imageAsset: 'assets/attractions/jalan_alor.jpg',
-      color: Color(0xFFFF7A59),
-      location: LatLng(3.1466, 101.7088),
-    ),
-    const Attraction(
-      name: 'Kwai Chai Hong',
-      hours: '09:00 - 00:00',
-      openMinute: 9 * 60,
-      closeMinute: 24 * 60,
-      baseCost: 25,
-      stayMinutes: 55,
-      suggestedDistanceKm: 5,
-      priceTier: PriceTier.midRange,
-      imageAsset: 'assets/attractions/kwai_chai_hong.jpg',
-      color: Color(0xFF7C5CFF),
-      location: LatLng(3.1415, 101.6979),
-    ),
-    const Attraction(
-      name: 'REXKL',
-      hours: '10:00 - 22:00',
-      openMinute: 10 * 60,
-      closeMinute: 22 * 60,
-      baseCost: 40,
-      stayMinutes: 70,
-      suggestedDistanceKm: 5,
-      priceTier: PriceTier.midRange,
-      imageAsset: 'assets/attractions/rexkl.jpg',
-      color: Color(0xFF00E2A7),
-      location: LatLng(3.1420, 101.6992),
-    ),
-    const Attraction(
-      name: 'Tugu Negara',
-      hours: '07:00 - 18:00',
-      openMinute: 7 * 60,
-      closeMinute: 18 * 60,
-      baseCost: 0,
-      stayMinutes: 45,
-      suggestedDistanceKm: 9,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/tugu_negara.jpg',
-      color: Color(0xFF8793A4),
-      location: LatLng(3.1490, 101.6839),
-    ),
-    const Attraction(
-      name: 'Berjaya Times Square',
-      hours: '10:00 - 22:00',
-      openMinute: 10 * 60,
-      closeMinute: 22 * 60,
-      baseCost: 80,
-      stayMinutes: 80,
-      suggestedDistanceKm: 7,
-      priceTier: PriceTier.luxury,
-      imageAsset: 'assets/attractions/berjaya_times_square.jpg',
-      color: Color(0xFFFFCE3D),
-      location: LatLng(3.1426, 101.7106),
-    ),
-    const Attraction(
-      name: 'Pavilion Kuala Lumpur',
-      hours: '10:00 - 22:00',
-      openMinute: 10 * 60,
-      closeMinute: 22 * 60,
-      baseCost: 120,
-      stayMinutes: 90,
-      suggestedDistanceKm: 6,
-      priceTier: PriceTier.luxury,
-      imageAsset: 'assets/attractions/pavilion_kl.jpg',
-      color: Color(0xFF40A9FF),
-      location: LatLng(3.1490, 101.7132),
-    ),
-    const Attraction(
-      name: 'Titiwangsa Lake Gardens',
-      hours: '06:00 - 22:00',
-      openMinute: 6 * 60,
-      closeMinute: 22 * 60,
-      baseCost: 0,
-      stayMinutes: 60,
-      suggestedDistanceKm: 10,
-      priceTier: PriceTier.budget,
-      imageAsset: 'assets/attractions/titiwangsa_lake_gardens.jpg',
-      color: Color(0xFF3CCB7F),
-      location: LatLng(3.1781, 101.7044),
-    ),
-    const Attraction(
-      name: 'Bank Negara Malaysia Museum',
-      hours: '10:00 - 17:00',
-      openMinute: 10 * 60,
-      closeMinute: 17 * 60,
-      baseCost: 10,
-      stayMinutes: 70,
-      suggestedDistanceKm: 8,
-      priceTier: PriceTier.midRange,
-      imageAsset: 'assets/attractions/bank_negara_museum.jpg',
-      color: Color(0xFF7C5CFF),
-      location: LatLng(3.1592, 101.6925),
-    ),
-  ];
-
-  const areas = [
-    _BlindBoxArea(
-      'Bukit Bintang',
-      LatLng(3.1468, 101.7113),
-      'assets/attractions/area_bukit_bintang.jpg',
-    ),
-    _BlindBoxArea(
-      'Chinatown',
-      LatLng(3.1421, 101.6964),
-      'assets/attractions/area_chinatown.jpg',
-    ),
-    _BlindBoxArea(
-      'KLCC',
-      LatLng(3.1579, 101.7123),
-      'assets/attractions/area_klcc.jpg',
-    ),
-    _BlindBoxArea(
-      'Brickfields',
-      LatLng(3.1291, 101.6841),
-      'assets/attractions/area_brickfields.jpg',
-    ),
-    _BlindBoxArea(
-      'Chow Kit',
-      LatLng(3.1675, 101.6980),
-      'assets/attractions/area_chow_kit.jpg',
-    ),
-    _BlindBoxArea(
-      'Kampung Baru',
-      LatLng(3.1641, 101.7068),
-      'assets/attractions/area_kampung_baru.jpg',
-    ),
-    _BlindBoxArea(
-      'Bangsar',
-      LatLng(3.1292, 101.6784),
-      'assets/attractions/area_bangsar.jpg',
-    ),
-    _BlindBoxArea(
-      'Mont Kiara',
-      LatLng(3.1700, 101.6529),
-      'assets/attractions/area_mont_kiara.jpg',
-    ),
-    _BlindBoxArea(
-      'TTDI',
-      LatLng(3.1413, 101.6297),
-      'assets/attractions/area_ttdi.jpg',
-    ),
-    _BlindBoxArea(
-      'Cheras',
-      LatLng(3.1068, 101.7259),
-      'assets/attractions/area_cheras.jpg',
-    ),
-    _BlindBoxArea(
-      'Ampang',
-      LatLng(3.1502, 101.7600),
-      'assets/attractions/area_ampang.jpg',
-    ),
-    _BlindBoxArea(
-      'Setapak',
-      LatLng(3.1881, 101.7106),
-      'assets/attractions/area_setapak.jpg',
-    ),
-    _BlindBoxArea(
-      'Sentul',
-      LatLng(3.1838, 101.6923),
-      'assets/attractions/area_sentul.jpg',
-    ),
-    _BlindBoxArea(
-      'Titiwangsa',
-      LatLng(3.1804, 101.7037),
-      'assets/attractions/area_titiwangsa.jpg',
-    ),
-    _BlindBoxArea(
-      'Petaling Jaya',
-      LatLng(3.1073, 101.6067),
-      'assets/attractions/area_petaling_jaya.jpg',
-    ),
-    _BlindBoxArea(
-      'Subang Jaya',
-      LatLng(3.0567, 101.5851),
-      'assets/attractions/area_subang_jaya.jpg',
-    ),
-    _BlindBoxArea(
-      'Shah Alam',
-      LatLng(3.0738, 101.5183),
-      'assets/attractions/area_shah_alam.jpg',
-    ),
-    _BlindBoxArea(
-      'Puchong',
-      LatLng(3.0327, 101.6188),
-      'assets/attractions/area_puchong.jpg',
-    ),
-    _BlindBoxArea(
-      'Sri Petaling',
-      LatLng(3.0715, 101.6947),
-      'assets/attractions/area_sri_petaling.jpg',
-    ),
-    _BlindBoxArea(
-      'Kepong',
-      LatLng(3.2140, 101.6356),
-      'assets/attractions/area_kepong.jpg',
-    ),
-    _BlindBoxArea(
-      'Batu Caves',
-      LatLng(3.2379, 101.6840),
-      'assets/attractions/area_batu_caves.jpg',
-    ),
-  ];
-  const themes = [
-    _BlindBoxTheme(
-      name: 'Food Discovery',
-      hours: '10:00 - 22:00',
-      openMinute: 10 * 60,
-      closeMinute: 22 * 60,
-      baseCost: 35,
-      stayMinutes: 60,
-      priceTier: PriceTier.midRange,
-      color: Color(0xFFFF7A59),
-    ),
-    _BlindBoxTheme(
-      name: 'Cafe Corner',
-      hours: '09:00 - 21:00',
-      openMinute: 9 * 60,
-      closeMinute: 21 * 60,
-      baseCost: 28,
-      stayMinutes: 55,
-      priceTier: PriceTier.midRange,
-      color: Color(0xFF40A9FF),
-    ),
-    _BlindBoxTheme(
-      name: 'Night Market',
-      hours: '17:00 - 00:00',
-      openMinute: 17 * 60,
-      closeMinute: 24 * 60,
-      baseCost: 22,
-      stayMinutes: 70,
-      priceTier: PriceTier.budget,
-      color: Color(0xFFFFCE3D),
-    ),
-    _BlindBoxTheme(
-      name: 'Heritage Walk',
-      hours: '09:00 - 19:00',
-      openMinute: 9 * 60,
-      closeMinute: 19 * 60,
-      baseCost: 12,
-      stayMinutes: 65,
-      priceTier: PriceTier.budget,
-      color: Color(0xFF7C5CFF),
-    ),
-    _BlindBoxTheme(
-      name: 'Green Escape',
-      hours: '06:00 - 20:00',
-      openMinute: 6 * 60,
-      closeMinute: 20 * 60,
-      baseCost: 0,
-      stayMinutes: 60,
-      priceTier: PriceTier.budget,
-      color: Color(0xFF3CCB7F),
-    ),
-    _BlindBoxTheme(
-      name: 'Family Stop',
-      hours: '10:00 - 20:00',
-      openMinute: 10 * 60,
-      closeMinute: 20 * 60,
-      baseCost: 65,
-      stayMinutes: 80,
-      priceTier: PriceTier.luxury,
-      color: Color(0xFF00A9CE),
-    ),
-  ];
-
-  final demoPlaces = <Attraction>[
-    for (var areaIndex = 0; areaIndex < areas.length; areaIndex++)
-      for (var themeIndex = 0; themeIndex < themes.length; themeIndex++)
-        () {
-          final area = areas[areaIndex];
-          final theme = themes[themeIndex];
-          final offset = (themeIndex - 2.5) * 0.0012;
-          return Attraction(
-            name: '${area.name} ${theme.name}',
-            hours: theme.hours,
-            openMinute: theme.openMinute,
-            closeMinute: theme.closeMinute,
-            baseCost: theme.baseCost,
-            stayMinutes: theme.stayMinutes,
-            suggestedDistanceKm: 3 + ((areaIndex * 5 + themeIndex * 3) % 38),
-            priceTier: theme.priceTier,
-            imageAsset: area.imageAsset,
-            color: theme.color,
-            location: LatLng(
-              area.location.latitude + offset,
-              area.location.longitude - offset,
-            ),
-          );
-        }(),
-  ];
-
-  final places = [...verifiedPlaces, ...demoPlaces];
-  assert(places.length == 150);
-  assert(places.map((place) => place.name).toSet().length == places.length);
-  return places;
 }

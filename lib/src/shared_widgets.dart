@@ -372,7 +372,7 @@ class _MapLocationButton extends StatelessWidget {
           child: Center(
             child: loading
                 ? const TrasiaLoadingCompass(
-                    size: 20,
+                    size: 28,
                     semanticLabel: 'Finding current location',
                   )
                 : const Icon(
@@ -865,6 +865,11 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 }
 
@@ -1628,11 +1633,16 @@ class _MapStopActionSheet extends StatelessWidget {
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.tonalIcon(
+                  child: FilledButton.icon(
                     key: const Key('map-stop-check-in-button'),
                     onPressed: checkedIn
                         ? null
-                        : () => Navigator.of(context).pop(_MapStopAction.checkIn),
+                        : () =>
+                              Navigator.of(context).pop(_MapStopAction.checkIn),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: TrasiaColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
                     icon: Icon(
                       checkedIn
                           ? Icons.verified_rounded
@@ -2014,9 +2024,13 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
-              child: FilledButton.tonalIcon(
+              child: FilledButton.icon(
                 key: const Key('kl-check-in-button'),
                 onPressed: activeCheckedIn ? null : () => onCheckIn(activeStop),
+                style: FilledButton.styleFrom(
+                  backgroundColor: TrasiaColors.primary,
+                  foregroundColor: Colors.white,
+                ),
                 icon: Icon(
                   activeCheckedIn
                       ? Icons.verified_rounded

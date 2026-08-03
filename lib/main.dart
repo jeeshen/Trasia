@@ -13,7 +13,6 @@ import 'package:image_picker/image_picker.dart';
 import 'loading_compass.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 part 'src/core.dart';
@@ -31,10 +30,13 @@ part 'src/admin.dart';
 void main() {
   try {
     WidgetsFlutterBinding.ensureInitialized();
-    
+
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.dumpErrorToConsole(details);
-      debugPrintStack(label: 'FlutterError: ${details.exceptionAsString()}', stackTrace: details.stack);
+      debugPrintStack(
+        label: 'FlutterError: ${details.exceptionAsString()}',
+        stackTrace: details.stack,
+      );
     };
 
     runApp(const TrasiaBootstrap());
@@ -52,6 +54,8 @@ Future<void> _initializeApp() async {
         url: SupabaseConfig.url,
         publishableKey: SupabaseConfig.anonKey,
       );
+      await TrasiaData.load();
+      await _RewardsData.load();
     }
   } catch (e, stack) {
     debugPrintStack(label: '_initializeApp Crash: $e', stackTrace: stack);
@@ -92,5 +96,10 @@ class _TrasiaBootstrapState extends State<TrasiaBootstrap> {
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 }

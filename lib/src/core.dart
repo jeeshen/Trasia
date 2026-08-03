@@ -44,13 +44,14 @@ class SupabaseConfig {
   static bool get isReady => url.isNotEmpty && anonKey.isNotEmpty;
 
   static Future<void> load() async {
-    if (isReady) {
+    if (isReady && _GoogleMapsConfig.isReady) {
       return;
     }
     try {
-      final values = _parseEnv(await rootBundle.loadString('.env.local'));
+      final values = _parseEnv(await rootBundle.loadString('.env'));
       url = values['SUPABASE_URL'] ?? url;
       anonKey = values['SUPABASE_ANON_KEY'] ?? anonKey;
+      _GoogleMapsConfig.apiKey = values['GOOGLE_MAPS_API_KEY'] ?? _GoogleMapsConfig.apiKey;
     } catch (_) {
       // Keep dart-define values, or remain unconfigured for preview mode.
     }
@@ -190,14 +191,14 @@ class AuthService {
   Future<void> updateEmail(String newEmail) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-    
+
     final res = await _client
         .from('profiles')
         .select('id')
         .ilike('email', newEmail)
         .neq('id', user.id)
         .maybeSingle();
-        
+
     if (res != null) {
       throw const AuthException('This email address is already in use.');
     }
@@ -205,17 +206,36 @@ class AuthService {
     try {
       await _client.auth.updateUser(UserAttributes(email: newEmail));
     } catch (e) {
-      // Re-throw the raw exception so account.dart can catch it and display a friendly message
       rethrow;
     }
 
     try {
-      await _client.from('profiles').update({'email': newEmail}).eq('id', user.id);
+      await _client
+          .from('profiles')
+          .update({'email': newEmail})
+          .eq('id', user.id);
       final updated = await currentProfile();
       if (updated != null) globalAuthProfileNotifier.value = updated;
     } catch (e, stack) {
-      debugPrint("Caught exception in AuthService.updateEmail (profiles sync): $e\\n$stack");
+      debugPrint(
+        "Caught exception in AuthService.updateEmail (profiles sync): $e\n$stack",
+      );
       throw const AuthException('Profile could not be synchronized.');
+    }
+  }
+
+  Future<void> verifyCurrentPassword(String password) async {
+    final user = _client.auth.currentUser;
+    if (user == null || user.email == null) return;
+
+    try {
+      // Re-authenticate to verify the password
+      await _client.auth.signInWithPassword(
+        email: user.email,
+        password: password,
+      );
+    } catch (e) {
+      throw const AuthException('Incorrect current password.');
     }
   }
 
@@ -226,25 +246,26 @@ class AuthService {
   Future<bool> isUsernameAvailable(String username) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-    
-    final res = await _client.rpc('is_username_available', params: {
-      'check_username': username,
-    });
-    
+
+    final res = await _client.rpc(
+      'is_username_available',
+      params: {'check_username': username},
+    );
+
     return res == true;
   }
 
   Future<bool> isEmailAvailable(String email) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-    
+
     final res = await _client
         .from('profiles')
         .select('id')
         .ilike('email', email)
         .neq('id', user.id)
         .maybeSingle();
-        
+
     return res == null;
   }
 
@@ -263,9 +284,15 @@ class AuthService {
           'hub_pool_transactions': profile.hubPoolTransactions,
           'carbon_saved_kg': profile.carbonSavedKg,
           'reward_points': profile.rewardPoints,
-          'redeemed_vouchers': profile.redeemedVouchers.map((v) => v.toJson()).toList(),
-          'checked_in_places': profile.checkedInPlaces.map((k, v) => MapEntry(k, v.toJson())),
-          'favorite_places': profile.favoritePlaces.map((v) => v.toJson()).toList(),
+          'redeemed_vouchers': profile.redeemedVouchers
+              .map((v) => v.toJson())
+              .toList(),
+          'checked_in_places': profile.checkedInPlaces.map(
+            (k, v) => MapEntry(k, v.toJson()),
+          ),
+          'favorite_places': profile.favoritePlaces
+              .map((v) => v.toJson())
+              .toList(),
           'trip_history': profile.tripHistory.map((v) => v.toJson()).toList(),
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
@@ -282,33 +309,42 @@ class AuthService {
         )
         .eq('id', user.id)
         .maybeSingle();
-    
+
     final role = row?['role'] == 'admin' ? UserRole.admin : UserRole.user;
-    
+
     final rawVouchers = row?['redeemed_vouchers'] as List<dynamic>? ?? const [];
-    final vouchers = rawVouchers.map((v) => RedeemedVoucher.fromJson(v as Map<String, dynamic>)).toList();
-    
+    final vouchers = rawVouchers
+        .map((v) => RedeemedVoucher.fromJson(v as Map<String, dynamic>))
+        .toList();
+
     final rawPlaces = row?['checked_in_places'];
     final checkedInPlaces = <String, CheckedInPlace>{};
     if (rawPlaces is Map<String, dynamic>) {
       for (final entry in rawPlaces.entries) {
-        checkedInPlaces[entry.key] = CheckedInPlace.fromJson(entry.value as Map<String, dynamic>);
+        checkedInPlaces[entry.key] = CheckedInPlace.fromJson(
+          entry.value as Map<String, dynamic>,
+        );
       }
     }
-    
+
     final rawFavorites = row?['favorite_places'] as List<dynamic>? ?? const [];
-    final favorites = rawFavorites.map((v) => FavoritePlace.fromJson(v as Map<String, dynamic>)).toList();
-    
+    final favorites = rawFavorites
+        .map((v) => FavoritePlace.fromJson(v as Map<String, dynamic>))
+        .toList();
+
     final rawHistory = row?['trip_history'] as List<dynamic>? ?? const [];
-    final history = rawHistory.map((v) => TripHistoryEntry.fromJson(v as Map<String, dynamic>)).toList();
-    
+    final history = rawHistory
+        .map((v) => TripHistoryEntry.fromJson(v as Map<String, dynamic>))
+        .toList();
+
     return AuthProfile(
       email: (row?['email'] as String?) ?? user.email ?? '',
       role: role,
       username: row?['username'] as String?,
-      credit: ((row?['credit'] as num?) ?? 128.40).toDouble(),
+      credit: ((row?['credit'] as num?) ?? 0.0).toDouble(),
       savedTransitRoutes: ((row?['saved_transit_routes'] as num?) ?? 0).toInt(),
-      hubPoolTransactions: ((row?['hub_pool_transactions'] as num?) ?? 0).toInt(),
+      hubPoolTransactions: ((row?['hub_pool_transactions'] as num?) ?? 0)
+          .toInt(),
       carbonSavedKg: ((row?['carbon_saved_kg'] as num?) ?? 0).toDouble(),
       rewardPoints: ((row?['reward_points'] as num?) ?? 600).toInt(),
       redeemedVouchers: vouchers,
@@ -331,7 +367,7 @@ class AuthService {
       'id': user.id,
       'email': user.email,
       'role': 'user',
-      'credit': 128.40,
+      'credit': 0.0,
       'saved_transit_routes': 0,
       'hub_pool_transactions': 0,
       'carbon_saved_kg': 0,
@@ -369,8 +405,8 @@ extension BlindBoxTravelModeDetails on BlindBoxTravelMode {
 
 class _GoogleMapsConfig {
   static const providedApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
-  static const developmentApiKey = 'AIzaSyDEDpjqw4CrmsiJSOGWtjeH4LnJSl715jw';
-  static const apiKey = providedApiKey == ''
+  static const developmentApiKey = '';
+  static String apiKey = providedApiKey == ''
       ? developmentApiKey
       : providedApiKey;
 
@@ -430,5 +466,3 @@ final globalMapViewNotifier = ValueNotifier<SharedMapView>(
 );
 final globalMapController = ValueNotifier<AppMapController?>(null);
 final globalAuthProfileNotifier = ValueNotifier<AuthProfile?>(null);
-
-
