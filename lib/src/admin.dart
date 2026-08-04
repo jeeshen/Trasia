@@ -1021,7 +1021,9 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> {
   late final TextEditingController descCtrl;
   late final TextEditingController costCtrl;
   late final TextEditingController creditCtrl;
-  late final TextEditingController iconCtrl;
+  final formKey = GlobalKey<FormState>();
+  bool saving = false;
+  String _kind = 'hubPool';
 
   @override
   void initState() {
@@ -1030,7 +1032,7 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> {
     descCtrl = TextEditingController(text: widget.voucher?['description']);
     costCtrl = TextEditingController(text: widget.voucher?['point_cost']?.toString());
     creditCtrl = TextEditingController(text: widget.voucher?['hub_pool_credit']?.toString());
-    iconCtrl = TextEditingController(text: widget.voucher?['icon'] ?? 'local_offer');
+    _kind = widget.voucher?['kind'] ?? 'hubPool';
   }
 
   @override
@@ -1039,41 +1041,123 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> {
     descCtrl.dispose();
     costCtrl.dispose();
     creditCtrl.dispose();
-    iconCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.voucher != null;
     return AlertDialog(
-      title: Text(widget.voucher == null ? 'Add Voucher' : 'Edit Voucher'),
+      title: Text(isEditing ? 'Edit Voucher' : 'Add Voucher', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF102033))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder())),
-            const SizedBox(height: 16),
-            TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder())),
-            const SizedBox(height: 16),
-            TextField(controller: costCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Point Cost', border: OutlineInputBorder())),
-            const SizedBox(height: 16),
-            TextField(controller: creditCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Credit Value (RM)', border: OutlineInputBorder())),
-            const SizedBox(height: 16),
-            TextField(controller: iconCtrl, decoration: const InputDecoration(labelText: 'Icon Name (e.g. local_offer)', border: OutlineInputBorder())),
-          ],
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: _kind,
+                decoration: InputDecoration(
+                  labelText: 'Kind',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'hubPool', child: Text('HubPool')),
+                  DropdownMenuItem(value: 'kfc', child: Text('KFC')),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _kind = v);
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: titleCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Title',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Title is required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: descCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Description',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Description is required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: costCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Point Cost',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Point Cost is required' : null,
+              ),
+              if (_kind == 'hubPool') ...[
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: creditCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Credit Value (RM)',
+                    filled: true,
+                    fillColor: const Color(0xFFF2F6FB),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  validator: (v) => v == null || v.trim().isEmpty ? 'Credit Value is required' : null,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(null), child: const Text('Cancel')),
-        FilledButton(onPressed: () {
-          Navigator.of(context).pop({
-            'title': titleCtrl.text,
-            'description': descCtrl.text,
-            'point_cost': costCtrl.text,
-            'hub_pool_credit': creditCtrl.text,
-            'icon': iconCtrl.text,
-          });
-        }, child: const Text('Save')),
+        TextButton(
+          onPressed: saving ? null : () => Navigator.of(context).pop(null),
+          style: TextButton.styleFrom(foregroundColor: const Color(0xFF68788C)),
+          child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        FilledButton(
+          onPressed: saving ? null : () {
+            if (!formKey.currentState!.validate()) return;
+            setState(() => saving = true);
+
+            final color = _kind == 'hubPool' ? '0xFF0057C8' : '0xFFE1251B';
+            final iconName = _kind == 'hubPool' ? 'Icons.local_taxi_rounded' : 'Icons.restaurant_rounded';
+            final creditValue = _kind == 'hubPool' ? creditCtrl.text.trim() : '0';
+
+            Navigator.of(context).pop({
+              'title': titleCtrl.text.trim(),
+              'description': descCtrl.text.trim(),
+              'point_cost': costCtrl.text.trim(),
+              'hub_pool_credit': creditValue,
+              'icon': iconName,
+              'kind': _kind,
+              'accent_color': color,
+            });
+          },
+          child: const Text('Save'),
+        ),
       ],
     );
   }
@@ -1159,8 +1243,8 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
             'p_point_cost': int.tryParse(result['point_cost']!) ?? 0,
             'p_hub_pool_credit': double.tryParse(result['hub_pool_credit']!) ?? 0.0,
             'p_icon': result['icon'],
-            'p_kind': voucher?['kind'] ?? 'discount',
-            'p_accent_color': voucher?['accent_color'] ?? '#0B7CFF',
+            'p_kind': result['kind'],
+            'p_accent_color': result['accent_color'],
           });
         } else {
           await Supabase.instance.client.rpc('admin_update_voucher', params: {
@@ -1170,11 +1254,21 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
             'p_point_cost': int.tryParse(result['point_cost']!) ?? 0,
             'p_hub_pool_credit': double.tryParse(result['hub_pool_credit']!) ?? 0.0,
             'p_icon': result['icon'],
-            'p_kind': voucher?['kind'] ?? 'discount',
-            'p_accent_color': voucher?['accent_color'] ?? '#0B7CFF',
+            'p_kind': result['kind'],
+            'p_accent_color': result['accent_color'],
           });
         }
+        await _RewardsData.load();
         _fetchVouchers();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(voucher == null ? 'Voucher added successfully' : 'Voucher updated successfully'),
+              backgroundColor: const Color(0xFF1CAF5E),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }

@@ -1,0 +1,1 @@
+﻿import 'package:supabase_flutter/supabase_flutter.dart'; import 'dart:io'; void main() async { await Supabase.initialize(url: 'YOUR_URL', anonKey: 'YOUR_KEY'); final data = await Supabase.instance.client.from('vouchers').select().limit(1); print(data); exit(0); }
