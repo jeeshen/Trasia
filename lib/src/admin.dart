@@ -304,6 +304,140 @@ class _AdminDriversView extends StatefulWidget {
   State<_AdminDriversView> createState() => _AdminDriversViewState();
 }
 
+class _DriverFormDialog extends StatefulWidget {
+  final Map<String, dynamic>? driver;
+  const _DriverFormDialog({this.driver});
+
+  @override
+  State<_DriverFormDialog> createState() => _DriverFormDialogState();
+}
+
+class _DriverFormDialogState extends State<_DriverFormDialog> {
+  late final TextEditingController nameCtrl;
+  late final TextEditingController vehicleCtrl;
+  final formKey = GlobalKey<FormState>();
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    nameCtrl = TextEditingController(text: widget.driver?['name']);
+    vehicleCtrl = TextEditingController(text: widget.driver?['vehicle']);
+  }
+
+  @override
+  void dispose() {
+    nameCtrl.dispose();
+    vehicleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEditing = widget.driver != null;
+    return AlertDialog(
+      title: Text(isEditing ? 'Edit Driver' : 'Add Driver', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF102033))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+      content: SingleChildScrollView(
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Driver Name',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: vehicleCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Vehicle Details',
+                  filled: true,
+                  fillColor: const Color(0xFFF2F6FB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Vehicle is required' : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      actions: [
+        TextButton(
+          onPressed: saving ? null : () => Navigator.of(context).pop(false),
+          style: TextButton.styleFrom(foregroundColor: const Color(0xFF68788C)),
+          child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        FilledButton(
+          onPressed: saving ? null : () async {
+            if (!formKey.currentState!.validate()) return;
+            
+            setState(() => saving = true);
+            final name = nameCtrl.text.trim();
+            final vehicle = vehicleCtrl.text.trim();
+            
+            try {
+              if (isEditing) {
+                await Supabase.instance.client.rpc('admin_update_driver', params: {
+                  'p_id': widget.driver!['id'],
+                  'p_name': name,
+                  'p_vehicle': vehicle,
+                });
+              } else {
+                final rnd = Random();
+                final ratings = [4.5, 4.6, 4.7, 4.8, 4.9, 5.0];
+                final rating = ratings[rnd.nextInt(ratings.length)];
+                final colors = ['0xFF00E2A7', '0xFFFFCE3D', '0xFF40A9FF'];
+                final color = colors[rnd.nextInt(colors.length)];
+                final lat = 3.0000 + rnd.nextDouble() * 0.2500;
+                final lng = 101.6000 + rnd.nextDouble() * 0.3000;
+                
+                await Supabase.instance.client.rpc('admin_add_driver', params: {
+                  'p_name': name,
+                  'p_vehicle': vehicle,
+                  'p_rating': rating,
+                  'p_color': color,
+                  'p_lat': double.parse(lat.toStringAsFixed(4)),
+                  'p_lng': double.parse(lng.toStringAsFixed(4)),
+                });
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isEditing ? 'Driver updated successfully' : 'Driver added successfully')));
+                Navigator.of(context).pop(true);
+              }
+            } catch (e) {
+              if (mounted) {
+                setState(() => saving = false);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            }
+          },
+          style: FilledButton.styleFrom(
+            backgroundColor: TrasiaColors.primary,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+          child: saving 
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+      ],
+    );
+  }
+}
+
 class _AdminDriversViewState extends State<_AdminDriversView> {
   bool _loading = true;
   String _searchQuery = '';
@@ -377,127 +511,13 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
   }
 
   Future<void> _showDriverForm([Map<String, dynamic>? driver]) async {
-    final isEditing = driver != null;
-    final nameCtrl = TextEditingController(text: driver?['name']);
-    final vehicleCtrl = TextEditingController(text: driver?['vehicle']);
-    final formKey = GlobalKey<FormState>();
-    bool saving = false;
-
-    try {
-      await showDialog<void>(
-        context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Text(isEditing ? 'Edit Driver' : 'Add Driver', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF102033))),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-            contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-            content: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: nameCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Driver Name',
-                        filled: true,
-                        fillColor: const Color(0xFFF2F6FB),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      ),
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: vehicleCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Vehicle Details',
-                        filled: true,
-                        fillColor: const Color(0xFFF2F6FB),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      ),
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Vehicle is required' : null,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-            actions: [
-              TextButton(
-                onPressed: saving ? null : () => Navigator.of(context).pop(),
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFF68788C)),
-                child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-              FilledButton(
-                onPressed: saving ? null : () async {
-                  if (!formKey.currentState!.validate()) return;
-                  
-                  setState(() => saving = true);
-                  final name = nameCtrl.text.trim();
-                  final vehicle = vehicleCtrl.text.trim();
-                  
-                  try {
-                    if (isEditing) {
-                      await Supabase.instance.client.rpc('admin_update_driver', params: {
-                        'p_id': driver['id'],
-                        'p_name': name,
-                        'p_vehicle': vehicle,
-                      });
-                    } else {
-                      final rnd = Random();
-                      
-                      final ratings = [4.5, 4.6, 4.7, 4.8, 4.9, 5.0];
-                      final rating = ratings[rnd.nextInt(ratings.length)];
-                      
-                      final colors = ['0xFF00E2A7', '0xFFFFCE3D', '0xFF40A9FF'];
-                      final color = colors[rnd.nextInt(colors.length)];
-                      
-                      final lat = 3.0000 + rnd.nextDouble() * 0.2500;
-                      final lng = 101.6000 + rnd.nextDouble() * 0.3000;
-                      
-                      await Supabase.instance.client.rpc('admin_add_driver', params: {
-                        'p_name': name,
-                        'p_vehicle': vehicle,
-                        'p_rating': rating,
-                        'p_color': color,
-                        'p_lat': double.parse(lat.toStringAsFixed(4)),
-                        'p_lng': double.parse(lng.toStringAsFixed(4)),
-                      });
-                    }
-                    if (mounted) {
-                      Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isEditing ? 'Driver updated successfully' : 'Driver added successfully')));
-                      _fetchDrivers();
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      setState(() => saving = false);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                    }
-                  }
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: TrasiaColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                child: saving 
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-            ],
-          );
-        }
-      ),
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _DriverFormDialog(driver: driver),
     );
-    } finally {
-      nameCtrl.dispose();
-      vehicleCtrl.dispose();
+    if (result == true) {
+      _fetchDrivers();
     }
   }
 
@@ -988,6 +1008,77 @@ class _AdminVouchersView extends StatefulWidget {
   State<_AdminVouchersView> createState() => _AdminVouchersViewState();
 }
 
+class _VoucherFormDialog extends StatefulWidget {
+  final Map<String, dynamic>? voucher;
+  const _VoucherFormDialog({this.voucher});
+
+  @override
+  State<_VoucherFormDialog> createState() => _VoucherFormDialogState();
+}
+
+class _VoucherFormDialogState extends State<_VoucherFormDialog> {
+  late final TextEditingController titleCtrl;
+  late final TextEditingController descCtrl;
+  late final TextEditingController costCtrl;
+  late final TextEditingController creditCtrl;
+  late final TextEditingController iconCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    titleCtrl = TextEditingController(text: widget.voucher?['title']);
+    descCtrl = TextEditingController(text: widget.voucher?['description']);
+    costCtrl = TextEditingController(text: widget.voucher?['point_cost']?.toString());
+    creditCtrl = TextEditingController(text: widget.voucher?['hub_pool_credit']?.toString());
+    iconCtrl = TextEditingController(text: widget.voucher?['icon'] ?? 'local_offer');
+  }
+
+  @override
+  void dispose() {
+    titleCtrl.dispose();
+    descCtrl.dispose();
+    costCtrl.dispose();
+    creditCtrl.dispose();
+    iconCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.voucher == null ? 'Add Voucher' : 'Edit Voucher'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder())),
+            const SizedBox(height: 16),
+            TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder())),
+            const SizedBox(height: 16),
+            TextField(controller: costCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Point Cost', border: OutlineInputBorder())),
+            const SizedBox(height: 16),
+            TextField(controller: creditCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Credit Value (RM)', border: OutlineInputBorder())),
+            const SizedBox(height: 16),
+            TextField(controller: iconCtrl, decoration: const InputDecoration(labelText: 'Icon Name (e.g. local_offer)', border: OutlineInputBorder())),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(null), child: const Text('Cancel')),
+        FilledButton(onPressed: () {
+          Navigator.of(context).pop({
+            'title': titleCtrl.text,
+            'description': descCtrl.text,
+            'point_cost': costCtrl.text,
+            'hub_pool_credit': creditCtrl.text,
+            'icon': iconCtrl.text,
+          });
+        }, child: const Text('Save')),
+      ],
+    );
+  }
+}
+
 class _AdminVouchersViewState extends State<_AdminVouchersView> {
   bool _loading = true;
   String _searchQuery = '';
@@ -1052,70 +1143,33 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
   }
 
   Future<void> _showVoucherForm([Map<String, dynamic>? voucher]) async {
-    final titleCtrl = TextEditingController(text: voucher?['title']);
-    final descCtrl = TextEditingController(text: voucher?['description']);
-    final costCtrl = TextEditingController(text: voucher?['point_cost']?.toString());
-    final creditCtrl = TextEditingController(text: voucher?['hub_pool_credit']?.toString());
-    final iconCtrl = TextEditingController(text: voucher?['icon'] ?? 'local_offer');
-
-    try {
-      final result = await showDialog<bool>(
-        context: context,
-      builder: (context) => AlertDialog(
-        title: Text(voucher == null ? 'Add Voucher' : 'Edit Voucher'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder())),
-              const SizedBox(height: 16),
-              TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder())),
-              const SizedBox(height: 16),
-              TextField(controller: costCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Point Cost', border: OutlineInputBorder())),
-              const SizedBox(height: 16),
-              TextField(controller: creditCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Credit Value (RM)', border: OutlineInputBorder())),
-              const SizedBox(height: 16),
-              TextField(controller: iconCtrl, decoration: const InputDecoration(labelText: 'Icon Name (e.g. local_offer)', border: OutlineInputBorder())),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Save')),
-        ],
-      ),
+    final result = await showDialog<Map<String, String>?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _VoucherFormDialog(voucher: voucher),
     );
 
-    if (result == true && titleCtrl.text.isNotEmpty) {
+    if (result != null && result['title']!.isNotEmpty) {
       try {
-        final data = {
-          'title': titleCtrl.text,
-          'description': descCtrl.text,
-          'point_cost': int.tryParse(costCtrl.text) ?? 0,
-          'hub_pool_credit': double.tryParse(creditCtrl.text) ?? 0.0,
-          'icon': iconCtrl.text,
-          'kind': voucher?['kind'] ?? 'discount',
-          'accent_color': voucher?['accent_color'] ?? '#0B7CFF',
-        };
         if (voucher == null) {
           await Supabase.instance.client.rpc('admin_add_voucher', params: {
             'p_id': 'voucher-${DateTime.now().millisecondsSinceEpoch}',
-            'p_title': titleCtrl.text,
-            'p_description': descCtrl.text,
-            'p_point_cost': int.tryParse(costCtrl.text) ?? 0,
-            'p_hub_pool_credit': double.tryParse(creditCtrl.text) ?? 0.0,
-            'p_icon': iconCtrl.text,
+            'p_title': result['title'],
+            'p_description': result['description'],
+            'p_point_cost': int.tryParse(result['point_cost']!) ?? 0,
+            'p_hub_pool_credit': double.tryParse(result['hub_pool_credit']!) ?? 0.0,
+            'p_icon': result['icon'],
             'p_kind': voucher?['kind'] ?? 'discount',
             'p_accent_color': voucher?['accent_color'] ?? '#0B7CFF',
           });
         } else {
           await Supabase.instance.client.rpc('admin_update_voucher', params: {
             'p_id': voucher['id'],
-            'p_title': titleCtrl.text,
-            'p_description': descCtrl.text,
-            'p_point_cost': int.tryParse(costCtrl.text) ?? 0,
-            'p_hub_pool_credit': double.tryParse(creditCtrl.text) ?? 0.0,
-            'p_icon': iconCtrl.text,
+            'p_title': result['title'],
+            'p_description': result['description'],
+            'p_point_cost': int.tryParse(result['point_cost']!) ?? 0,
+            'p_hub_pool_credit': double.tryParse(result['hub_pool_credit']!) ?? 0.0,
+            'p_icon': result['icon'],
             'p_kind': voucher?['kind'] ?? 'discount',
             'p_accent_color': voucher?['accent_color'] ?? '#0B7CFF',
           });
@@ -1124,13 +1178,6 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
-    }
-    } finally {
-      titleCtrl.dispose();
-      descCtrl.dispose();
-      costCtrl.dispose();
-      creditCtrl.dispose();
-      iconCtrl.dispose();
     }
   }
 

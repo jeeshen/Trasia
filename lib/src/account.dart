@@ -1456,6 +1456,24 @@ class _ProfileSheet extends StatelessWidget {
   }
 }
 
+void _showSuccessToast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 2),
+    ),
+  );
+}
+
+void _showErrorToast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 2),
+    ),
+  );
+}
+
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     this.currentUsername,
@@ -1485,6 +1503,7 @@ class _SettingsPage extends StatelessWidget {
             ),
             scaffoldBackgroundColor: Colors.white,
             useMaterial3: true,
+            snackBarTheme: _trasiaSnackBarTheme,
           ),
           child: Scaffold(
             appBar: AppBar(
@@ -1660,15 +1679,9 @@ class _EditEmailPageState extends State<_EditEmailPage> {
       await authService.updateEmail(newEmail);
       widget.onEmailChanged?.call(newEmail);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Email updated successfully. Please use your new email next time you sign in.',
-            ),
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.fromLTRB(16, 0, 16, 90),
-            duration: Duration(seconds: 2),
-          ),
+        _showSuccessToast(
+          context,
+          'Email updated successfully.',
         );
         Navigator.of(context).pop();
       }
@@ -1698,6 +1711,7 @@ class _EditEmailPageState extends State<_EditEmailPage> {
         ),
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
+        snackBarTheme: _trasiaSnackBarTheme,
       ),
       child: Scaffold(
         appBar: AppBar(
@@ -1839,21 +1853,15 @@ class _EditPasswordPageState extends State<_EditPasswordPage> {
     final p2 = _confirmCtrl.text;
 
     if (pOld.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please enter your current password')));
+      _showErrorToast(context, 'Please enter your current password.');
       return;
     }
     if (p1.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 6 characters')),
-      );
+      _showErrorToast(context, 'Password must be at least 6 characters.');
       return;
     }
     if (p1 != p2) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
+      _showErrorToast(context, 'Passwords do not match.');
       return;
     }
 
@@ -1863,23 +1871,52 @@ class _EditPasswordPageState extends State<_EditPasswordPage> {
       await authService.verifyCurrentPassword(pOld);
       await authService.updatePassword(p1);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password updated successfully.'),
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.fromLTRB(16, 0, 16, 90),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        _showSuccessToast(context, 'Password updated successfully.');
         Navigator.of(context).pop();
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update password: $e')),
-        );
+    } catch (e, stackTrace) {
+      debugPrint("ERROR TYPE: ${e.runtimeType}");
+      debugPrint("ERROR: $e");
+
+      if (e is AuthException) {
+        debugPrint("AUTH CODE: ${e.code}");
+        debugPrint("AUTH MESSAGE: ${e.message}");
+        debugPrint("AUTH STATUS: ${e.statusCode}");
       }
+
+      debugPrintStack();
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      String errorStr = e.toString().toLowerCase();
+      if (e is AuthException) {
+        errorStr = e.message.toLowerCase();
+      }
+
+      String friendlyMsg = 'Something went wrong. Please try again later.';
+
+      if (errorStr.contains('invalid login credentials') ||
+          errorStr.contains('invalid password') ||
+          errorStr.contains('current password is incorrect') ||
+          errorStr.contains('incorrect current password') ||
+          errorStr.contains('invalid claim')) {
+        friendlyMsg = 'Current password is incorrect.';
+      } else if (errorStr.contains('new password should be different') ||
+          errorStr.contains('password cannot be reused') ||
+          errorStr.contains('same password')) {
+        friendlyMsg = 'Your new password must be different from your current password.';
+      } else if (errorStr.contains('weak password') ||
+          errorStr.contains('password should be at least')) {
+        friendlyMsg = 'Please choose a stronger password.';
+      } else if (errorStr.contains('network') ||
+          errorStr.contains('timeout') ||
+          errorStr.contains('socket') ||
+          errorStr.contains('connection')) {
+        friendlyMsg = 'Unable to update your password. Please try again.';
+      }
+
+      _showErrorToast(context, friendlyMsg);
     }
   }
 
@@ -1902,6 +1939,7 @@ class _EditPasswordPageState extends State<_EditPasswordPage> {
         ),
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
+        snackBarTheme: _trasiaSnackBarTheme,
       ),
       child: Scaffold(
         appBar: AppBar(
@@ -2023,12 +2061,36 @@ class _EditUsernamePageState extends State<_EditUsernamePage> {
   bool? _isAvailable;
   String? _errorMsg;
   List<String> _suggestions = [];
+  String? _fetchedUsername;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.currentUsername);
+    _controller = TextEditingController();
     _controller.addListener(_onTextChanged);
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final res = await Supabase.instance.client
+            .from('profiles')
+            .select('username')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (res != null && res['username'] != null) {
+          _fetchedUsername = res['username'] as String;
+          _controller.text = _fetchedUsername!;
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to load profile: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -2040,7 +2102,7 @@ class _EditUsernamePageState extends State<_EditUsernamePage> {
 
   void _onTextChanged() {
     final text = _controller.text.trim();
-    if (text == widget.currentUsername) {
+    if (text == _fetchedUsername) {
       setState(() {
         _isAvailable = null;
         _errorMsg = null;
@@ -2125,7 +2187,7 @@ class _EditUsernamePageState extends State<_EditUsernamePage> {
       setState(() => _errorMsg = 'Username cannot be empty');
       return;
     }
-    if (newUsername == widget.currentUsername) {
+    if (newUsername == _fetchedUsername) {
       Navigator.of(context).pop();
       return;
     }
@@ -2150,14 +2212,7 @@ class _EditUsernamePageState extends State<_EditUsernamePage> {
         await authService.updateProfile(updated);
         widget.onUsernameChanged?.call(newUsername);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Username updated successfully'),
-              behavior: SnackBarBehavior.floating,
-              margin: EdgeInsets.fromLTRB(16, 0, 16, 90),
-              duration: Duration(seconds: 2),
-            ),
-          );
+          _showSuccessToast(context, 'Username updated successfully');
           Navigator.of(context).pop();
         }
       }
@@ -2182,6 +2237,7 @@ class _EditUsernamePageState extends State<_EditUsernamePage> {
         ),
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
+        snackBarTheme: _trasiaSnackBarTheme,
       ),
       child: Scaffold(
         appBar: AppBar(

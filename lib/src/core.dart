@@ -192,35 +192,26 @@ class AuthService {
     final user = _client.auth.currentUser;
     if (user == null) return;
 
-    final res = await _client
-        .from('profiles')
-        .select('id')
-        .ilike('email', newEmail)
-        .neq('id', user.id)
-        .maybeSingle();
-
-    if (res != null) {
-      throw const AuthException('This email address is already in use.');
-    }
-
     try {
-      await _client.auth.updateUser(UserAttributes(email: newEmail));
-    } catch (e) {
-      rethrow;
-    }
-
-    try {
-      await _client
-          .from('profiles')
-          .update({'email': newEmail})
-          .eq('id', user.id);
-      final updated = await currentProfile();
-      if (updated != null) globalAuthProfileNotifier.value = updated;
-    } catch (e, stack) {
-      debugPrint(
-        "Caught exception in AuthService.updateEmail (profiles sync): $e\n$stack",
+      final response = await _client.functions.invoke(
+        'update-email',
+        body: {
+          'userId': user.id,
+          'newEmail': newEmail,
+        },
       );
-      throw const AuthException('Profile could not be synchronized.');
+      
+      if (response.status == 200) {
+        final updated = await currentProfile();
+        if (updated != null) globalAuthProfileNotifier.value = updated;
+      }
+    } on FunctionException catch (e) {
+      if (e.status == 409) {
+        throw const AuthException('This email is already in use.');
+      }
+      throw const AuthException('Unable to update email. Please try again.');
+    } catch (e) {
+      throw const AuthException('Unable to update email. Please try again.');
     }
   }
 
