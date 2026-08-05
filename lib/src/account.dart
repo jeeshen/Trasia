@@ -1484,6 +1484,82 @@ class _SettingsPage extends StatelessWidget {
   final ValueChanged<String>? onUsernameChanged;
   final ValueChanged<String>? onEmailChanged;
 
+  Widget _buildSettingsGroup(String title, List<Widget> children) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 24, top: 24, right: 24, bottom: 8),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+          ),
+          ...children,
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsTile(IconData icon, String title, String subtitle, {VoidCallback? onTap, bool isDestructive = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDestructive ? const Color(0xFFF43F5E).withValues(alpha: 0.1) : const Color(0xFFF7F9FC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: isDestructive ? const Color(0xFFF43F5E) : const Color(0xFF0057C8), size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: isDestructive ? const Color(0xFFF43F5E) : const Color(0xFF1F2937))),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                    ],
+                  ],
+                ),
+              ),
+              if (onTap != null && !isDestructive)
+                const Icon(Icons.chevron_right_rounded, color: Color(0xFFD1D5DB)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AuthProfile?>(
@@ -1501,61 +1577,84 @@ class _SettingsPage extends StatelessWidget {
               seedColor: TrasiaColors.primary,
               brightness: Brightness.light,
             ),
-            scaffoldBackgroundColor: Colors.white,
+            scaffoldBackgroundColor: const Color(0xFFF7F9FC),
             useMaterial3: true,
             snackBarTheme: _trasiaSnackBarTheme,
           ),
           child: Scaffold(
             appBar: AppBar(
-              title: const Text(
-                'Settings',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF102033),
-                  fontSize: 18,
-                ),
-              ),
-              backgroundColor: Colors.white,
+              backgroundColor: const Color(0xFFF7F9FC),
               elevation: 0,
-              iconTheme: const IconThemeData(color: Color(0xFF93A1B2)),
+              scrolledUnderElevation: 0,
+              iconTheme: const IconThemeData(color: Color(0xFF1F2937)),
             ),
             body: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
               children: [
-                _ProfileSettingRow(
-                  icon: Icons.person_outline_rounded,
-                  title: 'Username',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => EditUsernamePage(
-                        currentUsername: currentUsername,
-                        onUsernameChanged: onUsernameChanged,
+                const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Settings', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF102033))),
+                          SizedBox(height: 6),
+                          Text('Manage your account and system preferences.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF68788C))),
+                        ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                _ProfileSettingRow(
-                  icon: Icons.email_outlined,
-                  title: 'Email',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => EditEmailPage(
-                        currentEmail: currentEmail,
-                        onEmailChanged: onEmailChanged,
-                      ),
-                    ),
+                const SizedBox(height: 24),
+                _buildSettingsGroup('Profile', [
+                  _buildSettingsTile(
+                    Icons.person_outline_rounded,
+                    'Username',
+                    currentUsername ?? 'Not set',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => EditUsernamePage(
+                            currentUsername: currentUsername,
+                            onUsernameChanged: onUsernameChanged,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-                _ProfileSettingRow(
-                  icon: Icons.lock_outline_rounded,
-                  title: 'Password',
-                  showDivider: false,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => const EditPasswordPage(),
-                    ),
+                  const Divider(height: 1, color: Color(0xFFF3F4F6), indent: 80, endIndent: 24),
+                  _buildSettingsTile(
+                    Icons.email_outlined,
+                    'Email Address',
+                    currentEmail.isEmpty ? 'Unknown' : currentEmail,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => EditEmailPage(
+                            currentEmail: currentEmail,
+                            onEmailChanged: onEmailChanged,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
+                ]),
+                _buildSettingsGroup('Security', [
+                  _buildSettingsTile(
+                    Icons.lock_outline_rounded,
+                    'Password',
+                    'Change your password',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => const EditPasswordPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ]),
               ],
             ),
           ),
