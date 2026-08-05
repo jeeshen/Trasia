@@ -1527,7 +1527,7 @@ class _SettingsPage extends StatelessWidget {
                   title: 'Username',
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (context) => _EditUsernamePage(
+                      builder: (context) => EditUsernamePage(
                         currentUsername: currentUsername,
                         onUsernameChanged: onUsernameChanged,
                       ),
@@ -1539,7 +1539,7 @@ class _SettingsPage extends StatelessWidget {
                   title: 'Email',
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (context) => _EditEmailPage(
+                      builder: (context) => EditEmailPage(
                         currentEmail: currentEmail,
                         onEmailChanged: onEmailChanged,
                       ),
@@ -1552,7 +1552,7 @@ class _SettingsPage extends StatelessWidget {
                   showDivider: false,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (context) => const _EditPasswordPage(),
+                      builder: (context) => const EditPasswordPage(),
                     ),
                   ),
                 ),
@@ -1565,15 +1565,19 @@ class _SettingsPage extends StatelessWidget {
   }
 }
 
-class _EditEmailPage extends StatefulWidget {
-  const _EditEmailPage({this.currentEmail, this.onEmailChanged});
+class EditEmailPage extends StatefulWidget {
+  const EditEmailPage({
+    super.key,
+    this.currentEmail,
+    this.onEmailChanged,
+  });
   final String? currentEmail;
   final ValueChanged<String>? onEmailChanged;
   @override
-  State<_EditEmailPage> createState() => _EditEmailPageState();
+  State<EditEmailPage> createState() => _EditEmailPageState();
 }
 
-class _EditEmailPageState extends State<_EditEmailPage> {
+class _EditEmailPageState extends State<EditEmailPage> {
   late final TextEditingController _controller;
   Timer? _debounce;
   bool _isLoading = false;
@@ -1835,13 +1839,13 @@ class _EditEmailPageState extends State<_EditEmailPage> {
 
 
 
-class _EditPasswordPage extends StatefulWidget {
-  const _EditPasswordPage();
+class EditPasswordPage extends StatefulWidget {
+  const EditPasswordPage({super.key});
   @override
-  State<_EditPasswordPage> createState() => _EditPasswordPageState();
+  State<EditPasswordPage> createState() => _EditPasswordPageState();
 }
 
-class _EditPasswordPageState extends State<_EditPasswordPage> {
+class _EditPasswordPageState extends State<EditPasswordPage> {
   final _oldPassCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
@@ -2044,16 +2048,20 @@ class _EditPasswordPageState extends State<_EditPasswordPage> {
   }
 }
 
-class _EditUsernamePage extends StatefulWidget {
-  const _EditUsernamePage({this.currentUsername, this.onUsernameChanged});
+class EditUsernamePage extends StatefulWidget {
+  const EditUsernamePage({
+    super.key,
+    this.currentUsername,
+    this.onUsernameChanged,
+  });
   final String? currentUsername;
   final ValueChanged<String>? onUsernameChanged;
 
   @override
-  State<_EditUsernamePage> createState() => _EditUsernamePageState();
+  State<EditUsernamePage> createState() => _EditUsernamePageState();
 }
 
-class _EditUsernamePageState extends State<_EditUsernamePage> {
+class _EditUsernamePageState extends State<EditUsernamePage> {
   late final TextEditingController _controller;
   Timer? _debounce;
   bool _isLoading = false;

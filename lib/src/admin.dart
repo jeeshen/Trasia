@@ -2141,25 +2141,36 @@ class _AdminSettingsView extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  onPressed: onProfileRefresh,
-                  icon: const Icon(Icons.refresh_rounded, size: 28, color: Color(0xFF0057C8)),
-                ),
               ],
             ),
             const SizedBox(height: 24),
             _buildSettingsGroup('Profile', [
-              _buildSettingsTile(Icons.person_outline_rounded, 'Username', profile.username ?? 'Not set', onTap: () {}),
+              _buildSettingsTile(Icons.person_outline_rounded, 'Username', profile.username ?? 'Not set', onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => EditUsernamePage(currentUsername: profile.username),
+                  ),
+                );
+                onProfileRefresh();
+              }),
               const Divider(height: 1, color: Color(0xFFF3F4F6), indent: 80, endIndent: 24),
-              _buildSettingsTile(Icons.email_outlined, 'Email Address', Supabase.instance.client.auth.currentUser?.email ?? 'Unknown', onTap: () {}),
+              _buildSettingsTile(Icons.email_outlined, 'Email Address', Supabase.instance.client.auth.currentUser?.email ?? 'Unknown', onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => EditEmailPage(currentEmail: Supabase.instance.client.auth.currentUser?.email),
+                  ),
+                );
+                onProfileRefresh();
+              }),
             ]),
             _buildSettingsGroup('Security', [
-              _buildSettingsTile(Icons.lock_outline_rounded, 'Password', 'Change your password', onTap: () {}),
-            ]),
-            _buildSettingsGroup('System', [
-              _buildSettingsTile(Icons.language_rounded, 'Language', 'English', onTap: () {}),
-              const Divider(height: 1, color: Color(0xFFF3F4F6), indent: 80, endIndent: 24),
-              _buildSettingsTile(Icons.dark_mode_outlined, 'Appearance', 'Light Mode', onTap: () {}),
+              _buildSettingsTile(Icons.lock_outline_rounded, 'Password', 'Change your password', onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => const EditPasswordPage(),
+                  ),
+                );
+              }),
             ]),
             _buildSettingsGroup('Account', [
               _buildSettingsTile(Icons.logout_rounded, 'Log Out', 'Sign out of admin panel', onTap: onLogout, isDestructive: true),
