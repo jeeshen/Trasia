@@ -334,168 +334,141 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF0057C8)));
     }
-    
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth > 800;
-        final isTablet = constraints.maxWidth > 600 && !isDesktop;
-        
-        return ListView(
-          padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 120),
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.only(top: 24),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0057C8),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Text('A', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _getGreeting(),
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF1F2937), letterSpacing: -0.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+
+    final statCards = [
+      _SaasStatCard(
+        countText: _usersCount.toString(),
+        labelText: _usersCount == 1 ? 'User' : 'Users',
+        change: _newUsersCount == null ? null : '+${_newUsersCount} ${_newUsersCount == 1 ? 'user' : 'users'} this week',
+        icon: Icons.people_alt_rounded,
+        color: const Color(0xFF3B82F6),
+      ),
+      _SaasStatCard(
+        countText: _driversCount.toString(),
+        labelText: _driversCount == 1 ? 'Driver' : 'Drivers',
+        change: _newDriversCount == null ? null : '+${_newDriversCount} ${_newDriversCount == 1 ? 'driver' : 'drivers'} this week',
+        icon: Icons.local_taxi_rounded,
+        color: const Color(0xFFF97316),
+      ),
+      _SaasStatCard(
+        countText: _vouchersCount.toString(),
+        labelText: _vouchersCount == 1 ? 'Voucher' : 'Vouchers',
+        change: _newVouchersCount == null ? null : '+${_newVouchersCount} ${_newVouchersCount == 1 ? 'voucher' : 'vouchers'} this week',
+        icon: Icons.local_offer_rounded,
+        color: const Color(0xFF10B981),
+      ),
+      _SaasStatCard(
+        countText: _adminsCount.toString(),
+        labelText: _adminsCount == 1 ? 'Admin' : 'Admins',
+        change: null, // Admins do not require weekly statistics
+        icon: Icons.admin_panel_settings_rounded,
+        color: const Color(0xFFEF4444),
+      ),
+    ];
+
+    final actionCards = [
+      _SaasActionCard(
+        title: 'Manage Drivers',
+        description: 'Manage all registered drivers.',
+        icon: Icons.local_taxi_rounded,
+        onTap: () => widget.onNavigate(_AdminView.drivers)
+      ),
+      _SaasActionCard(
+        title: 'Manage Vouchers',
+        description: 'Create and manage rewards.',
+        icon: Icons.local_offer_rounded,
+        onTap: () => widget.onNavigate(_AdminView.vouchers)
+      ),
+      _SaasActionCard(
+        title: 'Manage Users',
+        description: 'View registered users.',
+        icon: Icons.people_alt_rounded,
+        onTap: () => widget.onNavigate(_AdminView.users)
+      ),
+      _SaasActionCard(
+        title: 'Analytics',
+        description: 'View platform reports.',
+        icon: Icons.bar_chart_rounded,
+        onTap: () => widget.onNavigate(_AdminView.analytics)
+      ),
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 120),
+      children: [
+        // Header
+        Padding(
+          padding: const EdgeInsets.only(top: 24),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0057C8),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: const Text('A', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
               ),
-            ),
-            const SizedBox(height: 24),
-            
-            // Statistics Cards
-            LayoutBuilder(
-              builder: (context, boxConstraints) {
-                final double spacing = 16;
-                int crossAxisCount = isDesktop ? 4 : (isTablet ? 2 : 2);
-                double cardWidth = (boxConstraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
-                
-                return Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      width: cardWidth,
-                      child: _SaasStatCard(
-                        countText: _usersCount.toString(),
-                        labelText: _usersCount == 1 ? 'User' : 'Users',
-                        change: _newUsersCount == null ? null : '+${_newUsersCount} ${_newUsersCount == 1 ? 'user' : 'users'} this week',
-                        icon: Icons.people_alt_rounded,
-                        color: const Color(0xFF3B82F6),
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: _SaasStatCard(
-                        countText: _driversCount.toString(),
-                        labelText: _driversCount == 1 ? 'Driver' : 'Drivers',
-                        change: _newDriversCount == null ? null : '+${_newDriversCount} ${_newDriversCount == 1 ? 'driver' : 'drivers'} this week',
-                        icon: Icons.local_taxi_rounded,
-                        color: const Color(0xFFF97316),
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: _SaasStatCard(
-                        countText: _vouchersCount.toString(),
-                        labelText: _vouchersCount == 1 ? 'Voucher' : 'Vouchers',
-                        change: _newVouchersCount == null ? null : '+${_newVouchersCount} ${_newVouchersCount == 1 ? 'voucher' : 'vouchers'} this week',
-                        icon: Icons.local_offer_rounded,
-                        color: const Color(0xFF10B981),
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: _SaasStatCard(
-                        countText: _adminsCount.toString(),
-                        labelText: _adminsCount == 1 ? 'Admin' : 'Admins',
-                        change: null, // Admins do not require weekly statistics
-                        icon: Icons.admin_panel_settings_rounded,
-                        color: const Color(0xFFEF4444),
-                      ),
+                    Text(
+                      _getGreeting(),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF1F2937), letterSpacing: -0.5),
                     ),
                   ],
-                );
-              }
-            ),
-            
-            const SizedBox(height: 48),
-            
-            // Quick Actions
-            const Text(
-              'Quick Actions',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
-            ),
-            const SizedBox(height: 16),
-            
-            LayoutBuilder(
-              builder: (context, boxConstraints) {
-                final double spacing = 20;
-                int crossAxisCount = isDesktop ? 4 : (isTablet ? 2 : 1);
-                double cardWidth = (boxConstraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
-                
-                return Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  children: [
-                    SizedBox(
-                      width: cardWidth, 
-                      child: _SaasActionCard(
-                        title: 'Manage Drivers',
-                        description: 'Manage all registered drivers.',
-                        icon: Icons.local_taxi_rounded,
-                        onTap: () => widget.onNavigate(_AdminView.drivers)
-                      )
-                    ),
-                    SizedBox(
-                      width: cardWidth, 
-                      child: _SaasActionCard(
-                        title: 'Manage Vouchers',
-                        description: 'Create and manage rewards.',
-                        icon: Icons.local_offer_rounded,
-                        onTap: () => widget.onNavigate(_AdminView.vouchers)
-                      )
-                    ),
-                    SizedBox(
-                      width: cardWidth, 
-                      child: _SaasActionCard(
-                        title: 'Manage Users',
-                        description: 'View registered users.',
-                        icon: Icons.people_alt_rounded,
-                        onTap: () => widget.onNavigate(_AdminView.users)
-                      )
-                    ),
-                    SizedBox(
-                      width: cardWidth, 
-                      child: _SaasActionCard(
-                        title: 'Analytics',
-                        description: 'View platform reports.',
-                        icon: Icons.bar_chart_rounded,
-                        onTap: () => widget.onNavigate(_AdminView.analytics)
-                      )
-                    ),
-                  ],
-                );
-              }
-            ),
-            
-          ],
-        );
-      },
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        
+        // Statistics Cards
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: statCards[0]),
+              const SizedBox(width: 24),
+              Expanded(child: statCards[1]),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: statCards[2]),
+              const SizedBox(width: 24),
+              Expanded(child: statCards[3]),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 48),
+        
+        // Quick Actions
+        const Text(
+          'Quick Actions',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
+        ),
+        const SizedBox(height: 16),
+        actionCards[0],
+        const SizedBox(height: 16),
+        actionCards[1],
+        const SizedBox(height: 16),
+        actionCards[2],
+        const SizedBox(height: 16),
+        actionCards[3],
+      ],
     );
   }
 }

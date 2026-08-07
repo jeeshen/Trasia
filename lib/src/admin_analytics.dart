@@ -415,24 +415,27 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           child: _buildLineChart(_users, const Color(0xFF0057C8), 'New Users'),
         ),
         const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSummaryCard(
-                title: 'Total Users',
-                value: _users.length.toString(),
-                color: const Color(0xFF1F2937),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  title: 'Total Users',
+                  value: _users.length.toString(),
+                  color: const Color(0xFF1F2937),
+                ),
               ),
-            ),
-            const SizedBox(width: 24),
-            Expanded(
-              child: _buildSummaryCard(
-                title: 'New This Week',
-                value: '+$newThisWeek',
-                color: const Color(0xFF0057C8),
+              const SizedBox(width: 24),
+              Expanded(
+                child: _buildSummaryCard(
+                  title: 'New This Week',
+                  value: '+$newThisWeek',
+                  color: const Color(0xFF0057C8),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -458,24 +461,27 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           child: _buildLineChart(_drivers, const Color(0xFFF97316), 'New Drivers'),
         ),
         const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSummaryCard(
-                title: 'Total Drivers',
-                value: _drivers.length.toString(),
-                color: const Color(0xFF1F2937),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  title: 'Total Drivers',
+                  value: _drivers.length.toString(),
+                  color: const Color(0xFF1F2937),
+                ),
               ),
-            ),
-            const SizedBox(width: 24),
-            Expanded(
-              child: _buildSummaryCard(
-                title: 'New This Week',
-                value: '+$newThisWeek',
-                color: const Color(0xFFF97316),
+              const SizedBox(width: 24),
+              Expanded(
+                child: _buildSummaryCard(
+                  title: 'New This Week',
+                  value: '+$newThisWeek',
+                  color: const Color(0xFFF97316),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -501,24 +507,27 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           child: _buildLineChart(_vouchers, const Color(0xFF10B981), 'New Vouchers'),
         ),
         const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSummaryCard(
-                title: 'Total Vouchers',
-                value: _vouchers.length.toString(),
-                color: const Color(0xFF1F2937),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  title: 'Total Vouchers',
+                  value: _vouchers.length.toString(),
+                  color: const Color(0xFF1F2937),
+                ),
               ),
-            ),
-            const SizedBox(width: 24),
-            Expanded(
-              child: _buildSummaryCard(
-                title: 'Created This Week',
-                value: '+$newThisWeek',
-                color: const Color(0xFF10B981),
+              const SizedBox(width: 24),
+              Expanded(
+                child: _buildSummaryCard(
+                  title: 'Created This Week',
+                  value: '+$newThisWeek',
+                  color: const Color(0xFF10B981),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
