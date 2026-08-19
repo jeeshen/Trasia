@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
-
-/// The shared Trasia loading animation used throughout the app.
 class TrasiaLoadingCompass extends StatelessWidget {
   const TrasiaLoadingCompass({
     super.key,
     this.size = 64,
     this.semanticLabel = 'Loading',
   });
-
   final double size;
   final String semanticLabel;
-
   @override
   Widget build(BuildContext context) {
     return Semantics(

@@ -1,8 +1,6 @@
 part of '../main.dart';
-
 class TrasiaApp extends StatelessWidget {
   const TrasiaApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -23,14 +21,11 @@ class TrasiaApp extends StatelessWidget {
     );
   }
 }
-
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
-
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -38,7 +33,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   bool _signingUp = false;
   String? _message;
-
   @override
   void initState() {
     super.initState();
@@ -46,14 +40,12 @@ class _LoginScreenState extends State<LoginScreen> {
       unawaited(_resumeSession());
     }
   }
-
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
-
   Future<void> _resumeSession() async {
     try {
       final profile = await _auth.currentProfile();
@@ -66,7 +58,6 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
   }
-
   Future<void> _submit() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -84,7 +75,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
-
     setState(() {
       _loading = true;
       _message = null;
@@ -106,7 +96,6 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
   }
-
   void _enter(AuthProfile profile) {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
@@ -125,7 +114,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
   Future<void> _logoutFromDashboard(BuildContext context) async {
     if (SupabaseConfig.isReady) {
       await _auth.signOut();
@@ -138,7 +126,6 @@ class _LoginScreenState extends State<LoginScreen> {
       (_) => false,
     );
   }
-
   void _preview(UserRole role) {
     _enter(
       AuthProfile(
@@ -158,12 +145,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     const ink = Color(0xFF102033);
     const muted = Color(0xFF536477);
-
     return Theme(
       data: ThemeData(
         brightness: Brightness.light,
@@ -270,7 +255,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-
 class _AuthFormPanel extends StatelessWidget {
   const _AuthFormPanel({
     required this.signingUp,
@@ -283,7 +267,6 @@ class _AuthFormPanel extends StatelessWidget {
     required this.onPreviewUser,
     required this.onPreviewAdmin,
   });
-
   final bool signingUp;
   final bool loading;
   final String? message;
@@ -293,7 +276,6 @@ class _AuthFormPanel extends StatelessWidget {
   final VoidCallback? onToggleMode;
   final VoidCallback onPreviewUser;
   final VoidCallback onPreviewAdmin;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -382,7 +364,6 @@ class _AuthFormPanel extends StatelessWidget {
     );
   }
 }
-
 class _AuthPreviewButton extends StatelessWidget {
   const _AuthPreviewButton({
     required this.icon,
@@ -390,11 +371,9 @@ class _AuthPreviewButton extends StatelessWidget {
     required this.onTap,
     super.key,
   });
-
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
@@ -411,7 +390,6 @@ class _AuthPreviewButton extends StatelessWidget {
     );
   }
 }
-
 BoxDecoration _authPanelDecoration() {
   return BoxDecoration(
     color: Colors.white,

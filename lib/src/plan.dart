@@ -1,5 +1,4 @@
 part of '../main.dart';
-
 class PelancongPlanScreen extends StatefulWidget {
   const PelancongPlanScreen({
     required this.active,
@@ -20,7 +19,6 @@ class PelancongPlanScreen extends StatefulWidget {
     required this.onCheckInPlace,
     super.key,
   });
-
   final bool active;
   final AppMapController? mapController;
   final ValueChanged<SharedMapView> onMapViewChanged;
@@ -39,11 +37,9 @@ class PelancongPlanScreen extends StatefulWidget {
   onRedeemReward;
   final Map<String, CheckedInPlace> checkedInPlaces;
   final bool Function(String placeName) onCheckInPlace;
-
   @override
   State<PelancongPlanScreen> createState() => _PelancongPlanScreenState();
 }
-
 class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   double _attractionCount = 3;
   double _distanceKm = 10;
@@ -64,7 +60,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   bool _completionInProgress = false;
   late final List<Attraction> _blindBoxLocations = TrasiaData.attractions;
   PriceTier get _priceTier => PriceTier.values[_priceIndex.round()];
-
   void _openRewards() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -75,7 +70,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       ),
     );
   }
-
   void _openCheckInMemories() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -86,7 +80,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       ),
     );
   }
-
   Future<void> _openCheckInScanner(ItineraryStop stop) async {
     if (widget.checkedInPlaces.containsKey(
       _placeCheckInKey(stop.attraction.name),
@@ -133,7 +126,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       }
     }
   }
-
   @override
   void didUpdateWidget(covariant PelancongPlanScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -161,7 +153,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       });
     }
   }
-
   void _generate() {
     setState(() {
       _itinerary = _buildItinerary(
@@ -185,7 +176,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     unawaited(_loadFeatureCMarkerIcons());
     unawaited(_loadFeatureCDrivingRoute());
   }
-
   void _removeStop(ItineraryStop stop) {
     widget.onCancelDestination(stop.attraction.name);
     final removedIndex = _itinerary.indexOf(stop);
@@ -217,11 +207,9 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     });
     unawaited(_loadFeatureCDrivingRoute());
   }
-
   Future<void> _focusItineraryStop(ItineraryStop stop) async {
     await _mapController?.flyToLatLngZoom(stop.attraction.location, 16);
   }
-
   ItineraryStop? get _activeTripStop {
     final pendingStops = _itinerary
         .where((stop) => !_completedStopNames.contains(stop.attraction.name))
@@ -233,7 +221,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     }
     return pendingStops[_activeStopIndex];
   }
-
   void _startFeatureCTrip() {
     if (_itinerary.isEmpty) {
       return;
@@ -245,7 +232,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     });
     unawaited(_focusActiveTripStop());
   }
-
   void _markActiveStopArrived() {
     final stop = _activeTripStop;
     if (stop == null) {
@@ -282,7 +268,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     unawaited(_loadFeatureCDrivingRoute());
     unawaited(_focusActiveTripStop());
   }
-
   void _goToNextFeatureCStop() {
     final pendingCount = _itinerary
         .where((stop) => !_completedStopNames.contains(stop.attraction.name))
@@ -301,11 +286,9 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     });
     unawaited(_focusActiveTripStop());
   }
-
   void _finishFeatureCTrip() {
     unawaited(_completeFeatureCTrip());
   }
-
   void _completeDemoArrival() {
     if (_itinerary.isEmpty) {
       return;
@@ -322,7 +305,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     });
     unawaited(_completeFeatureCTrip());
   }
-
   Future<void> _completeFeatureCTrip() async {
     if (_itinerary.isEmpty || _completionInProgress) {
       return;
@@ -351,7 +333,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       return;
     }
   }
-
   void _resetFeatureCPlanner() {
     setState(() {
       _itinerary = const [];
@@ -366,7 +347,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       _routeRevision++;
     });
   }
-
   Future<void> _focusActiveTripStop() async {
     final stop = _activeTripStop;
     if (stop == null) {
@@ -374,7 +354,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     }
     await _mapController?.flyToLatLngZoom(stop.attraction.location, 15.5);
   }
-
   Future<void> _showMapStopAction(ItineraryStop stop) async {
     final canGo = identical(stop, _activeTripStop);
     final checkedIn = widget.checkedInPlaces.containsKey(
@@ -414,7 +393,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         break;
     }
   }
-
   Future<bool> _confirmCancel(ItineraryStop stop) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -439,7 +417,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     }
     return false;
   }
-
   Future<void> _fitItineraryMap() async {
     final controller = _mapController;
     if (controller == null || _itinerary.isEmpty) {
@@ -471,7 +448,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       88.0,
     );
   }
-
   SharedMapView get _currentMapView {
     if (_itinerary.isEmpty) {
       return SharedMapView(
@@ -498,7 +474,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       extraPolylines: _featureCPolylines(),
     );
   }
-
   Future<void> _loadFeatureCMarkerIcons() async {
     final stops = List<ItineraryStop>.of(_itinerary);
     var changed = false;
@@ -517,7 +492,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       _markerIconRevision++;
     });
   }
-
   Future<void> _loadFeatureCDrivingRoute() async {
     if (_travelMode == BlindBoxTravelMode.transit) {
       setState(() {
@@ -579,7 +553,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       });
     }
   }
-
   String _featureCMarkerKey(ItineraryStop stop) {
     return [
       stop.attraction.name,
@@ -589,7 +562,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       stop.attraction.color.toARGB32(),
     ].join('|');
   }
-
   Future<BitmapDescriptor> _createFeatureCMarkerIcon(ItineraryStop stop) async {
     const width = 264.0;
     const height = 112.0;
@@ -602,7 +574,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       const Rect.fromLTWH(0, 0, width, cardHeight),
       const Radius.circular(cardRadius),
     );
-
     canvas.drawRRect(
       cardRect.shift(const Offset(0, 4)),
       Paint()
@@ -616,7 +587,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         ..isAntiAlias = true
         ..color = Colors.white,
     );
-
     final attractionImage = await _loadFeatureCMarkerImage(
       stop.attraction.imageAsset,
     );
@@ -638,7 +608,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       Paint()..isAntiAlias = true,
     );
     canvas.restore();
-
     final titlePainter = TextPainter(
       text: TextSpan(
         text: stop.attraction.name,
@@ -654,7 +623,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       ellipsis: '...',
     )..layout(maxWidth: width - 84);
     titlePainter.paint(canvas, const Offset(74, 11));
-
     final metaPainter = TextPainter(
       text: TextSpan(
         text: '${_formatClock(stop.startMinute)} / RM ${stop.cost}',
@@ -670,7 +638,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       ellipsis: '...',
     )..layout(maxWidth: width - 84);
     metaPainter.paint(canvas, const Offset(74, 51));
-
     final pinCenter = Offset(width / 2, height - 18);
     final pinPaint = Paint()
       ..isAntiAlias = true
@@ -688,7 +655,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         ..isAntiAlias = true
         ..color = Colors.white,
     );
-
     final markerImage = await recorder.endRecording().toImage(
       width.toInt(),
       height.toInt(),
@@ -698,7 +664,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     );
     return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
-
   Future<ui.Image> _loadFeatureCMarkerImage(String assetPath) async {
     final data = await rootBundle.load(assetPath);
     final bytes = data.buffer.asUint8List(
@@ -713,7 +678,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     final frame = await codec.getNextFrame();
     return frame.image;
   }
-
   Set<Marker> _featureCMarkers() {
     return {
       for (final stop in _itinerary)
@@ -735,7 +699,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         ),
     };
   }
-
   Set<Polyline> _featureCPolylines() {
     final routePoints = _featureCRoutePoints;
     return {
@@ -763,7 +726,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         ),
     };
   }
-
   double _attractionMarkerHue(Color color) {
     if (color == const Color(0xFFFFCE3D)) {
       return BitmapDescriptor.hueYellow;
@@ -784,7 +746,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     }
     return BitmapDescriptor.hueRose;
   }
-
   void _publishMapView() {
     if (!widget.active) {
       return;
@@ -796,7 +757,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       }
     });
   }
-
   List<ItineraryStop> _buildItinerary({
     required int stopCount,
     required double totalDistanceKm,
@@ -813,7 +773,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       (sum, attraction) => sum + attraction.suggestedDistanceKm,
     );
     var clock = 9 * 60;
-
     return [
       for (var i = 0; i < attractions.length; i++)
         (() {
@@ -844,7 +803,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         })(),
     ];
   }
-
   List<Attraction> _pickBlindBoxMatches({
     required int stopCount,
     required double totalDistanceKm,
@@ -874,10 +832,8 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         : _blindBoxLocations;
     return _sampleUniquePhotoLocations(pool, stopCount);
   }
-
   int _uniqueImageCount(List<Attraction> locations) =>
       locations.map((location) => location.imageAsset).toSet().length;
-
   List<Attraction> _matchingLocations({
     required PriceTier priceTier,
     required double distanceLimit,
@@ -890,7 +846,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         )
         .toList();
   }
-
   List<Attraction> _sampleUniquePhotoLocations(
     List<Attraction> pool,
     int stopCount,
@@ -916,7 +871,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     }
     return selected;
   }
-
   @override
   Widget build(BuildContext context) {
     _mapController = widget.mapController ?? _mapController;
@@ -994,7 +948,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         ),
       );
     }
-
     return Theme(
       data: planTheme,
       child: ColoredBox(
@@ -1107,7 +1060,6 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
       ),
     );
   }
-
   @override
   void dispose() {
     super.dispose();

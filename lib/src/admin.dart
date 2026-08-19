@@ -1,7 +1,5 @@
 part of '../main.dart';
-
 enum _AdminView { dashboard, drivers, vouchers, users, analytics, settings }
-
 extension _AdminViewIndex on _AdminView {
   int get index => switch (this) {
     _AdminView.dashboard => 0,
@@ -12,41 +10,33 @@ extension _AdminViewIndex on _AdminView {
     _AdminView.settings => 5,
   };
 }
-
 class AdminPanel extends StatefulWidget {
   const AdminPanel({
     required this.profile,
     required this.onLogout,
     super.key,
   });
-
   final AuthProfile profile;
   final Future<void> Function(BuildContext context) onLogout;
-
   @override
   State<AdminPanel> createState() => _AdminPanelState();
 }
-
 class _AdminPanelState extends State<AdminPanel> {
   _AdminView _currentView = _AdminView.dashboard;
   late AuthProfile _currentProfile;
-
   @override
   void initState() {
     super.initState();
     _currentProfile = widget.profile;
   }
-
   Future<void> _refreshProfile() async {
     final updated = await const AuthService().currentProfile();
     if (updated != null && mounted) {
       setState(() => _currentProfile = updated);
     }
   }
-
   Widget _buildNavItem(IconData icon, String label, _AdminView view, int index) {
     final isSelected = _currentView == view;
-
     return Semantics(
       label: label,
       button: true,
@@ -77,7 +67,6 @@ class _AdminPanelState extends State<AdminPanel> {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -118,7 +107,6 @@ class _AdminPanelState extends State<AdminPanel> {
         onLogout: () => widget.onLogout(context),
       ),
     ];
-
     return Theme(
       data: ThemeData(
         brightness: Brightness.light,
@@ -207,9 +195,7 @@ class _AdminPanelState extends State<AdminPanel> {
     );
   }
 }
-
 final GlobalKey<_AdminDashboardViewState> _adminDashboardKey = GlobalKey<_AdminDashboardViewState>();
-
 class _AdminDashboardView extends StatefulWidget {
   const _AdminDashboardView({
     super.key,
@@ -222,11 +208,9 @@ class _AdminDashboardView extends StatefulWidget {
   final ValueChanged<_AdminView> onNavigate;
   final Future<void> Function() onProfileRefresh;
   final VoidCallback onLogout;
-
   @override
   State<_AdminDashboardView> createState() => _AdminDashboardViewState();
 }
-
 class _AdminDashboardViewState extends State<_AdminDashboardView> {
   bool _loading = true;
   int _usersCount = 0;
@@ -236,23 +220,18 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
   int _vouchersCount = 0;
   int? _newVouchersCount;
   int _adminsCount = 0;
-
   @override
   void initState() {
     super.initState();
     _fetchCounts();
   }
-
   Future<void> _fetchCounts() async {
     if (!SupabaseConfig.isReady) return;
-    
     setState(() => _loading = true);
-    
     List<dynamic> usersRes = [];
     List<dynamic> adminsRes = [];
     List<dynamic> driversRes = [];
     List<dynamic> vouchersRes = [];
-
     try {
       final res = await Supabase.instance.client.rpc('admin_get_users', params: {
         'p_search_query': '',
@@ -266,46 +245,38 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
     } catch (e) {
       debugPrint('Error fetching profiles: $e');
     }
-
     try {
       driversRes = await Supabase.instance.client.from('drivers').select();
     } catch (e) {
       debugPrint('Error fetching drivers: $e');
     }
-
     try {
       vouchersRes = await Supabase.instance.client.from('vouchers').select();
     } catch (e) {
       debugPrint('Error fetching vouchers: $e');
     }
-
     try {
       final now = DateTime.now();
       final startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
-      
       int uCount = usersRes.length;
       int uNewCount = usersRes.where((u) {
         if (u['created_at'] == null) return false;
         final date = DateTime.tryParse(u['created_at']);
         return date != null && (date.isAfter(startOfWeek) || date.isAtSameMomentAs(startOfWeek));
       }).length;
-      
       int dCount = driversRes.length;
       int dNewCount = driversRes.where((d) {
         if (d['created_at'] == null) return false;
         final date = DateTime.tryParse(d['created_at']);
         return date != null && (date.isAfter(startOfWeek) || date.isAtSameMomentAs(startOfWeek));
       }).length;
-      
       int vCount = vouchersRes.length;
       int vNewCount = vouchersRes.where((v) {
         if (v['created_at'] == null) return false;
         final date = DateTime.tryParse(v['created_at']);
         return date != null && (date.isAfter(startOfWeek) || date.isAtSameMomentAs(startOfWeek));
       }).length;
-      
       int aCount = adminsRes.length;
-
       if (mounted) {
         setState(() {
           _usersCount = uCount;
@@ -323,20 +294,17 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
       if (mounted) setState(() => _loading = false);
     }
   }
-
   String _getGreeting() {
     final hour = DateTime.now().hour;
     if (hour >= 6 && hour < 12) return 'Good Morning, Admin';
     if (hour >= 12 && hour < 18) return 'Good Afternoon, Admin';
     return 'Good Evening, Admin';
   }
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: Color(0xFF0057C8)));
     }
-
     final statCards = [
       _SaasStatCard(
         countText: _usersCount.toString(),
@@ -362,12 +330,11 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
       _SaasStatCard(
         countText: _adminsCount.toString(),
         labelText: _adminsCount == 1 ? 'Admin' : 'Admins',
-        change: null, // Admins do not require weekly statistics
+        change: null, 
         icon: Icons.admin_panel_settings_rounded,
         color: const Color(0xFFEF4444),
       ),
     ];
-
     final actionCards = [
       _SaasActionCard(
         title: 'Manage Drivers',
@@ -394,11 +361,9 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
         onTap: () => widget.onNavigate(_AdminView.analytics)
       ),
     ];
-
     return ListView(
       padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 120),
       children: [
-        // Header
         Padding(
           padding: const EdgeInsets.only(top: 24),
           child: Row(
@@ -429,8 +394,6 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
           ),
         ),
         const SizedBox(height: 24),
-        
-        // Statistics Cards
         IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -452,10 +415,7 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
             ],
           ),
         ),
-        
         const SizedBox(height: 48),
-        
-        // Quick Actions
         const Text(
           'Quick Actions',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
@@ -472,16 +432,13 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
     );
   }
 }
-
 class _SaasStatCard extends StatelessWidget {
   final String countText;
   final String labelText;
   final String? change;
   final IconData icon;
   final Color color;
-
   const _SaasStatCard({required this.countText, required this.labelText, this.change, required this.icon, required this.color});
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -540,22 +497,17 @@ class _SaasStatCard extends StatelessWidget {
     );
   }
 }
-
 class _SaasActionCard extends StatefulWidget {
   final String title;
   final String description;
   final IconData icon;
   final VoidCallback onTap;
-
   const _SaasActionCard({required this.title, required this.description, required this.icon, required this.onTap});
-
   @override
   State<_SaasActionCard> createState() => _SaasActionCardState();
 }
-
 class _SaasActionCardState extends State<_SaasActionCard> {
   bool _isHovered = false;
-
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -617,46 +569,33 @@ class _SaasActionCardState extends State<_SaasActionCard> {
     );
   }
 }
-
-// ----------------------------------------------------------------------
-// DRIVERS MANAGEMENT
-// ----------------------------------------------------------------------
-
 class _AdminDriversView extends StatefulWidget {
   const _AdminDriversView();
-
   @override
   State<_AdminDriversView> createState() => _AdminDriversViewState();
 }
-
 class _DriverFormDialog extends StatefulWidget {
   final Map<String, dynamic>? driver;
   const _DriverFormDialog({this.driver});
-
   @override
   State<_DriverFormDialog> createState() => _DriverFormDialogState();
 }
-
 class _DriverFormDialogState extends State<_DriverFormDialog> with SingleTickerProviderStateMixin {
   late final TextEditingController nameCtrl;
   late final TextEditingController vehicleCtrl;
   final formKey = GlobalKey<FormState>();
   bool saving = false;
-  
   late AnimationController _animController;
   late Animation<double> _scaleAnimation;
-
   @override
   void initState() {
     super.initState();
     nameCtrl = TextEditingController(text: widget.driver?['name']);
     vehicleCtrl = TextEditingController(text: widget.driver?['vehicle']);
-    
     _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
     _scaleAnimation = CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic);
     _animController.forward();
   }
-
   @override
   void dispose() {
     _animController.dispose();
@@ -664,14 +603,11 @@ class _DriverFormDialogState extends State<_DriverFormDialog> with SingleTickerP
     vehicleCtrl.dispose();
     super.dispose();
   }
-
   Future<void> _save() async {
     if (!formKey.currentState!.validate()) return;
-    
     setState(() => saving = true);
     final name = nameCtrl.text.trim();
     final vehicle = vehicleCtrl.text.trim();
-    
     try {
       if (widget.driver != null) {
         await Supabase.instance.client.rpc('admin_update_driver', params: {
@@ -687,7 +623,6 @@ class _DriverFormDialogState extends State<_DriverFormDialog> with SingleTickerP
         final color = colors[rnd.nextInt(colors.length)];
         final lat = 3.0000 + rnd.nextDouble() * 0.2500;
         final lng = 101.6000 + rnd.nextDouble() * 0.3000;
-        
         await Supabase.instance.client.rpc('admin_add_driver', params: {
           'p_name': name,
           'p_vehicle': vehicle,
@@ -708,7 +643,6 @@ class _DriverFormDialogState extends State<_DriverFormDialog> with SingleTickerP
       }
     }
   }
-
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -758,7 +692,6 @@ class _DriverFormDialogState extends State<_DriverFormDialog> with SingleTickerP
       ],
     );
   }
-
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.driver != null;
@@ -807,7 +740,6 @@ class _DriverFormDialogState extends State<_DriverFormDialog> with SingleTickerP
                     ),
                   ),
                   const SizedBox(height: 28),
-                  
                   _buildTextField(
                     controller: nameCtrl,
                     label: 'Driver Name',
@@ -816,7 +748,6 @@ class _DriverFormDialogState extends State<_DriverFormDialog> with SingleTickerP
                     validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
                   ),
                   const SizedBox(height: 20),
-                  
                   _buildTextField(
                     controller: vehicleCtrl,
                     label: 'Vehicle',
@@ -824,9 +755,7 @@ class _DriverFormDialogState extends State<_DriverFormDialog> with SingleTickerP
                     icon: Icons.directions_car_outlined,
                     validator: (v) => v == null || v.trim().isEmpty ? 'Vehicle is required' : null,
                   ),
-                  
                   const SizedBox(height: 36),
-                  
                   Row(
                     children: [
                       Expanded(
@@ -872,19 +801,16 @@ class _DriverFormDialogState extends State<_DriverFormDialog> with SingleTickerP
     );
   }
 }
-
 class _AdminDriversViewState extends State<_AdminDriversView> {
   bool _loading = true;
   String _searchQuery = '';
   bool _sortAscending = true;
   List<Map<String, dynamic>> _drivers = [];
-
   @override
   void initState() {
     super.initState();
     _fetchDrivers();
   }
-
   Future<void> _fetchDrivers() async {
     if (!SupabaseConfig.isReady) return;
     setState(() => _loading = true);
@@ -908,16 +834,12 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
       }
     }
   }
-
   void _onSortChanged(bool ascending) {
     setState(() {
       _sortAscending = ascending;
       _fetchDrivers();
     });
   }
-
-
-
   Future<void> _deleteDriver(String id) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -937,7 +859,6 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
         ],
       ),
     );
-
     if (confirm == true) {
       try {
         await Supabase.instance.client.rpc('admin_delete_driver', params: {'p_id': id});
@@ -947,7 +868,6 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
       }
     }
   }
-
   Future<void> _showDriverForm([Map<String, dynamic>? driver]) async {
     final result = await showDialog<bool>(
       context: context,
@@ -958,11 +878,9 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
       _fetchDrivers();
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final filtered = _drivers;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1026,7 +944,6 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {
                           final d = filtered[index];
-                          
                           return Container(
                             margin: const EdgeInsets.only(bottom: 16),
                             padding: const EdgeInsets.all(20),
@@ -1086,17 +1003,11 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
     );
   }
 }
-
-// ----------------------------------------------------------------------
-// USERS MANAGEMENT
-
 class _AdminUsersView extends StatefulWidget {
   const _AdminUsersView();
-
   @override
   State<_AdminUsersView> createState() => _AdminUsersViewState();
 }
-
 class _AdminUsersViewState extends State<_AdminUsersView> {
   bool _loading = true;
   String _searchQuery = '';
@@ -1105,13 +1016,11 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
   final int _pageSize = 20;
   List<Map<String, dynamic>> _profiles = [];
   bool _hasMore = true;
-
   @override
   void initState() {
     super.initState();
     _fetchUsers();
   }
-
   Future<void> _fetchUsers({bool refresh = false}) async {
     if (!SupabaseConfig.isReady) return;
     if (refresh) {
@@ -1120,11 +1029,9 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
       _hasMore = true;
     }
     if (!_hasMore) return;
-
     setState(() => _loading = true);
     try {
       final from = _currentPage * _pageSize;
-      
       final response = await Supabase.instance.client
           .rpc('admin_get_users', params: {
             'p_search_query': _searchQuery,
@@ -1132,7 +1039,6 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
             'p_limit': _pageSize,
             'p_sort_asc': _sortAscending,
           });
-      
       final data = List<Map<String, dynamic>>.from(response as List);
       if (mounted) {
         setState(() {
@@ -1169,7 +1075,6 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
         ],
       ),
     );
-
     if (confirm == true) {
       try {
         await Supabase.instance.client.rpc('admin_delete_user', params: {'p_user_id': id});
@@ -1179,14 +1084,12 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
       }
     }
   }
-
   void _showUserForm(Map<String, dynamic> user) {
     showDialog(
       context: context,
       builder: (context) {
         String role = user['role'] ?? 'user';
         bool saving = false;
-
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -1243,12 +1146,10 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                         'p_user_id': user['id'],
                         'p_role': role,
                       });
-                      
                       final currentUserId = Supabase.instance.client.auth.currentUser?.id;
                       final isSelf = user['id'] == currentUserId;
                       final wasAdmin = user['role'] == 'admin';
                       final isNewRoleUser = role == 'user';
-
                       if (isSelf && wasAdmin && isNewRoleUser) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -1291,16 +1192,13 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
       },
     );
   }
-
   void _onSortChanged(bool ascending) {
     setState(() => _sortAscending = ascending);
     _fetchUsers(refresh: true);
   }
-
   @override
   Widget build(BuildContext context) {
     final filtered = _profiles;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1420,26 +1318,17 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
     );
   }
 }
-
-// ----------------------------------------------------------------------
-// VOUCHERS MANAGEMENT
-// ----------------------------------------------------------------------
-
 class _AdminVouchersView extends StatefulWidget {
   const _AdminVouchersView();
-
   @override
   State<_AdminVouchersView> createState() => _AdminVouchersViewState();
 }
-
 class _VoucherFormDialog extends StatefulWidget {
   final Map<String, dynamic>? voucher;
   const _VoucherFormDialog({this.voucher});
-
   @override
   State<_VoucherFormDialog> createState() => _VoucherFormDialogState();
 }
-
 class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTickerProviderStateMixin {
   late final TextEditingController titleCtrl;
   late final TextEditingController descCtrl;
@@ -1448,10 +1337,8 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
   final formKey = GlobalKey<FormState>();
   bool saving = false;
   String _kind = 'hubPool';
-  
   late AnimationController _animController;
   late Animation<double> _scaleAnimation;
-
   @override
   void initState() {
     super.initState();
@@ -1460,12 +1347,10 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
     costCtrl = TextEditingController(text: widget.voucher?['point_cost']?.toString());
     creditCtrl = TextEditingController(text: widget.voucher?['hub_pool_credit']?.toString());
     _kind = widget.voucher?['kind'] ?? 'hubPool';
-    
     _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
     _scaleAnimation = CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic);
     _animController.forward();
   }
-
   @override
   void dispose() {
     _animController.dispose();
@@ -1475,15 +1360,12 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
     creditCtrl.dispose();
     super.dispose();
   }
-
   void _save() {
     if (!formKey.currentState!.validate()) return;
     setState(() => saving = true);
-
     final color = _kind == 'hubPool' ? '0xFF0057C8' : '0xFFE1251B';
     final iconName = _kind == 'hubPool' ? 'Icons.local_taxi_rounded' : 'Icons.restaurant_rounded';
     final creditValue = _kind == 'hubPool' ? creditCtrl.text.trim() : '0';
-
     Navigator.of(context).pop({
       'title': titleCtrl.text.trim(),
       'description': descCtrl.text.trim(),
@@ -1494,7 +1376,6 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
       'accent_color': color,
     });
   }
-
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -1544,7 +1425,6 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
       ],
     );
   }
-
   PopupMenuItem<String> _buildPopupMenuItem(String value, String title, String emoji) {
     final isSelected = _kind == value;
     return PopupMenuItem<String>(
@@ -1577,7 +1457,6 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
       ),
     );
   }
-
   Widget _buildTypeSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1627,7 +1506,6 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
       ],
     );
   }
-
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.voucher != null;
@@ -1676,10 +1554,8 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
                     ),
                   ),
                   const SizedBox(height: 28),
-                  
                   _buildTypeSelector(),
                   const SizedBox(height: 20),
-                  
                   _buildTextField(
                     controller: titleCtrl,
                     label: 'Title',
@@ -1688,7 +1564,6 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
                     validator: (v) => v == null || v.trim().isEmpty ? 'Title is required' : null,
                   ),
                   const SizedBox(height: 20),
-                  
                   _buildTextField(
                     controller: descCtrl,
                     label: 'Description',
@@ -1697,7 +1572,6 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
                     validator: (v) => v == null || v.trim().isEmpty ? 'Description is required' : null,
                   ),
                   const SizedBox(height: 20),
-                  
                   _buildTextField(
                     controller: costCtrl,
                     label: 'Point Cost',
@@ -1706,7 +1580,6 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
                     keyboardType: TextInputType.number,
                     validator: (v) => v == null || v.trim().isEmpty ? 'Point Cost is required' : null,
                   ),
-                  
                   if (_kind == 'hubPool') ...[
                     const SizedBox(height: 20),
                     _buildTextField(
@@ -1718,9 +1591,7 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
                       validator: (v) => v == null || v.trim().isEmpty ? 'Credit Value is required' : null,
                     ),
                   ],
-                  
                   const SizedBox(height: 36),
-                  
                   Row(
                     children: [
                       Expanded(
@@ -1766,18 +1637,15 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog> with SingleTicke
     );
   }
 }
-
 class _AdminVouchersViewState extends State<_AdminVouchersView> {
   bool _loading = true;
   String _searchQuery = '';
   List<Map<String, dynamic>> _vouchers = [];
-
   @override
   void initState() {
     super.initState();
     _fetchVouchers();
   }
-
   Future<void> _fetchVouchers() async {
     if (!SupabaseConfig.isReady) return;
     setState(() => _loading = true);
@@ -1800,7 +1668,6 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
       }
     }
   }
-
   Future<void> _deleteVoucher(String id) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -1820,7 +1687,6 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
         ],
       ),
     );
-
     if (confirm == true) {
       try {
         await Supabase.instance.client.rpc('admin_delete_voucher', params: {'p_id': id});
@@ -1830,14 +1696,12 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
       }
     }
   }
-
   Future<void> _showVoucherForm([Map<String, dynamic>? voucher]) async {
     final result = await showDialog<Map<String, String>?>(
       context: context,
       barrierDismissible: false,
       builder: (context) => _VoucherFormDialog(voucher: voucher),
     );
-
     if (result != null && result['title']!.isNotEmpty) {
       try {
         if (voucher == null) {
@@ -1879,11 +1743,9 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final filtered = _vouchers;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2009,13 +1871,11 @@ class _AdminSettingsView extends StatelessWidget {
   final AuthProfile profile;
   final Future<void> Function() onProfileRefresh;
   final VoidCallback onLogout;
-
   const _AdminSettingsView({
     required this.profile,
     required this.onProfileRefresh,
     required this.onLogout,
   });
-
   Widget _buildSettingsGroup(String title, List<Widget> children) {
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -2051,7 +1911,6 @@ class _AdminSettingsView extends StatelessWidget {
       ),
     );
   }
-
   Widget _buildSettingsTile(IconData icon, String title, String subtitle, {VoidCallback? onTap, bool isDestructive = false}) {
     return Material(
       color: Colors.transparent,
@@ -2091,7 +1950,6 @@ class _AdminSettingsView extends StatelessWidget {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return SafeArea(

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -13,9 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'loading_compass.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:fl_chart/fl_chart.dart';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 part 'src/core.dart';
 part 'src/auth.dart';
 part 'src/dashboard.dart';
@@ -28,11 +25,9 @@ part 'src/shared_widgets.dart';
 part 'src/models_data.dart';
 part 'src/admin.dart';
 part 'src/admin_analytics.dart';
-
 void main() {
   try {
     WidgetsFlutterBinding.ensureInitialized();
-
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.dumpErrorToConsole(details);
       debugPrintStack(
@@ -40,14 +35,12 @@ void main() {
         stackTrace: details.stack,
       );
     };
-
     runApp(const TrasiaBootstrap());
   } catch (e, stack) {
     debugPrintStack(label: 'Main Crash: $e', stackTrace: stack);
     rethrow;
   }
 }
-
 Future<void> _initializeApp() async {
   try {
     await SupabaseConfig.load();
@@ -64,17 +57,13 @@ Future<void> _initializeApp() async {
     rethrow;
   }
 }
-
 class TrasiaBootstrap extends StatefulWidget {
   const TrasiaBootstrap({super.key});
-
   @override
   State<TrasiaBootstrap> createState() => _TrasiaBootstrapState();
 }
-
 class _TrasiaBootstrapState extends State<TrasiaBootstrap> {
   late final Future<void> _initialization = _initializeApp();
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<void>(
@@ -99,7 +88,6 @@ class _TrasiaBootstrapState extends State<TrasiaBootstrap> {
       },
     );
   }
-
   @override
   void dispose() {
     super.dispose();

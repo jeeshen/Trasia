@@ -1,17 +1,13 @@
 part of '../main.dart';
-
-// ignore: unused_element
 class _DashboardHeader extends StatelessWidget {
   const _DashboardHeader({
     required this.role,
     required this.wallet,
     required this.showWallet,
   });
-
   final UserRole role;
   final double wallet;
   final bool showWallet;
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -55,13 +51,9 @@ class _DashboardHeader extends StatelessWidget {
     );
   }
 }
-
-// ignore: unused_element
 class _BlueShell extends StatelessWidget {
   const _BlueShell({required this.child});
-
   final Widget child;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -76,13 +68,9 @@ class _BlueShell extends StatelessWidget {
     );
   }
 }
-
-// ignore: unused_element
 class _GlassPanel extends StatelessWidget {
   const _GlassPanel({required this.child});
-
   final Widget child;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -96,19 +84,15 @@ class _GlassPanel extends StatelessWidget {
     );
   }
 }
-
-// ignore: unused_element
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({
     required this.icon,
     required this.title,
     required this.trailing,
   });
-
   final IconData icon;
   final String title;
   final String trailing;
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -132,7 +116,6 @@ class _SectionTitle extends StatelessWidget {
     );
   }
 }
-
 class _MapSearchWindow extends StatelessWidget {
   const _MapSearchWindow({
     required this.fromController,
@@ -152,7 +135,6 @@ class _MapSearchWindow extends StatelessWidget {
     required this.onSelectRoute,
     required this.onToggleFavorite,
   });
-
   final TextEditingController fromController;
   final TextEditingController toController;
   final String? statusMessage;
@@ -169,14 +151,12 @@ class _MapSearchWindow extends StatelessWidget {
   final ValueChanged<DestinationCandidate> onConfirmDestination;
   final ValueChanged<TransitOption> onSelectRoute;
   final ValueChanged<DestinationCandidate> onToggleFavorite;
-
   @override
   Widget build(BuildContext context) {
     final hasResults =
         statusMessage != null || candidates.isNotEmpty || routes.isNotEmpty;
     final panelMaxHeight = MediaQuery.sizeOf(context).height * .76;
     final resultMaxHeight = max(220.0, panelMaxHeight - 140);
-
     return Container(
       constraints: BoxConstraints(maxHeight: panelMaxHeight),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -349,13 +329,10 @@ class _MapSearchWindow extends StatelessWidget {
     );
   }
 }
-
 class _MapLocationButton extends StatelessWidget {
   const _MapLocationButton({required this.loading, required this.onPressed});
-
   final bool loading;
   final VoidCallback onPressed;
-
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -386,12 +363,9 @@ class _MapLocationButton extends StatelessWidget {
     );
   }
 }
-
 class _DemoArrivalButton extends StatelessWidget {
   const _DemoArrivalButton({required this.onPressed});
-
   final VoidCallback onPressed;
-
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -413,12 +387,9 @@ class _DemoArrivalButton extends StatelessWidget {
     );
   }
 }
-
 class _MapFavoritesButton extends StatelessWidget {
   const _MapFavoritesButton({required this.onPressed});
-
   final VoidCallback onPressed;
-
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -447,12 +418,9 @@ class _MapFavoritesButton extends StatelessWidget {
     );
   }
 }
-
 class _SheetNotice extends StatelessWidget {
   const _SheetNotice({required this.message});
-
   final String message;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -483,7 +451,6 @@ class _SheetNotice extends StatelessWidget {
     );
   }
 }
-
 class _DestinationConfirmCard extends StatelessWidget {
   const _DestinationConfirmCard({
     required this.candidate,
@@ -493,14 +460,12 @@ class _DestinationConfirmCard extends StatelessWidget {
     required this.onToggleFavorite,
     this.actionLabel,
   });
-
   final DestinationCandidate candidate;
   final bool selected;
   final bool favorite;
   final VoidCallback? onConfirm;
   final VoidCallback onToggleFavorite;
   final String? actionLabel;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -582,18 +547,15 @@ class _DestinationConfirmCard extends StatelessWidget {
     );
   }
 }
-
 class _RouteChoiceCard extends StatelessWidget {
   const _RouteChoiceCard({
     required this.route,
     required this.selected,
     required this.onTap,
   });
-
   final TransitOption route;
   final bool selected;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -676,14 +638,11 @@ class _RouteChoiceCard extends StatelessWidget {
     );
   }
 }
-
 class _DarkMiniMetric extends StatelessWidget {
   const _DarkMiniMetric(this.icon, this.label, {this.flex = 1});
-
   final IconData icon;
   final String label;
   final int flex;
-
   @override
   Widget build(BuildContext context) {
     return Expanded(
@@ -710,7 +669,6 @@ class _DarkMiniMetric extends StatelessWidget {
     );
   }
 }
-
 String _compactDurationLabel(String value) {
   final hours = RegExp(
     r'(\d+)\s*(?:hours?|hrs?|h)\b',
@@ -730,7 +688,6 @@ String _compactDurationLabel(String value) {
     if (minuteValue != null) '${minuteValue}M',
   ].join();
 }
-
 class _TripDetailsDropdown extends StatefulWidget {
   const _TripDetailsDropdown({
     required this.destination,
@@ -739,26 +696,21 @@ class _TripDetailsDropdown extends StatefulWidget {
     required this.onFocusLeg,
     required this.onStop,
   });
-
   final DestinationCandidate? destination;
   final TransitOption route;
   final bool ongoing;
   final ValueChanged<RouteLeg> onFocusLeg;
   final VoidCallback onStop;
-
   @override
   State<_TripDetailsDropdown> createState() => _TripDetailsDropdownState();
 }
-
 class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
   bool _expanded = false;
-
   @override
   Widget build(BuildContext context) {
     final route = widget.route;
     final destination = widget.destination?.name ?? 'Destination';
     final nextLeg = route.legs.isEmpty ? null : route.legs.first;
-
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * .58,
@@ -866,19 +818,15 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
       ),
     );
   }
-
   @override
   void dispose() {
     super.dispose();
   }
 }
-
 class _NextLegCard extends StatelessWidget {
   const _NextLegCard({required this.leg, required this.onTap});
-
   final RouteLeg leg;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final color = routeModeColor(leg.mode);
@@ -928,7 +876,6 @@ class _NextLegCard extends StatelessWidget {
     );
   }
 }
-
 class _TripLegRow extends StatelessWidget {
   const _TripLegRow({
     required this.leg,
@@ -936,12 +883,10 @@ class _TripLegRow extends StatelessWidget {
     required this.isLast,
     required this.onTap,
   });
-
   final RouteLeg leg;
   final bool active;
   final bool isLast;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final color = routeModeColor(leg.mode);
@@ -1012,21 +957,16 @@ class _TripLegRow extends StatelessWidget {
     );
   }
 }
-
 class _MapLoadingPill extends StatelessWidget {
   const _MapLoadingPill();
-
   @override
   Widget build(BuildContext context) {
     return const TrasiaLoadingCompass();
   }
 }
-
 class _DriverCard extends StatelessWidget {
   const _DriverCard({required this.driver});
-
   final Driver driver;
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -1059,7 +999,6 @@ class _DriverCard extends StatelessWidget {
     );
   }
 }
-
 class _PlanSlider extends StatelessWidget {
   const _PlanSlider({
     required this.icon,
@@ -1071,7 +1010,6 @@ class _PlanSlider extends StatelessWidget {
     required this.divisions,
     required this.onChanged,
   });
-
   final IconData icon;
   final String label;
   final String valueLabel;
@@ -1080,7 +1018,6 @@ class _PlanSlider extends StatelessWidget {
   final double max;
   final int divisions;
   final ValueChanged<double> onChanged;
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1122,18 +1059,15 @@ class _PlanSlider extends StatelessWidget {
     );
   }
 }
-
 class _PlanSectionTitle extends StatelessWidget {
   const _PlanSectionTitle({
     required this.icon,
     required this.title,
     required this.trailing,
   });
-
   final IconData icon;
   final String title;
   final String trailing;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1177,12 +1111,9 @@ class _PlanSectionTitle extends StatelessWidget {
     );
   }
 }
-
 class _PlanPanel extends StatelessWidget {
   const _PlanPanel({required this.child});
-
   final Widget child;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1203,16 +1134,13 @@ class _PlanPanel extends StatelessWidget {
     );
   }
 }
-
 class _BlindBoxTravelModeSelector extends StatelessWidget {
   const _BlindBoxTravelModeSelector({
     required this.value,
     required this.onChanged,
   });
-
   final BlindBoxTravelMode value;
   final ValueChanged<BlindBoxTravelMode> onChanged;
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1266,20 +1194,16 @@ class _BlindBoxTravelModeSelector extends StatelessWidget {
     );
   }
 }
-
 enum _MapStopAction { proceed, checkIn, cancel }
-
 class _FeatureCResultsToggle extends StatelessWidget {
   const _FeatureCResultsToggle({
     required this.count,
     required this.expanded,
     required this.onTap,
   });
-
   final int count;
   final bool expanded;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     return FloatingActionButton.extended(
@@ -1293,12 +1217,9 @@ class _FeatureCResultsToggle extends StatelessWidget {
     );
   }
 }
-
 class _FeatureCTripCompletedBanner extends StatelessWidget {
   const _FeatureCTripCompletedBanner({required this.onPlanAnotherTrip});
-
   final VoidCallback onPlanAnotherTrip;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1352,7 +1273,6 @@ class _FeatureCTripCompletedBanner extends StatelessWidget {
     );
   }
 }
-
 class _FeatureCResultsSheet extends StatelessWidget {
   const _FeatureCResultsSheet({
     required this.stops,
@@ -1374,7 +1294,6 @@ class _FeatureCResultsSheet extends StatelessWidget {
     required this.onFinishTrip,
     required this.onCheckIn,
   });
-
   final List<ItineraryStop> stops;
   final PriceTier priceTier;
   final String? ongoingDestination;
@@ -1393,7 +1312,6 @@ class _FeatureCResultsSheet extends StatelessWidget {
   final VoidCallback onNextPlace;
   final VoidCallback onFinishTrip;
   final ValueChanged<ItineraryStop> onCheckIn;
-
   @override
   Widget build(BuildContext context) {
     return Align(
@@ -1522,18 +1440,15 @@ class _FeatureCResultsSheet extends StatelessWidget {
     );
   }
 }
-
 class _MapStopActionSheet extends StatelessWidget {
   const _MapStopActionSheet({
     required this.stop,
     required this.canGo,
     required this.checkedIn,
   });
-
   final ItineraryStop stop;
   final bool canGo;
   final bool checkedIn;
-
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -1673,13 +1588,10 @@ class _MapStopActionSheet extends StatelessWidget {
     );
   }
 }
-
 class _MapStopDetailRow extends StatelessWidget {
   const _MapStopDetailRow({required this.icon, required this.text});
-
   final IconData icon;
   final String text;
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1702,34 +1614,27 @@ class _MapStopDetailRow extends StatelessWidget {
     );
   }
 }
-
 String _placeCheckInKey(String placeName) {
   return placeName.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '-');
 }
-
 String _checkInPayloadForPlaceName(String placeName) {
   return 'trasia://kl-blind-box/check-in/${_placeCheckInKey(placeName)}';
 }
-
 class _CheckInScannerPage extends StatefulWidget {
   const _CheckInScannerPage({
     required this.targetName,
     required this.targetPayload,
   });
-
   final String targetName;
   final String targetPayload;
-
   @override
   State<_CheckInScannerPage> createState() => _CheckInScannerPageState();
 }
-
 class _CheckInScannerPageState extends State<_CheckInScannerPage> {
   late MobileScannerController _controller;
   bool _handledScan = false;
   bool _usingFrontCamera = false;
   DateTime? _lastWrongScanAt;
-
   @override
   void initState() {
     super.initState();
@@ -1748,7 +1653,6 @@ class _CheckInScannerPageState extends State<_CheckInScannerPage> {
       }
     });
   }
-
   Future<void> _startScanner() async {
     await _controller.start(cameraDirection: CameraFacing.back);
     if (!mounted || _controller.value.isRunning) {
@@ -1757,14 +1661,12 @@ class _CheckInScannerPageState extends State<_CheckInScannerPage> {
     setState(() => _usingFrontCamera = true);
     await _controller.start(cameraDirection: CameraFacing.front);
   }
-
   @override
   void dispose() {
     unawaited(SystemChrome.setPreferredOrientations(DeviceOrientation.values));
     unawaited(_controller.dispose());
     super.dispose();
   }
-
   void _handleDetect(BarcodeCapture capture) {
     if (_handledScan) {
       return;
@@ -1791,7 +1693,6 @@ class _CheckInScannerPageState extends State<_CheckInScannerPage> {
     unawaited(_controller.stop());
     Navigator.of(context).pop(payload);
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1886,7 +1787,6 @@ class _CheckInScannerPageState extends State<_CheckInScannerPage> {
     );
   }
 }
-
 class _FeatureCTripProgressPanel extends StatelessWidget {
   const _FeatureCTripProgressPanel({
     required this.stops,
@@ -1901,7 +1801,6 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
     required this.onFinishTrip,
     required this.onCheckIn,
   });
-
   final List<ItineraryStop> stops;
   final FeatureCTripStatus status;
   final int activeStopIndex;
@@ -1913,7 +1812,6 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
   final VoidCallback onNextPlace;
   final VoidCallback onFinishTrip;
   final ValueChanged<ItineraryStop> onCheckIn;
-
   @override
   Widget build(BuildContext context) {
     final safeIndex = activeStopIndex
@@ -1975,7 +1873,6 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
         actionCallback = null;
         break;
     }
-
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -2055,7 +1952,6 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
     );
   }
 }
-
 class _ItineraryStopCard extends StatelessWidget {
   const _ItineraryStopCard({
     required this.stop,
@@ -2066,7 +1962,6 @@ class _ItineraryStopCard extends StatelessWidget {
     required this.onFocus,
     required this.onNavigate,
   });
-
   final ItineraryStop stop;
   final bool active;
   final bool completed;
@@ -2074,7 +1969,6 @@ class _ItineraryStopCard extends StatelessWidget {
   final bool ongoing;
   final VoidCallback onFocus;
   final VoidCallback onNavigate;
-
   @override
   Widget build(BuildContext context) {
     final statusLabel = completed
@@ -2178,13 +2072,10 @@ class _ItineraryStopCard extends StatelessWidget {
     );
   }
 }
-
 class _ItineraryDetailRow extends StatelessWidget {
   const _ItineraryDetailRow({required this.icon, required this.text});
-
   final IconData icon;
   final String text;
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -2207,14 +2098,10 @@ class _ItineraryDetailRow extends StatelessWidget {
     );
   }
 }
-
-// ignore: unused_element
 class _LedgerRow extends StatelessWidget {
   const _LedgerRow(this.label, this.value);
-
   final String label;
   final String value;
-
   @override
   Widget build(BuildContext context) {
     return Padding(

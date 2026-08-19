@@ -1,19 +1,15 @@
 part of '../main.dart';
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     required this.profile,
     required this.onLogout,
     super.key,
   });
-
   final AuthProfile profile;
   final Future<void> Function(BuildContext context) onLogout;
-
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
-
 class _DashboardScreenState extends State<DashboardScreen> {
   int _tab = 0;
   int _previousTab = 0;
@@ -41,15 +37,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _planDemoArrivalRequest = 0;
   String? _username;
   late AuthProfile _currentProfile;
-
   bool _hasCenteredOnInitialLocation = false;
-
   @override
   void initState() {
     super.initState();
     _syncWithProfile(widget.profile);
     globalAuthProfileNotifier.addListener(_onGlobalProfileChanged);
-
     globalMapController.addListener(_onMapControllerChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -57,14 +50,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
   }
-
   @override
   void dispose() {
     globalAuthProfileNotifier.removeListener(_onGlobalProfileChanged);
     globalMapController.removeListener(_onMapControllerChanged);
     super.dispose();
   }
-
   void _syncWithProfile(AuthProfile p) {
     _currentProfile = p;
     _username = p.username;
@@ -78,18 +69,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _favoritePlaces = p.favoritePlaces;
     _tripHistory = p.tripHistory;
   }
-
   void _onGlobalProfileChanged() {
     final updated = globalAuthProfileNotifier.value;
     if (updated != null && mounted) {
       setState(() => _syncWithProfile(updated));
     }
   }
-
   Future<void> _refreshProfile() async {
     await const AuthService().currentProfile();
   }
-
   void _onMapControllerChanged() {
     if (mounted) setState(() {});
     final controller = globalMapController.value;
@@ -102,7 +90,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       unawaited(controller.flyToLatLngZoom(location, 17.0));
     }
   }
-
   void _openTransitFor(String destination, BlindBoxTravelMode? travelMode) {
     setState(() {
       _transitDestination = destination;
@@ -112,7 +99,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _tab = 0;
     });
   }
-
   void _cancelDestination(String destination) {
     setState(() {
       if (_ongoingDestination == destination) {
@@ -120,7 +106,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
   }
-
   void _deductFare(double fare) {
     setState(() {
       _wallet = max(0, _wallet - fare);
@@ -128,12 +113,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     _saveProfile();
   }
-
   void _topUp(double amount) {
     setState(() => _wallet += amount);
     _saveProfile();
   }
-
   bool _redeemReward(String voucherId, int pointCost, double hubPoolCredit) {
     if (_rewardPoints < pointCost) {
       return false;
@@ -154,12 +137,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ];
       }
     });
-
     _saveProfile();
     _saveProfile();
     return true;
   }
-
   bool _checkInPlace(String placeName) {
     final placeKey = _placeCheckInKey(placeName);
     if (_checkedInPlaces.containsKey(placeKey)) {
@@ -176,10 +157,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _rewardPoints += 50;
     });
     _saveProfile();
-
     return true;
   }
-
   void _markVoucherUsed(String voucherId) {
     final index = _redeemedVouchers.indexWhere(
       (voucher) => voucher.id == voucherId,
@@ -198,7 +177,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     _saveProfile();
   }
-
   void _saveTransitRoute(DestinationCandidate? destination) {
     setState(() {
       _savedTransitRoutes++;
@@ -211,7 +189,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _saveProfile();
     _saveProfile();
   }
-
   Future<void> _saveDemoPlanCompletion(List<ItineraryStop> stops) async {
     setState(() {
       _savedTransitRoutes++;
@@ -233,7 +210,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const SnackBar(content: Text('Plan trip saved to History')),
     );
   }
-
   void _saveRideCompletion(DestinationCandidate? destination, double fare) {
     setState(() {
       _addTripHistory(
@@ -245,7 +221,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     _saveProfile();
   }
-
   void _completeDemoArrival() {
     setState(() {
       switch (_tab) {
@@ -258,14 +233,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
   }
-
   void _revisitHistoryEntry(TripHistoryEntry entry) {
     final travelMode = entry.category == 'Ride'
         ? BlindBoxTravelMode.drive
         : BlindBoxTravelMode.transit;
     _openTransitFor(entry.placeName, travelMode);
   }
-
   void _revisitFavoritePlace(FavoritePlace place) {
     final sourceTab = _tab == 4 ? _previousTab : _tab;
     if (sourceTab == 1) {
@@ -285,7 +258,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     _openTransitFor(place.name, null);
   }
-
   void _addTripHistory({
     required String placeName,
     required String category,
@@ -304,17 +276,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ..._tripHistory,
     ].take(50).toList();
   }
-
   void _toggleFavoritePlace(Attraction attraction) {
     final place = FavoritePlace.fromAttraction(attraction);
     _toggleFavorite(place);
   }
-
   void _toggleFavoriteDestination(DestinationCandidate destination) {
     final place = FavoritePlace.fromDestinationCandidate(destination);
     _toggleFavorite(place);
   }
-
   void _toggleFavorite(FavoritePlace place) {
     final exists = _favoritePlaces.any((favorite) => favorite.key == place.key);
     setState(() {
@@ -336,7 +305,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
   void _removeFavoritePlace(FavoritePlace place) {
     setState(() {
       _favoritePlaces = [
@@ -346,7 +314,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     _saveProfile();
   }
-
   void _showMapFavorites() {
     showModalBottomSheet<void>(
       context: context,
@@ -367,7 +334,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
   void _saveProfile() {
     if (!SupabaseConfig.isReady) return;
     final updatedProfile = widget.profile.copyWith(
@@ -383,7 +349,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
     unawaited(const AuthService().updateProfile(updatedProfile));
   }
-
   void _updateMapView(SharedMapView view) {
     final incomingLocation = view.currentLocation;
     if (incomingLocation != null) {
@@ -414,7 +379,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       unawaited(globalMapController.value!.flyToLatLngZoom(target, zoom));
     }
   }
-
   SharedMapView _mapViewWithSharedSelfLocation(SharedMapView view) {
     final location = view.currentLocation ?? _sharedCurrentLocation;
     if (location == null) {
@@ -444,7 +408,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       extraPolylines: view.extraPolylines,
     );
   }
-
   Future<void> _centerSharedMapOnCurrentLocation() async {
     final controller = globalMapController.value;
     if (controller == null || _centeringOnLocation) {
@@ -476,7 +439,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
   }
-
   Future<void> _loadInitialLocation() async {
     if (_centeringOnLocation) {
       return;
@@ -495,7 +457,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
   }
-
   Future<LatLng?> _readDeviceLocation() async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     var permission = await Geolocator.checkPermission();
@@ -516,7 +477,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
       return null;
     }
-
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       messenger?.showSnackBar(
@@ -530,7 +490,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
       return null;
     }
-
     try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -547,7 +506,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return null;
     }
   }
-
   Future<void> _showLocationSettingsDialog() async {
     await showDialog<void>(
       context: context,
@@ -573,7 +531,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
   void _setSharedSelfLocation(
     LatLng location,
     double? accuracyMeters, {
@@ -612,7 +569,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       unawaited(controller.flyToLatLngZoom(location, 17.0));
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
@@ -695,7 +651,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     ];
-
     return Scaffold(
       extendBody: true,
       backgroundColor: _tab == 2 || _tab == 4
@@ -731,7 +686,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     globalMapController.value = controller;
                   },
                   onCameraMove: () {
-                    // Update last center if needed by active tabs
                   },
                 );
               },
@@ -857,7 +811,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
   Widget _buildMapControls({bool behindExpandedResults = false}) {
     return ValueListenableBuilder<SharedMapView>(
       valueListenable: globalMapViewNotifier,
@@ -907,10 +860,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
     );
   }
-
   Widget _buildNavItem(IconData icon, String label, int index) {
     final isSelected = _tab == index;
-
     return Semantics(
       label: label,
       button: true,
@@ -950,16 +901,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
-
 class _DashboardOverviewPage extends StatefulWidget {
   const _DashboardOverviewPage({required this.active});
-
   final bool active;
-
   @override
   State<_DashboardOverviewPage> createState() => _DashboardOverviewPageState();
 }
-
 class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
   static const _sourceUrls = [
     'https://data.gov.my/data-catalogue/fuelprice',
@@ -967,7 +914,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
     'https://data.gov.my/dashboard/public-transportation',
     'https://data.gov.my/dashboard/ktmb-explorer',
   ];
-
   final Map<int, Map<String, dynamic>> _sourceData = {};
   int _section = 0;
   bool _loading = true;
@@ -978,7 +924,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
   String _ktmbService = 'ets';
   String? _ktmbOrigin;
   String? _ktmbDestination;
-
   @override
   void initState() {
     super.initState();
@@ -986,7 +931,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       unawaited(_loadGovernmentData());
     }
   }
-
   @override
   void didUpdateWidget(covariant _DashboardOverviewPage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -994,7 +938,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       unawaited(_loadGovernmentData());
     }
   }
-
   Future<Map<String, dynamic>> _fetchPageData(Uri uri) async {
     final response = await http.get(uri).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) {
@@ -1015,7 +958,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
     }
     return pageProps;
   }
-
   Future<void> _loadGovernmentData() async {
     setState(() {
       _loading = true;
@@ -1046,7 +988,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       });
     }
   }
-
   Future<void> _loadRapidComparison() async {
     final origin = _rapidOrigin;
     final destination = _rapidDestination;
@@ -1068,7 +1009,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ),
     );
   }
-
   Future<void> _loadKtmbComparison() async {
     final origin = _ktmbOrigin;
     final destination = _ktmbDestination;
@@ -1090,7 +1030,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ),
     );
   }
-
   Future<void> _loadComparison({required int index, required Uri uri}) async {
     setState(() => _comparisonLoading = true);
     try {
@@ -1112,7 +1051,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -1190,7 +1128,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ),
     );
   }
-
   Widget _buildFuelData() {
     final page = _sourceData[0]!;
     final rows =
@@ -1254,7 +1191,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ],
     );
   }
-
   Widget _buildRapidData() {
     final page = _sourceData[1]!;
     final dropdown =
@@ -1309,7 +1245,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ],
     );
   }
-
   Widget _buildPublicTransportData() {
     final page = _sourceData[2]!;
     final callout =
@@ -1350,7 +1285,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ],
     );
   }
-
   Widget _buildKtmbData() {
     final page = _sourceData[3]!;
     final dropdown = page['dropdown'] as Map<String, dynamic>? ?? const {};
@@ -1422,7 +1356,6 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ],
     );
   }
-
   Widget _comparisonResult(
     Map<String, dynamic> page,
     String? origin,
@@ -1450,16 +1383,13 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       reverseMonthly: (reverse['monthly'] as num?)?.toDouble() ?? 0,
     );
   }
-
   @override
   void dispose() {
     super.dispose();
   }
 }
-
 class _GovernmentLoading extends StatelessWidget {
   const _GovernmentLoading();
-
   @override
   Widget build(BuildContext context) {
     return const Padding(
@@ -1477,13 +1407,10 @@ class _GovernmentLoading extends StatelessWidget {
     );
   }
 }
-
 class _GovernmentError extends StatelessWidget {
   const _GovernmentError({required this.message, required this.onRetry});
-
   final String message;
   final VoidCallback onRetry;
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1508,10 +1435,8 @@ class _GovernmentError extends StatelessWidget {
     );
   }
 }
-
 class _GovernmentEmpty extends StatelessWidget {
   const _GovernmentEmpty();
-
   @override
   Widget build(BuildContext context) {
     return const Padding(
@@ -1524,10 +1449,8 @@ class _GovernmentEmpty extends StatelessWidget {
     );
   }
 }
-
 class _GovernmentSelectionPrompt extends StatelessWidget {
   const _GovernmentSelectionPrompt();
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1546,7 +1469,6 @@ class _GovernmentSelectionPrompt extends StatelessWidget {
     );
   }
 }
-
 class _GovernmentSectionHeader extends StatelessWidget {
   const _GovernmentSectionHeader({
     required this.icon,
@@ -1554,12 +1476,10 @@ class _GovernmentSectionHeader extends StatelessWidget {
     required this.description,
     this.updated,
   });
-
   final IconData icon;
   final String title;
   final String description;
   final String? updated;
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1613,12 +1533,9 @@ class _GovernmentSectionHeader extends StatelessWidget {
     );
   }
 }
-
 class _FuelPriceGrid extends StatelessWidget {
   const _FuelPriceGrid({required this.latest});
-
   final Map<String, dynamic> latest;
-
   @override
   Widget build(BuildContext context) {
     final prices = [
@@ -1675,7 +1592,6 @@ class _FuelPriceGrid extends StatelessWidget {
     );
   }
 }
-
 class _GovernmentDropdown extends StatelessWidget {
   const _GovernmentDropdown({
     required this.label,
@@ -1684,13 +1600,11 @@ class _GovernmentDropdown extends StatelessWidget {
     required this.onChanged,
     this.displayLabel,
   });
-
   final String label;
   final String? value;
   final List<String> options;
   final ValueChanged<String?> onChanged;
   final String Function(String)? displayLabel;
-
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
@@ -1741,7 +1655,6 @@ class _GovernmentDropdown extends StatelessWidget {
     );
   }
 }
-
 class _RidershipComparison extends StatelessWidget {
   const _RidershipComparison({
     required this.origin,
@@ -1751,14 +1664,12 @@ class _RidershipComparison extends StatelessWidget {
     required this.forwardMonthly,
     required this.reverseMonthly,
   });
-
   final String origin;
   final String destination;
   final double forwardDaily;
   final double reverseDaily;
   final double forwardMonthly;
   final double reverseMonthly;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1817,7 +1728,6 @@ class _RidershipComparison extends StatelessWidget {
     );
   }
 }
-
 class _ComparisonBar extends StatelessWidget {
   const _ComparisonBar({
     required this.label,
@@ -1826,13 +1736,11 @@ class _ComparisonBar extends StatelessWidget {
     required this.color,
     required this.suffix,
   });
-
   final String label;
   final double value;
   final double maxValue;
   final Color color;
   final String suffix;
-
   @override
   Widget build(BuildContext context) {
     final fraction = maxValue <= 0
@@ -1879,13 +1787,10 @@ class _ComparisonBar extends StatelessWidget {
     );
   }
 }
-
 class _MonthlyRidership extends StatelessWidget {
   const _MonthlyRidership({required this.label, required this.value});
-
   final String label;
   final double value;
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1908,18 +1813,15 @@ class _MonthlyRidership extends StatelessWidget {
     );
   }
 }
-
 class _PublicTransportMetric extends StatelessWidget {
   const _PublicTransportMetric({
     required this.label,
     required this.color,
     required this.data,
   });
-
   final String label;
   final Color color;
   final Map<String, dynamic>? data;
-
   @override
   Widget build(BuildContext context) {
     final daily =
@@ -1979,13 +1881,10 @@ class _PublicTransportMetric extends StatelessWidget {
     );
   }
 }
-
 class _GovernmentSourceNote extends StatelessWidget {
   const _GovernmentSourceNote({required this.url, this.updated});
-
   final String url;
   final String? updated;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -2019,12 +1918,10 @@ class _GovernmentSourceNote extends StatelessWidget {
     );
   }
 }
-
 String _formatDashboardNumber(double value) {
   final rounded = value.round().toString();
   return rounded.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
 }
-
 String _ktmbServiceLabel(String service) {
   return switch (service) {
     'ets' => 'ETS',
@@ -2035,25 +1932,22 @@ String _ktmbServiceLabel(String service) {
     _ => service,
   };
 }
-
 class _AnimatedSegmentedBar extends StatelessWidget {
   const _AnimatedSegmentedBar({
     required this.tabs,
     required this.selectedIndex,
     required this.onChanged,
   });
-
   final List<String> tabs;
   final int selectedIndex;
   final ValueChanged<int> onChanged;
-
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 48,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F6FF), // Light blue background
+        color: const Color(0xFFF0F6FF), 
         borderRadius: BorderRadius.circular(24),
       ),
       child: Stack(
@@ -2072,7 +1966,7 @@ class _AnimatedSegmentedBar extends StatelessWidget {
               heightFactor: 1.0,
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0B7CFF), // Primary blue active pill
+                  color: const Color(0xFF0B7CFF), 
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(

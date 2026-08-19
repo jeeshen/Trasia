@@ -1,8 +1,6 @@
 part of '../main.dart';
-
 class _RewardsData {
   static List<_RewardVoucher> vouchers = [];
-
   static Future<void> load() async {
     final data = await Supabase.instance.client.from('vouchers').select();
     vouchers = data
@@ -20,7 +18,6 @@ class _RewardsData {
         )
         .toList();
   }
-
   static IconData _getIconData(String name) {
     switch (name) {
       case 'Icons.local_taxi_rounded':
@@ -34,9 +31,7 @@ class _RewardsData {
     }
   }
 }
-
 const _kfcVoucherImage = 'assets/branding/kfc_voucher.png';
-
 class RedeemedVoucher {
   const RedeemedVoucher({
     required this.id,
@@ -46,14 +41,12 @@ class RedeemedVoucher {
     required this.redeemedAt,
     this.usedAt,
   });
-
   final String id;
   final String title;
   final String description;
   final String code;
   final DateTime redeemedAt;
   final DateTime? usedAt;
-
   RedeemedVoucher copyWith({DateTime? usedAt}) {
     return RedeemedVoucher(
       id: id,
@@ -64,7 +57,6 @@ class RedeemedVoucher {
       usedAt: usedAt ?? this.usedAt,
     );
   }
-
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
@@ -73,7 +65,6 @@ class RedeemedVoucher {
     'redeemedAt': redeemedAt.toIso8601String(),
     'usedAt': usedAt?.toIso8601String(),
   };
-
   factory RedeemedVoucher.fromJson(Map<String, dynamic> json) {
     return RedeemedVoucher(
       id: json['id'] as String? ?? '',
@@ -87,18 +78,14 @@ class RedeemedVoucher {
     );
   }
 }
-
 class CheckedInPlace {
   const CheckedInPlace({required this.placeKey, required this.checkedInAt});
-
   final String placeKey;
   final DateTime checkedInAt;
-
   Map<String, dynamic> toJson() => {
     'placeKey': placeKey,
     'checkedInAt': checkedInAt.toIso8601String(),
   };
-
   factory CheckedInPlace.fromJson(Map<String, dynamic> json) {
     return CheckedInPlace(
       placeKey: json['placeKey'] as String? ?? '',
@@ -108,9 +95,7 @@ class CheckedInPlace {
     );
   }
 }
-
 enum _RewardKind { hubPool, kfc }
-
 class _RewardVoucher {
   const _RewardVoucher({
     required this.id,
@@ -122,7 +107,6 @@ class _RewardVoucher {
     required this.accentColor,
     this.hubPoolCredit = 0,
   });
-
   final String id;
   final String title;
   final String description;
@@ -132,13 +116,10 @@ class _RewardVoucher {
   final Color accentColor;
   final double hubPoolCredit;
 }
-
 class _RewardsEntryCard extends StatelessWidget {
   const _RewardsEntryCard({required this.points, required this.onTap});
-
   final int points;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -218,16 +199,13 @@ class _RewardsEntryCard extends StatelessWidget {
     );
   }
 }
-
 class _CheckInMemoriesEntryCard extends StatelessWidget {
   const _CheckInMemoriesEntryCard({
     required this.checkedInCount,
     required this.onTap,
   });
-
   final int checkedInCount;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -297,17 +275,14 @@ class _CheckInMemoriesEntryCard extends StatelessWidget {
     );
   }
 }
-
 class CheckInMemoriesPage extends StatelessWidget {
   const CheckInMemoriesPage({
     required this.checkedInPlaces,
     required this.allPlaces,
     super.key,
   });
-
   final Map<String, CheckedInPlace> checkedInPlaces;
   final List<Attraction> allPlaces;
-
   @override
   Widget build(BuildContext context) {
     final placeByKey = {
@@ -358,12 +333,9 @@ class CheckInMemoriesPage extends StatelessWidget {
     );
   }
 }
-
 class _CheckInMemoriesHeader extends StatelessWidget {
   const _CheckInMemoriesHeader({required this.count});
-
   final int count;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -420,13 +392,10 @@ class _CheckInMemoriesHeader extends StatelessWidget {
     );
   }
 }
-
 class _MemoryBubble extends StatelessWidget {
   const _MemoryBubble({required this.size, required this.opacity});
-
   final double size;
   final double opacity;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -439,10 +408,8 @@ class _MemoryBubble extends StatelessWidget {
     );
   }
 }
-
 class _EmptyCheckInMemories extends StatelessWidget {
   const _EmptyCheckInMemories();
-
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -477,18 +444,15 @@ class _EmptyCheckInMemories extends StatelessWidget {
     );
   }
 }
-
 class _CheckInMemoryTicket extends StatelessWidget {
   const _CheckInMemoryTicket({
     required this.memory,
     required this.place,
     required this.fallbackName,
   });
-
   final CheckedInPlace memory;
   final Attraction? place;
   final String fallbackName;
-
   @override
   Widget build(BuildContext context) {
     final checkedInAt = memory.checkedInAt.toLocal();
@@ -598,7 +562,6 @@ class _CheckInMemoryTicket extends StatelessWidget {
     );
   }
 }
-
 String _titleCase(String value) {
   return value
       .split(' ')
@@ -606,25 +569,20 @@ String _titleCase(String value) {
       .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
       .join(' ');
 }
-
 class RewardsPage extends StatefulWidget {
   const RewardsPage({
     required this.initialPoints,
     required this.onRedeem,
     super.key,
   });
-
   final int initialPoints;
   final bool Function(String voucherId, int pointCost, double hubPoolCredit)
   onRedeem;
-
   @override
   State<RewardsPage> createState() => _RewardsPageState();
 }
-
 class _RewardsPageState extends State<RewardsPage> {
   late int _points = widget.initialPoints;
-
   Future<void> _openVoucher(_RewardVoucher voucher) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -657,7 +615,6 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
     );
   }
-
   Future<void> _showCreditSuccess(_RewardVoucher voucher) {
     return showDialog<void>(
       context: context,
@@ -682,7 +639,6 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
     );
   }
-
   Future<void> _showVoucherSaved() {
     return showDialog<void>(
       context: context,
@@ -756,7 +712,6 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -806,30 +761,24 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
     );
   }
-
   @override
   void dispose() {
     super.dispose();
   }
 }
-
 class VoucherWalletPage extends StatefulWidget {
   const VoucherWalletPage({
     required this.vouchers,
     required this.onVoucherUsed,
     super.key,
   });
-
   final List<RedeemedVoucher> vouchers;
   final ValueChanged<String> onVoucherUsed;
-
   @override
   State<VoucherWalletPage> createState() => _VoucherWalletPageState();
 }
-
 class _VoucherWalletPageState extends State<VoucherWalletPage> {
   late List<RedeemedVoucher> _vouchers = List.of(widget.vouchers);
-
   Future<void> _openVoucher(RedeemedVoucher voucher, {required bool history}) {
     return showModalBottomSheet<void>(
       context: context,
@@ -846,7 +795,6 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
       ),
     );
   }
-
   void _markUsed(RedeemedVoucher voucher) {
     widget.onVoucherUsed(voucher.id);
     setState(() {
@@ -862,7 +810,6 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
       context,
     ).showSnackBar(const SnackBar(content: Text('Voucher moved to History')));
   }
-
   @override
   Widget build(BuildContext context) {
     final available = [
@@ -913,13 +860,11 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
       ),
     );
   }
-
   @override
   void dispose() {
     super.dispose();
   }
 }
-
 class _VoucherList extends StatelessWidget {
   const _VoucherList({
     required this.vouchers,
@@ -928,13 +873,11 @@ class _VoucherList extends StatelessWidget {
     required this.onOpenVoucher,
     this.history = false,
   });
-
   final List<RedeemedVoucher> vouchers;
   final String emptyTitle;
   final String emptyMessage;
   final ValueChanged<RedeemedVoucher> onOpenVoucher;
   final bool history;
-
   @override
   Widget build(BuildContext context) {
     if (vouchers.isNotEmpty) {
@@ -981,18 +924,15 @@ class _VoucherList extends StatelessWidget {
     );
   }
 }
-
 class _RedeemedVoucherCard extends StatelessWidget {
   const _RedeemedVoucherCard({
     required this.voucher,
     required this.history,
     required this.onTap,
   });
-
   final RedeemedVoucher voucher;
   final bool history;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -1062,18 +1002,15 @@ class _RedeemedVoucherCard extends StatelessWidget {
     );
   }
 }
-
 class _RedeemedVoucherDetailsSheet extends StatelessWidget {
   const _RedeemedVoucherDetailsSheet({
     required this.voucher,
     required this.history,
     required this.onMarkUsed,
   });
-
   final RedeemedVoucher voucher;
   final bool history;
   final VoidCallback onMarkUsed;
-
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -1157,18 +1094,15 @@ class _RedeemedVoucherDetailsSheet extends StatelessWidget {
     );
   }
 }
-
 class _KfcVoucherImage extends StatelessWidget {
   const _KfcVoucherImage({
     required this.width,
     required this.height,
     required this.used,
   });
-
   final double width;
   final double height;
   final bool used;
-
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -1222,17 +1156,13 @@ class _KfcVoucherImage extends StatelessWidget {
     );
   }
 }
-
 String _voucherDate(DateTime dateTime) {
   final localDate = dateTime.toLocal();
   return '${localDate.day.toString().padLeft(2, '0')}/${localDate.month.toString().padLeft(2, '0')}/${localDate.year}';
 }
-
 class _RewardPointsHeader extends StatelessWidget {
   const _RewardPointsHeader({required this.points});
-
   final int points;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1272,13 +1202,10 @@ class _RewardPointsHeader extends StatelessWidget {
     );
   }
 }
-
 class _RewardBrandMark extends StatelessWidget {
   const _RewardBrandMark({required this.voucher, required this.iconSize});
-
   final _RewardVoucher voucher;
   final double iconSize;
-
   @override
   Widget build(BuildContext context) {
     if (voucher.kind == _RewardKind.kfc) {
@@ -1293,18 +1220,15 @@ class _RewardBrandMark extends StatelessWidget {
     return Icon(voucher.icon, color: voucher.accentColor, size: iconSize);
   }
 }
-
 class _RewardVoucherCard extends StatelessWidget {
   const _RewardVoucherCard({
     required this.voucher,
     required this.availablePoints,
     required this.onTap,
   });
-
   final _RewardVoucher voucher;
   final int availablePoints;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final canRedeem = availablePoints >= voucher.pointCost;
@@ -1397,18 +1321,15 @@ class _RewardVoucherCard extends StatelessWidget {
     );
   }
 }
-
 class _RewardDetailsSheet extends StatelessWidget {
   const _RewardDetailsSheet({
     required this.voucher,
     required this.availablePoints,
     required this.onRedeem,
   });
-
   final _RewardVoucher voucher;
   final int availablePoints;
   final VoidCallback onRedeem;
-
   @override
   Widget build(BuildContext context) {
     final canRedeem = availablePoints >= voucher.pointCost;

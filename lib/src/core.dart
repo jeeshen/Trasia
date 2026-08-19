@@ -1,22 +1,15 @@
 part of '../main.dart';
-
 enum UserRole { user, admin }
-
 enum RideStage { idle, matching, tracking, onboard, completed, cancelled }
-
 enum PriceTier { budget, midRange, luxury }
-
 enum BlindBoxTravelMode { drive, transit }
-
 enum FeatureCTripStatus { notStarted, traveling, arrived, completed }
-
 class TrasiaColors {
   static const background = Color(0xFF07131F);
   static const primary = Color(0xFF0B7CFF);
   static const primaryPressed = Color(0xFF006CFF);
   static const darkIcon = Color(0xFF1F2937);
 }
-
 SnackBarThemeData get _trasiaSnackBarTheme => SnackBarThemeData(
   behavior: SnackBarBehavior.floating,
   backgroundColor: Colors.white,
@@ -33,16 +26,12 @@ SnackBarThemeData get _trasiaSnackBarTheme => SnackBarThemeData(
   ),
   actionTextColor: TrasiaColors.primary,
 );
-
 class SupabaseConfig {
   static const _definedUrl = String.fromEnvironment('SUPABASE_URL');
   static const _definedAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
-
   static String url = _definedUrl;
   static String anonKey = _definedAnonKey;
-
   static bool get isReady => url.isNotEmpty && anonKey.isNotEmpty;
-
   static Future<void> load() async {
     if (isReady && _GoogleMapsConfig.isReady) {
       return;
@@ -53,10 +42,8 @@ class SupabaseConfig {
       anonKey = values['SUPABASE_ANON_KEY'] ?? anonKey;
       _GoogleMapsConfig.apiKey = values['GOOGLE_MAPS_API_KEY'] ?? _GoogleMapsConfig.apiKey;
     } catch (_) {
-      // Keep dart-define values, or remain unconfigured for preview mode.
     }
   }
-
   static Map<String, String> _parseEnv(String source) {
     final values = <String, String>{};
     for (final rawLine in const LineSplitter().convert(source)) {
@@ -80,7 +67,6 @@ class SupabaseConfig {
     return values;
   }
 }
-
 class AuthProfile {
   const AuthProfile({
     required this.email,
@@ -96,7 +82,6 @@ class AuthProfile {
     required this.favoritePlaces,
     required this.tripHistory,
   });
-
   final String email;
   final UserRole role;
   final String? username;
@@ -109,7 +94,6 @@ class AuthProfile {
   final Map<String, CheckedInPlace> checkedInPlaces;
   final List<FavoritePlace> favoritePlaces;
   final List<TripHistoryEntry> tripHistory;
-
   AuthProfile copyWith({
     String? email,
     String? username,
@@ -139,12 +123,9 @@ class AuthProfile {
     );
   }
 }
-
 class AuthService {
   const AuthService();
-
   SupabaseClient get _client => Supabase.instance.client;
-
   Future<AuthProfile> signIn({
     required String email,
     required String password,
@@ -159,7 +140,6 @@ class AuthService {
     }
     return _profileFor(user);
   }
-
   Future<AuthProfile> signUp({
     required String email,
     required String password,
@@ -177,7 +157,6 @@ class AuthService {
     await _ensureProfile(user);
     return _profileFor(user);
   }
-
   Future<AuthProfile?> currentProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return null;
@@ -185,13 +164,10 @@ class AuthService {
     globalAuthProfileNotifier.value = profile;
     return profile;
   }
-
   Future<void> signOut() => _client.auth.signOut();
-
   Future<void> updateEmail(String newEmail) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-
     try {
       final response = await _client.functions.invoke(
         'update-email',
@@ -200,7 +176,6 @@ class AuthService {
           'newEmail': newEmail,
         },
       );
-      
       if (response.status == 200) {
         final updated = await currentProfile();
         if (updated != null) globalAuthProfileNotifier.value = updated;
@@ -214,13 +189,10 @@ class AuthService {
       throw const AuthException('Unable to update email. Please try again.');
     }
   }
-
   Future<void> verifyCurrentPassword(String password) async {
     final user = _client.auth.currentUser;
     if (user == null || user.email == null) return;
-
     try {
-      // Re-authenticate to verify the password
       await _client.auth.signInWithPassword(
         email: user.email,
         password: password,
@@ -229,37 +201,29 @@ class AuthService {
       throw const AuthException('Incorrect current password.');
     }
   }
-
   Future<void> updatePassword(String newPassword) async {
     await _client.auth.updateUser(UserAttributes(password: newPassword));
   }
-
   Future<bool> isUsernameAvailable(String username) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-
     final res = await _client.rpc(
       'is_username_available',
       params: {'check_username': username},
     );
-
     return res == true;
   }
-
   Future<bool> isEmailAvailable(String email) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-
     final res = await _client
         .from('profiles')
         .select('id')
         .ilike('email', email)
         .neq('id', user.id)
         .maybeSingle();
-
     return res == null;
   }
-
   Future<void> updateProfile(AuthProfile profile) async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -290,7 +254,6 @@ class AuthService {
         .eq('id', user.id);
     globalAuthProfileNotifier.value = profile;
   }
-
   Future<AuthProfile> _profileFor(User user) async {
     await _ensureProfile(user);
     final row = await _client
@@ -300,14 +263,11 @@ class AuthService {
         )
         .eq('id', user.id)
         .maybeSingle();
-
     final role = row?['role'] == 'admin' ? UserRole.admin : UserRole.user;
-
     final rawVouchers = row?['redeemed_vouchers'] as List<dynamic>? ?? const [];
     final vouchers = rawVouchers
         .map((v) => RedeemedVoucher.fromJson(v as Map<String, dynamic>))
         .toList();
-
     final rawPlaces = row?['checked_in_places'];
     final checkedInPlaces = <String, CheckedInPlace>{};
     if (rawPlaces is Map<String, dynamic>) {
@@ -317,17 +277,14 @@ class AuthService {
         );
       }
     }
-
     final rawFavorites = row?['favorite_places'] as List<dynamic>? ?? const [];
     final favorites = rawFavorites
         .map((v) => FavoritePlace.fromJson(v as Map<String, dynamic>))
         .toList();
-
     final rawHistory = row?['trip_history'] as List<dynamic>? ?? const [];
     final history = rawHistory
         .map((v) => TripHistoryEntry.fromJson(v as Map<String, dynamic>))
         .toList();
-
     return AuthProfile(
       email: (row?['email'] as String?) ?? user.email ?? '',
       role: role,
@@ -344,7 +301,6 @@ class AuthService {
       tripHistory: history,
     );
   }
-
   Future<void> _ensureProfile(User user) async {
     final existing = await _client
         .from('profiles')
@@ -370,7 +326,6 @@ class AuthService {
     });
   }
 }
-
 extension BlindBoxTravelModeDetails on BlindBoxTravelMode {
   String get label {
     return switch (this) {
@@ -378,14 +333,12 @@ extension BlindBoxTravelModeDetails on BlindBoxTravelMode {
       BlindBoxTravelMode.transit => 'Transit',
     };
   }
-
   IconData get icon {
     return switch (this) {
       BlindBoxTravelMode.drive => Icons.directions_car_rounded,
       BlindBoxTravelMode.transit => Icons.directions_transit_rounded,
     };
   }
-
   int travelMinutesFor(double km) {
     return switch (this) {
       BlindBoxTravelMode.drive => max(8, (km * 4.2).round()),
@@ -393,17 +346,14 @@ extension BlindBoxTravelModeDetails on BlindBoxTravelMode {
     };
   }
 }
-
 class _GoogleMapsConfig {
   static const providedApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
   static const developmentApiKey = '';
   static String apiKey = providedApiKey == ''
       ? developmentApiKey
       : providedApiKey;
-
   static bool get isReady => apiKey.isNotEmpty;
 }
-
 class SharedMapView {
   const SharedMapView({
     required this.signature,
@@ -425,7 +375,6 @@ class SharedMapView {
     this.extraMarkers = const <Marker>{},
     this.extraPolylines = const <Polyline>{},
   });
-
   final String signature;
   final LatLng? currentLocation;
   final double? currentAccuracyMeters;
@@ -444,14 +393,12 @@ class SharedMapView {
   final double? initialZoom;
   final Set<Marker> extraMarkers;
   final Set<Polyline> extraPolylines;
-
   static const initial = SharedMapView(
     signature: 'initial',
     initialTarget: LatLng(3.1478, 101.6953),
     initialZoom: 12,
   );
 }
-
 final globalMapViewNotifier = ValueNotifier<SharedMapView>(
   SharedMapView.initial,
 );

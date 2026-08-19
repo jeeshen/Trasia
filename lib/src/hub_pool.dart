@@ -1,5 +1,4 @@
 part of '../main.dart';
-
 class HubPoolScreen extends StatefulWidget {
   const HubPoolScreen({
     required this.active,
@@ -17,7 +16,6 @@ class HubPoolScreen extends StatefulWidget {
     required this.request,
     super.key,
   });
-
   final bool active;
   final AppMapController? mapController;
   final ValueChanged<SharedMapView> onMapViewChanged;
@@ -31,11 +29,9 @@ class HubPoolScreen extends StatefulWidget {
   final ValueChanged<DestinationCandidate> onToggleFavorite;
   final DestinationCandidate? requestedDestination;
   final int request;
-
   @override
   State<HubPoolScreen> createState() => _HubPoolScreenState();
 }
-
 class _HubPoolScreenState extends State<HubPoolScreen>
     with SingleTickerProviderStateMixin {
   final _destinationController = TextEditingController();
@@ -75,7 +71,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _origin;
   LatLng get _rideCurrentLocation =>
       _hubCurrentLocation ?? widget.currentLocation ?? _pickupLocation;
-
   double? get _pickupAccuracyMeters =>
       _bookedPickupAccuracyMeters ??
       _hubCurrentAccuracyMeters ??
@@ -95,7 +90,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       unawaited(_loadPickupLocation(silent: true));
     }
   }
-
   @override
   void didUpdateWidget(covariant HubPoolScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -124,7 +118,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _useRequestedDestination(widget.requestedDestination!);
     }
   }
-
   void _useRequestedDestination(DestinationCandidate destination) {
     if (_stage == RideStage.matching ||
         _stage == RideStage.tracking ||
@@ -159,7 +152,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       }
     });
   }
-
   @override
   void dispose() {
     _timer?.cancel();
@@ -170,7 +162,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     _destinationController.dispose();
     super.dispose();
   }
-
   Future<void> _loadPickupLocation({required bool silent}) async {
     if (_loadingPickupLocation || _bookedPickupLocation != null) {
       return;
@@ -181,7 +172,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       if (!serviceEnabled) {
         return;
       }
-
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         if (silent) {
@@ -193,7 +183,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           permission == LocationPermission.deniedForever) {
         return;
       }
-
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.bestForNavigation,
@@ -214,12 +203,10 @@ class _HubPoolScreenState extends State<HubPoolScreen>
         _hubCurrentAccuracyMeters = position.accuracy;
       });
     } catch (_) {
-      // Keep the last known pickup when location services cannot refresh.
     } finally {
       _loadingPickupLocation = false;
     }
   }
-
   void _startRideLocationUpdates() {
     _hubPositionSubscription?.cancel();
     _hubPositionSubscription = Geolocator.getPositionStream(
@@ -229,14 +216,12 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       ),
     ).listen(_handleRidePosition, onError: (_) {});
   }
-
   void _stopRideLocationUpdates() {
     _destinationRouteRefreshTimer?.cancel();
     _destinationRouteRefreshTimer = null;
     _hubPositionSubscription?.cancel();
     _hubPositionSubscription = null;
   }
-
   void _handleRidePosition(Position position) {
     if (!mounted || _stage != RideStage.onboard) {
       return;
@@ -256,7 +241,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     _followRideCamera(force: true);
     _scheduleDestinationRouteRefresh();
   }
-
   void _scheduleDestinationRouteRefresh() {
     final destination = _destination;
     if (_stage != RideStage.onboard || destination == null) {
@@ -269,14 +253,12 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       }
     });
   }
-
   bool _isGreaterKlLocation(LatLng location) {
     return location.latitude >= 2.85 &&
         location.latitude <= 3.35 &&
         location.longitude >= 101.45 &&
         location.longitude <= 102.05;
   }
-
   Future<void> _bookRide() async {
     await _loadPickupLocation(silent: true);
     if (!mounted) {
@@ -293,14 +275,12 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     final pickupLocation = _pickupLocation;
     final pickupAccuracyMeters = _pickupAccuracyMeters;
     final fare = _fareForDistance(rideDistanceKm);
-
     if (widget.wallet < fare) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Insufficient credit to book this ride.')),
       );
       return;
     }
-
     _timer?.cancel();
     _stopRideLocationUpdates();
     _carController.reset();
@@ -326,7 +306,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       }
     });
   }
-
   Future<void> _confirmDriverMatch() async {
     if (!mounted || _stage != RideStage.matching) {
       return;
@@ -372,7 +351,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _startTrackingTimer();
     }
   }
-
   void _startTrackingTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_seconds <= 1) {
@@ -411,7 +389,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       }
     });
   }
-
   void _cancelRide() {
     _timer?.cancel();
     _carController.stop();
@@ -428,7 +405,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _bookedPickupAccuracyMeters = null;
     });
   }
-
   void _completeDemoArrival() {
     if (_stage != RideStage.matching &&
         _stage != RideStage.tracking &&
@@ -476,7 +452,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       );
     });
   }
-
   List<DestinationCandidate> get _visibleDestinations {
     final query = _destinationController.text.trim().toLowerCase();
     if (query.isEmpty) {
@@ -491,7 +466,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
         .toList();
     return matches.isEmpty ? _destinationCandidates : matches;
   }
-
   LatLng? get _vehicleLocation {
     final driver = _driver;
     if (driver == null) {
@@ -511,7 +485,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     }
     return driver.startLocation;
   }
-
   double get _vehicleBearing {
     final points = _stage == RideStage.tracking
         ? (_route?.points.isNotEmpty ?? false)
@@ -534,12 +507,9 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     );
     return bearing.isNaN ? 0 : bearing;
   }
-
   double get _selectedDistanceKm =>
       _destination == null ? 0 : _rideDistanceKm(_destination!.location);
-
   double get _selectedFare => _fareForDistance(_selectedDistanceKm);
-
   void _followRideCamera({bool force = false}) {
     if (!mounted ||
         !widget.active ||
@@ -571,7 +541,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       ),
     );
   }
-
   SharedMapView get _currentMapView {
     final resultsExpanded =
         _stage == RideStage.idle && _destinationCandidates.isNotEmpty;
@@ -598,7 +567,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       initialZoom: _destination == null ? 13 : 14.5,
     );
   }
-
   void _publishMapView() {
     if (!widget.active) {
       return;
@@ -610,7 +578,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       }
     });
   }
-
   Future<_DriverArrival> _findNearbyDriverArrival(Driver driverProfile) async {
     final pickup = _pickupLocation;
     final candidates = _nearbyDriverCandidates(pickup);
@@ -637,7 +604,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
           bestFullRouteSeconds = route.durationSeconds;
         }
       } catch (_) {
-        // Try the next nearby road point.
       }
     }
     if (bestArrival != null) {
@@ -645,7 +611,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     }
     throw 'No nearby driver road route found';
   }
-
   _DriverArrival _arrivalFromFinalRoadSegment(
     Driver driverProfile,
     _DrivingRoute route,
@@ -671,7 +636,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       route: approachRoute,
     );
   }
-
   List<LatLng> _lastRoadSegment(List<LatLng> points, double maxMeters) {
     if (points.length <= 2) {
       return points;
@@ -698,7 +662,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     }
     return segment;
   }
-
   double _pathDistanceMeters(List<LatLng> points) {
     var meters = 0.0;
     for (var i = 0; i < points.length - 1; i++) {
@@ -706,7 +669,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     }
     return meters;
   }
-
   List<LatLng> _nearbyDriverCandidates(LatLng pickup) {
     final random = Random(DateTime.now().millisecondsSinceEpoch);
     final angles = <double>[
@@ -739,7 +701,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     }
     return candidates;
   }
-
   LatLng _offsetLocation(LatLng origin, double meters, double bearingRadians) {
     final latMeters = 111320.0;
     final lngMeters = latMeters * cos(origin.latitude * pi / 180);
@@ -748,12 +709,10 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       origin.longitude + sin(bearingRadians) * meters / lngMeters,
     );
   }
-
   int _arrivalSecondsFor(_DrivingRoute route) {
     final seconds = route.durationSeconds.round();
     return seconds.clamp(20, _maxApproachSeconds).toInt();
   }
-
   TransitOption _pendingApproachRoute(Driver driver) {
     return _approachRoute(
       driver,
@@ -764,7 +723,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       legDistance: '--',
     );
   }
-
   TransitOption _drivingApproachRoute(Driver driver, _DrivingRoute route) {
     return _approachRoute(
       driver,
@@ -775,7 +733,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       legDistance: route.distance,
     );
   }
-
   TransitOption _approachRoute(
     Driver driver, {
     required List<LatLng> points,
@@ -808,7 +765,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       nextInstruction: '${driver.name} is driving to your pickup point',
     );
   }
-
   Future<void> _replaceWithDrivingApproachRoute(Driver driver) async {
     try {
       final pickup = _pickupLocation;
@@ -847,7 +803,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       }
     }
   }
-
   TransitOption _destinationRoute(DestinationCandidate destination) {
     final origin = _stage == RideStage.onboard
         ? _rideCurrentLocation
@@ -877,7 +832,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       nextInstruction: 'Getting road route to ${destination.name}',
     );
   }
-
   Future<void> _replaceWithDrivingDestinationRoute(
     DestinationCandidate destination,
   ) async {
@@ -920,10 +874,8 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       _publishMapView();
       await _fitRoute(drivingRoute.points);
     } catch (_) {
-      // Do not draw guessed ride lines; only road polylines are shown.
     }
   }
-
   LatLng? _pointAlongPath(List<LatLng> points, double progress) {
     if (points.isEmpty) {
       return null;
@@ -961,7 +913,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     }
     return points.last;
   }
-
   (LatLng, LatLng)? _pathSegmentAtProgress(
     List<LatLng> points,
     double progress,
@@ -998,7 +949,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     }
     return null;
   }
-
   double _distanceMeters(LatLng from, LatLng to) {
     return Geolocator.distanceBetween(
       from.latitude,
@@ -1007,24 +957,20 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       to.longitude,
     );
   }
-
   double _rideDistanceKm(LatLng location, {LatLng? to}) {
     final from = to ?? _pickupLocation;
     final meters = _distanceMeters(from, location);
     return max(.2, meters / 1000);
   }
-
   double _fareForDistance(double km) {
     return max(.01, double.parse((km * .50).toStringAsFixed(2)));
   }
-
   Future<void> _fitRoute(List<LatLng> points) async {
     if (points.isEmpty || _mapController == null) {
       return;
     }
     final start = points.first;
     final nextPoint = points.length > 1 ? points[1] : start;
-
     double bearing = 0.0;
     if (start.latitude != nextPoint.latitude ||
         start.longitude != nextPoint.longitude) {
@@ -1038,12 +984,10 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     if (bearing.isNaN) {
       bearing = 0.0;
     }
-
     _mapController!.flyToCameraPosition(
       CameraPosition(target: start, zoom: 17.5, tilt: 0.0, bearing: bearing),
     );
   }
-
   void _handleDestinationTextChanged() {
     _destinationSearchDebounce?.cancel();
     final query = _destinationController.text.trim();
@@ -1062,7 +1006,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       () => unawaited(_searchDestination()),
     );
   }
-
   Future<void> _searchDestination() async {
     _destinationSearchDebounce?.cancel();
     final query = _destinationController.text.trim();
@@ -1075,13 +1018,11 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       });
       return;
     }
-
     setState(() {
       _searchingDestination = true;
       _destination = null;
       _destinationStatusMessage = null;
     });
-
     try {
       final candidates = await _GoogleMapsApi.findPlaces(
         query: query,
@@ -1118,7 +1059,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     _mapController = widget.mapController ?? _mapController;
@@ -1172,7 +1112,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       ],
     );
   }
-
   void _clearDestinationInput() {
     _destinationSearchDebounce?.cancel();
     _destinationSearchRequest++;
@@ -1197,7 +1136,6 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     });
   }
 }
-
 class _HubPoolOverlay extends StatelessWidget {
   const _HubPoolOverlay({
     required this.controller,
@@ -1221,7 +1159,6 @@ class _HubPoolOverlay extends StatelessWidget {
     required this.onBook,
     required this.onCancel,
   });
-
   final TextEditingController controller;
   final RideStage stage;
   final int seconds;
@@ -1242,7 +1179,6 @@ class _HubPoolOverlay extends StatelessWidget {
   final ValueChanged<DestinationCandidate> onToggleFavorite;
   final VoidCallback? onBook;
   final VoidCallback? onCancel;
-
   @override
   Widget build(BuildContext context) {
     final title = switch (stage) {
@@ -1265,7 +1201,6 @@ class _HubPoolOverlay extends StatelessWidget {
       RideStage.completed => 'Fare deducted',
       RideStage.cancelled => 'You can book again',
     };
-
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
@@ -1456,7 +1391,6 @@ class _HubPoolOverlay extends StatelessWidget {
     );
   }
 }
-
 class _HubDestinationTile extends StatelessWidget {
   const _HubDestinationTile({
     required this.destination,
@@ -1466,14 +1400,12 @@ class _HubDestinationTile extends StatelessWidget {
     required this.onTap,
     required this.onToggleFavorite,
   });
-
   final DestinationCandidate destination;
   final bool selected;
   final bool favorite;
   final double fare;
   final VoidCallback onTap;
   final VoidCallback onToggleFavorite;
-
   @override
   Widget build(BuildContext context) {
     return InkWell(

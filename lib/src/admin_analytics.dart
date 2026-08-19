@@ -1,25 +1,18 @@
 part of '../main.dart';
-
 class _AdminAnalyticsView extends StatefulWidget {
   const _AdminAnalyticsView({super.key});
-
   @override
   State<_AdminAnalyticsView> createState() => _AdminAnalyticsViewState();
 }
-
 class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
-  int _section = 0; // 0: Users, 1: Drivers, 2: Vouchers
+  int _section = 0; 
   bool _loading = true;
   String? _error;
-
   late DateTime _selectedWeekStart;
-
-  // Data
   List<dynamic> _users = [];
   List<dynamic> _admins = [];
   List<dynamic> _drivers = [];
   List<dynamic> _vouchers = [];
-
   @override
   void initState() {
     super.initState();
@@ -27,7 +20,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
     _selectedWeekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
     _fetchAnalytics();
   }
-
   Future<void> _showWeekPickerBottomSheet() async {
     final DateTime? newWeek = await showModalBottomSheet<DateTime>(
       context: context,
@@ -38,7 +30,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
         return _WeekPickerSheet(currentWeekStart: _selectedWeekStart);
       }
     );
-
     if (newWeek != null && newWeek != _selectedWeekStart) {
       setState(() {
         _selectedWeekStart = newWeek;
@@ -46,13 +37,11 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       _fetchAnalytics();
     }
   }
-
   Widget _buildWeekPickerTitle(String prefix) {
     final end = _selectedWeekStart.add(const Duration(days: 6));
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     final startStr = '${_selectedWeekStart.day.toString().padLeft(2, '0')} ${months[_selectedWeekStart.month - 1]} ${_selectedWeekStart.year}';
     final endStr = '${end.day.toString().padLeft(2, '0')} ${months[end.month - 1]} ${end.year}';
-    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -89,14 +78,12 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ],
     );
   }
-
   Future<void> _fetchAnalytics() async {
     if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
     });
-
     try {
       final uRes = await Supabase.instance.client.rpc('admin_get_users', params: {
         'p_search_query': '',
@@ -107,21 +94,18 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       final allProfiles = List<dynamic>.from(uRes as List);
       _users = allProfiles.where((u) => u['role'] == 'user').toList();
       _admins = allProfiles.where((u) => u['role'] == 'admin').toList();
-
       _drivers = await Supabase.instance.client.from('drivers').select();
       _vouchers = await Supabase.instance.client.from('vouchers').select();
     } catch (e) {
       debugPrint('Error fetching analytics: $e');
       _error = 'Failed to load analytics data.';
     }
-
     if (mounted) {
       setState(() {
         _loading = false;
       });
     }
   }
-
   Widget _buildEmptyState() {
     return Container(
       width: double.infinity,
@@ -150,7 +134,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ),
     );
   }
-
   Widget _buildCard({String? title, Widget? titleWidget, required Widget child, double height = 300}) {
     return Container(
       width: double.infinity,
@@ -188,7 +171,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ),
     );
   }
-
   Widget _buildSummaryCard({required String title, required String value, required Color color}) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -230,29 +212,20 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ),
     );
   }
-
-  // --- Line Chart Generator for selected week ---
   Widget _buildLineChart(List<dynamic> data, Color color, String tooltipLabel) {
     if (data.isEmpty) return _buildEmptyState();
-
-    // Count per day for the selected 7 days (Mon to Sun)
     Map<int, int> counts = {for (var i = 0; i <= 6; i++) i: 0};
-    
     for (final item in data) {
       if (item['created_at'] == null) continue;
       final dt = DateTime.tryParse(item['created_at']);
       if (dt == null) continue;
-      
-      // Calculate exact day difference by forcing both to midnight dates
       final dtDate = DateTime(dt.year, dt.month, dt.day);
       final weekStart = DateTime(_selectedWeekStart.year, _selectedWeekStart.month, _selectedWeekStart.day);
       final diff = dtDate.difference(weekStart).inDays;
-      
       if (diff >= 0 && diff <= 6) {
         counts[diff] = counts[diff]! + 1;
       }
     }
-
     double maxY = counts.values.isEmpty ? 0 : counts.values.reduce(max).toDouble();
     if (maxY == 0) {
       return Container(
@@ -282,15 +255,12 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
         ),
       );
     }
-
     final spots = counts.entries.map((e) {
       return FlSpot(e.key.toDouble(), e.value.toDouble());
     }).toList();
     spots.sort((a, b) => a.x.compareTo(b.x));
-
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
     return LineChart(
       LineChartData(
         gridData: FlGridData(
@@ -394,8 +364,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       curve: Curves.easeOutCubic,
     );
   }
-
-  // --- Users Tab ---
   Widget _buildUsersTab() {
     int newThisWeek = 0;
     final endOfWeek = _selectedWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
@@ -407,7 +375,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
         }
       }
     }
-
     return Column(
       children: [
         _buildCard(
@@ -440,7 +407,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ],
     );
   }
-
   Widget _buildDriversTab() {
     int newThisWeek = 0;
     final now = DateTime.now();
@@ -453,7 +419,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
         }
       }
     }
-
     return Column(
       children: [
         _buildCard(
@@ -486,8 +451,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ],
     );
   }
-
-  // --- Vouchers Tab ---
   Widget _buildVouchersTab() {
     int newThisWeek = 0;
     final endOfWeek = _selectedWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
@@ -499,7 +462,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
         }
       }
     }
-
     return Column(
       children: [
         _buildCard(
@@ -532,14 +494,10 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ],
     );
   }
-
-
-
   @override
   Widget build(BuildContext context) {
     return ListView(
       children: [
-        // Header
         Row(
           children: [
             const Expanded(
@@ -581,8 +539,6 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           ],
         ),
         const SizedBox(height: 24),
-        
-        // Segmented Control
         _AnimatedSegmentedBar(
           tabs: const ['Users', 'Drivers', 'Vouchers'],
           selectedIndex: _section,
@@ -592,9 +548,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
             });
           },
         ),
-        
         const SizedBox(height: 24),
-        
         if (_error != null)
           Container(
             padding: const EdgeInsets.all(16),
@@ -624,30 +578,25 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
     );
   }
 }
-
 class _WeekPickerSheet extends StatefulWidget {
   final DateTime currentWeekStart;
   const _WeekPickerSheet({required this.currentWeekStart});
   @override
   State<_WeekPickerSheet> createState() => _WeekPickerSheetState();
 }
-
 class _WeekPickerSheetState extends State<_WeekPickerSheet> {
   late final ScrollController _scrollController;
   final int _baseIndex = 10000;
-  
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController(initialScrollOffset: _baseIndex * 56.0 - 150.0);
   }
-
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
   }
-
   void _jumpToDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -668,11 +617,9 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
       if (mounted) Navigator.pop(context, selectedWeekStart);
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
     return Container(
       height: 400,
       padding: const EdgeInsets.only(top: 24, bottom: 16),
@@ -695,11 +642,9 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
                 final offsetWeeks = index - _baseIndex;
                 final weekStart = widget.currentWeekStart.add(Duration(days: offsetWeeks * 7));
                 final weekEnd = weekStart.add(const Duration(days: 6));
-                
                 final startStr = '${weekStart.day.toString().padLeft(2, '0')} ${months[weekStart.month - 1]} ${weekStart.year}';
                 final endStr = '${weekEnd.day.toString().padLeft(2, '0')} ${months[weekEnd.month - 1]} ${weekEnd.year}';
                 final isSelected = offsetWeeks == 0;
-
                 return InkWell(
                   onTap: () => Navigator.pop(context, weekStart),
                   child: Container(
