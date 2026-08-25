@@ -1,15 +1,22 @@
 part of '../main.dart';
+
 enum UserRole { user, admin }
+
 enum RideStage { idle, matching, tracking, onboard, completed, cancelled }
+
 enum PriceTier { budget, midRange, luxury }
+
 enum BlindBoxTravelMode { drive, transit }
+
 enum FeatureCTripStatus { notStarted, traveling, arrived, completed }
+
 class TrasiaColors {
   static const background = Color(0xFF07131F);
   static const primary = Color(0xFF0B7CFF);
   static const primaryPressed = Color(0xFF006CFF);
   static const darkIcon = Color(0xFF1F2937);
 }
+
 SnackBarThemeData get _trasiaSnackBarTheme => SnackBarThemeData(
   behavior: SnackBarBehavior.floating,
   backgroundColor: Colors.white,
@@ -26,24 +33,36 @@ SnackBarThemeData get _trasiaSnackBarTheme => SnackBarThemeData(
   ),
   actionTextColor: TrasiaColors.primary,
 );
+
 class SupabaseConfig {
   static const _definedUrl = String.fromEnvironment('SUPABASE_URL');
   static const _definedAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  static const _definedStripePublishableKey = String.fromEnvironment(
+    'STRIPE_PUBLISHABLE_KEY',
+  );
   static String url = _definedUrl;
   static String anonKey = _definedAnonKey;
+  static String stripePublishableKey = _definedStripePublishableKey;
+  static bool supabaseInitialized = false;
   static bool get isReady => url.isNotEmpty && anonKey.isNotEmpty;
+  static bool get isSupabaseReady => isReady && supabaseInitialized;
   static Future<void> load() async {
-    if (isReady && _GoogleMapsConfig.isReady) {
+    if (isReady &&
+        _GoogleMapsConfig.isReady &&
+        stripePublishableKey.isNotEmpty) {
       return;
     }
     try {
       final values = _parseEnv(await rootBundle.loadString('.env'));
       url = values['SUPABASE_URL'] ?? url;
       anonKey = values['SUPABASE_ANON_KEY'] ?? anonKey;
-      _GoogleMapsConfig.apiKey = values['GOOGLE_MAPS_API_KEY'] ?? _GoogleMapsConfig.apiKey;
-    } catch (_) {
-    }
+      stripePublishableKey =
+          values['STRIPE_PUBLISHABLE_KEY'] ?? stripePublishableKey;
+      _GoogleMapsConfig.apiKey =
+          values['GOOGLE_MAPS_API_KEY'] ?? _GoogleMapsConfig.apiKey;
+    } catch (_) {}
   }
+
   static Map<String, String> _parseEnv(String source) {
     final values = <String, String>{};
     for (final rawLine in const LineSplitter().convert(source)) {
@@ -67,6 +86,7 @@ class SupabaseConfig {
     return values;
   }
 }
+
 class AuthProfile {
   const AuthProfile({
     required this.email,
@@ -123,6 +143,7 @@ class AuthProfile {
     );
   }
 }
+
 class AuthService {
   const AuthService();
   SupabaseClient get _client => Supabase.instance.client;
@@ -140,7 +161,8 @@ class AuthService {
     }
     return _profileFor(user);
   }
-  Future<AuthProfile> signUp({
+
+  Future<AuthProfile?> signUp({
     required String email,
     required String password,
   }) async {
@@ -149,14 +171,37 @@ class AuthService {
       password: password,
     );
     final user = response.user;
-    if (user == null || response.session == null) {
-      throw const AuthException(
-        'Check your email to finish sign up, then log in.',
-      );
+    if (user == null) {
+      throw const AuthException('Sign up failed.');
+    }
+    if (response.session == null) {
+      return null;
     }
     await _ensureProfile(user);
     return _profileFor(user);
   }
+
+  Future<AuthProfile> verifySignupOtp({
+    required String email,
+    required String token,
+  }) async {
+    final response = await _client.auth.verifyOTP(
+      type: OtpType.signup,
+      email: email,
+      token: token,
+    );
+    final user = response.user ?? _client.auth.currentUser;
+    if (user == null) {
+      throw const AuthException('Email confirmation failed.');
+    }
+    await _ensureProfile(user);
+    return _profileFor(user);
+  }
+
+  Future<void> resendSignupOtp(String email) async {
+    await _client.auth.resend(type: OtpType.signup, email: email);
+  }
+
   Future<AuthProfile?> currentProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return null;
@@ -164,6 +209,7 @@ class AuthService {
     globalAuthProfileNotifier.value = profile;
     return profile;
   }
+
   Future<void> signOut() => _client.auth.signOut();
   Future<void> updateEmail(String newEmail) async {
     final user = _client.auth.currentUser;
@@ -171,10 +217,7 @@ class AuthService {
     try {
       final response = await _client.functions.invoke(
         'update-email',
-        body: {
-          'userId': user.id,
-          'newEmail': newEmail,
-        },
+        body: {'userId': user.id, 'newEmail': newEmail},
       );
       if (response.status == 200) {
         final updated = await currentProfile();
@@ -189,6 +232,7 @@ class AuthService {
       throw const AuthException('Unable to update email. Please try again.');
     }
   }
+
   Future<void> verifyCurrentPassword(String password) async {
     final user = _client.auth.currentUser;
     if (user == null || user.email == null) return;
@@ -201,9 +245,11 @@ class AuthService {
       throw const AuthException('Incorrect current password.');
     }
   }
+
   Future<void> updatePassword(String newPassword) async {
     await _client.auth.updateUser(UserAttributes(password: newPassword));
   }
+
   Future<bool> isUsernameAvailable(String username) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
@@ -213,6 +259,7 @@ class AuthService {
     );
     return res == true;
   }
+
   Future<bool> isEmailAvailable(String email) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
@@ -224,6 +271,7 @@ class AuthService {
         .maybeSingle();
     return res == null;
   }
+
   Future<void> updateProfile(AuthProfile profile) async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -234,17 +282,9 @@ class AuthService {
         .update({
           'email': profile.email,
           'username': profile.username,
-          'credit': profile.credit,
           'saved_transit_routes': profile.savedTransitRoutes,
           'hub_pool_transactions': profile.hubPoolTransactions,
           'carbon_saved_kg': profile.carbonSavedKg,
-          'reward_points': profile.rewardPoints,
-          'redeemed_vouchers': profile.redeemedVouchers
-              .map((v) => v.toJson())
-              .toList(),
-          'checked_in_places': profile.checkedInPlaces.map(
-            (k, v) => MapEntry(k, v.toJson()),
-          ),
           'favorite_places': profile.favoritePlaces
               .map((v) => v.toJson())
               .toList(),
@@ -254,6 +294,39 @@ class AuthService {
         .eq('id', user.id);
     globalAuthProfileNotifier.value = profile;
   }
+
+  Future<bool> deductRideFare(double amount) async {
+    final result = await _client.rpc(
+      'deduct_ride_fare',
+      params: {'p_amount': amount},
+    );
+    return result == true;
+  }
+
+  Future<bool> redeemVoucher(String voucherId) async {
+    final result = await _client.rpc(
+      'redeem_voucher',
+      params: {'p_voucher_id': voucherId},
+    );
+    return result == true;
+  }
+
+  Future<bool> checkInAttraction(String placeName) async {
+    final result = await _client.rpc(
+      'check_in_attraction',
+      params: {'p_place_name': placeName},
+    );
+    return result == true;
+  }
+
+  Future<bool> markVoucherUsed(String voucherId) async {
+    final result = await _client.rpc(
+      'mark_voucher_used',
+      params: {'p_voucher_id': voucherId},
+    );
+    return result == true;
+  }
+
   Future<AuthProfile> _profileFor(User user) async {
     await _ensureProfile(user);
     final row = await _client
@@ -301,6 +374,7 @@ class AuthService {
       tripHistory: history,
     );
   }
+
   Future<void> _ensureProfile(User user) async {
     final existing = await _client
         .from('profiles')
@@ -310,22 +384,324 @@ class AuthService {
     if (existing != null) {
       return;
     }
-    await _client.from('profiles').insert({
-      'id': user.id,
-      'email': user.email,
-      'role': 'user',
-      'credit': 0.0,
-      'saved_transit_routes': 0,
-      'hub_pool_transactions': 0,
-      'carbon_saved_kg': 0,
-      'reward_points': 600,
-      'redeemed_vouchers': [],
-      'checked_in_places': {},
-      'favorite_places': [],
-      'trip_history': [],
-    });
+    await _client.from('profiles').insert({'id': user.id, 'email': user.email});
   }
 }
+
+class TrasiaNotification {
+  const TrasiaNotification({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.type,
+    required this.createdAt,
+    this.readAt,
+  });
+  final String id;
+  final String title;
+  final String body;
+  final String type;
+  final DateTime createdAt;
+  final DateTime? readAt;
+  bool get isRead => readAt != null;
+  TrasiaNotification copyWith({DateTime? readAt}) {
+    return TrasiaNotification(
+      id: id,
+      title: title,
+      body: body,
+      type: type,
+      createdAt: createdAt,
+      readAt: readAt ?? this.readAt,
+    );
+  }
+
+  factory TrasiaNotification.fromJson(Map<String, dynamic> json) {
+    return TrasiaNotification(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      body: json['body'] as String,
+      type: (json['type'] as String?) ?? 'general',
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      readAt: json['read_at'] == null
+          ? null
+          : DateTime.parse(json['read_at'] as String).toLocal(),
+    );
+  }
+}
+
+class NotificationService {
+  const NotificationService();
+  SupabaseClient get _client => Supabase.instance.client;
+  String? get _userId => _client.auth.currentUser?.id;
+  Future<List<TrasiaNotification>> load() async {
+    final userId = _userId;
+    if (userId == null) return const [];
+    final rows = await _client
+        .from('notifications')
+        .select('id,title,body,type,created_at,read_at')
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(50);
+    return (rows as List<dynamic>)
+        .map((row) => TrasiaNotification.fromJson(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> create({
+    required String title,
+    required String body,
+    String type = 'general',
+  }) async {
+    final userId = _userId;
+    if (userId == null) return;
+    await _client.from('notifications').insert({
+      'user_id': userId,
+      'title': title,
+      'body': body,
+      'type': type,
+    });
+  }
+
+  Future<void> markAllRead() async {
+    final userId = _userId;
+    if (userId == null) return;
+    await _client
+        .from('notifications')
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('user_id', userId)
+        .isFilter('read_at', null);
+  }
+}
+
+class PushNotificationService {
+  const PushNotificationService();
+  SupabaseClient get _client => Supabase.instance.client;
+  static bool _listenersRegistered = false;
+  static bool _localNotificationsInitialized = false;
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+
+  Future<void> initialize() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+      }
+
+      await _initializeLocalNotifications();
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: false,
+        badge: false,
+        sound: false,
+      );
+      final token = await messaging.getToken();
+      if (token != null) await _saveToken(token);
+      if (!_listenersRegistered) {
+        _listenersRegistered = true;
+        FirebaseMessaging.instance.onTokenRefresh.listen(_saveToken);
+        FirebaseMessaging.onMessage.listen((message) {
+          final notification = message.notification;
+          if (notification == null) return;
+          unawaited(
+            _showLocalNotification(
+              notification.title ?? 'Trasia',
+              notification.body ?? '',
+            ),
+          );
+        });
+      }
+    } catch (error) {
+      debugPrint('Push notifications unavailable: $error');
+    }
+  }
+
+  Future<void> _initializeLocalNotifications() async {
+    if (_localNotificationsInitialized) return;
+
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+    await _localNotifications.initialize(
+      settings: const InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      ),
+    );
+
+    final android = _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'car_pool',
+        'Car-Pool notifications',
+        description: 'Updates about Hub-Pool rides',
+        importance: Importance.high,
+      ),
+    );
+    _localNotificationsInitialized = true;
+  }
+
+  Future<void> _showLocalNotification(String title, String body) async {
+    await _localNotifications.show(
+      id: DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
+      title: title,
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'car_pool',
+          'Car-Pool notifications',
+          channelDescription: 'Updates about Hub-Pool rides',
+          importance: Importance.max,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+    );
+  }
+
+  Future<void> _saveToken(String token) async {
+    if (_client.auth.currentUser == null) return;
+    await _client.functions.invoke(
+      'send-push',
+      body: {
+        'action': 'register',
+        'token': token,
+        'platform': defaultTargetPlatform.name,
+      },
+    );
+  }
+
+  Future<void> unregister() async {
+    if (_client.auth.currentUser == null) return;
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        try {
+          await _client.functions.invoke(
+            'send-push',
+            body: {'action': 'unregister', 'token': token},
+          );
+        } catch (error) {
+          debugPrint('Unable to unregister push token remotely: $error');
+        }
+      }
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (error) {
+      debugPrint('Unable to invalidate push token: $error');
+    }
+  }
+
+  Future<void> sendCarPoolNotification({
+    required String title,
+    required String body,
+  }) async {
+    if (_client.auth.currentUser == null) return;
+    await _client.functions.invoke(
+      'send-push',
+      body: {'title': title, 'body': body, 'type': 'car_pool'},
+    );
+  }
+}
+
+class StripeTopUpService {
+  const StripeTopUpService();
+  SupabaseClient get _client => Supabase.instance.client;
+  Future<void> payInApp(int amountRm) async {
+    if (amountRm != 20 && amountRm != 50) {
+      throw const AuthException('Invalid top-up amount.');
+    }
+    if (SupabaseConfig.stripePublishableKey.isEmpty) {
+      throw const AuthException(
+        'Add STRIPE_PUBLISHABLE_KEY (pk_test_...) to the app configuration.',
+      );
+    }
+    final response = await _client.functions.invoke(
+      'stripe-topup',
+      body: {'amount_rm': amountRm, 'payment_sheet': true},
+    );
+    final data = response.data;
+    final dataMap = data is Map ? data : null;
+    final clientSecret = dataMap?['payment_intent_client_secret'] as String?;
+    final paymentIntentId = dataMap?['payment_intent_id'] as String?;
+    if (clientSecret == null || clientSecret.isEmpty) {
+      throw const AuthException('Unable to start in-app payment.');
+    }
+    try {
+      await Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: SetupPaymentSheetParameters(
+          paymentIntentClientSecret: clientSecret,
+          merchantDisplayName: 'Trasia',
+          returnURL: 'trasia://stripe-success',
+        ),
+      );
+      await Stripe.instance.presentPaymentSheet();
+      if (paymentIntentId != null && paymentIntentId.isNotEmpty) {
+        try {
+          await _client.functions.invoke(
+            'stripe-topup',
+            body: {
+              'confirm_payment_intent': true,
+              'payment_intent_id': paymentIntentId,
+            },
+          );
+        } catch (error) {
+          debugPrint(
+            'Payment verification will rely on Stripe webhook: $error',
+          );
+        }
+      }
+    } on StripeException catch (error) {
+      throw AuthException(
+        error.error.localizedMessage ?? 'Payment was cancelled.',
+      );
+    } catch (error) {
+      throw AuthException('In-app payment failed: $error');
+    }
+  }
+
+  Future<void> reconcilePending() async {
+    try {
+      final rows = await _client
+          .from('credit_topups')
+          .select('stripe_payment_intent_id')
+          .eq('status', 'pending')
+          .limit(10);
+      for (final row in rows as List<dynamic>) {
+        final paymentIntentId =
+            (row as Map<String, dynamic>)['stripe_payment_intent_id']
+                as String?;
+        if (paymentIntentId == null || paymentIntentId.isEmpty) continue;
+        try {
+          await _client.functions.invoke(
+            'stripe-topup',
+            body: {
+              'confirm_payment_intent': true,
+              'payment_intent_id': paymentIntentId,
+            },
+          );
+        } catch (error) {
+          debugPrint('Pending payment still awaiting confirmation: $error');
+        }
+      }
+    } catch (error) {
+      debugPrint('Unable to reconcile pending payments: $error');
+    }
+  }
+}
+
 extension BlindBoxTravelModeDetails on BlindBoxTravelMode {
   String get label {
     return switch (this) {
@@ -333,12 +709,14 @@ extension BlindBoxTravelModeDetails on BlindBoxTravelMode {
       BlindBoxTravelMode.transit => 'Transit',
     };
   }
+
   IconData get icon {
     return switch (this) {
       BlindBoxTravelMode.drive => Icons.directions_car_rounded,
       BlindBoxTravelMode.transit => Icons.directions_transit_rounded,
     };
   }
+
   int travelMinutesFor(double km) {
     return switch (this) {
       BlindBoxTravelMode.drive => max(8, (km * 4.2).round()),
@@ -346,6 +724,7 @@ extension BlindBoxTravelModeDetails on BlindBoxTravelMode {
     };
   }
 }
+
 class _GoogleMapsConfig {
   static const providedApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
   static const developmentApiKey = '';
@@ -354,6 +733,7 @@ class _GoogleMapsConfig {
       : providedApiKey;
   static bool get isReady => apiKey.isNotEmpty;
 }
+
 class SharedMapView {
   const SharedMapView({
     required this.signature,
@@ -399,6 +779,7 @@ class SharedMapView {
     initialZoom: 12,
   );
 }
+
 final globalMapViewNotifier = ValueNotifier<SharedMapView>(
   SharedMapView.initial,
 );

@@ -1,4 +1,5 @@
 part of '../main.dart';
+
 class TrasiaApp extends StatelessWidget {
   const TrasiaApp({super.key});
   @override
@@ -21,32 +22,43 @@ class TrasiaApp extends StatelessWidget {
     );
   }
 }
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
+
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _otpController = TextEditingController();
   final _auth = const AuthService();
   bool _loading = false;
   bool _signingUp = false;
+  bool _awaitingOtp = false;
+  String? _pendingEmail;
   String? _message;
   @override
   void initState() {
     super.initState();
-    if (SupabaseConfig.isReady) {
+    if (SupabaseConfig.isSupabaseReady) {
       unawaited(_resumeSession());
     }
   }
+
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
+
   Future<void> _resumeSession() async {
+    if (!SupabaseConfig.isSupabaseReady) return;
     try {
       final profile = await _auth.currentProfile();
       if (mounted && profile != null) {
@@ -58,13 +70,15 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
   }
+
   Future<void> _submit() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    if (!SupabaseConfig.isReady) {
+    final confirmPassword = _confirmPasswordController.text;
+    if (!SupabaseConfig.isSupabaseReady) {
       setState(
         () => _message =
-            'Add SUPABASE_URL and SUPABASE_ANON_KEY dart-defines first.',
+            'Supabase is not ready. Check the connection and restart the app.',
       );
       return;
     }
@@ -75,6 +89,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
+    if (_signingUp && password != confirmPassword) {
+      setState(() => _message = 'Passwords do not match.');
+      return;
+    }
     setState(() {
       _loading = true;
       _message = null;
@@ -83,6 +101,16 @@ class _LoginScreenState extends State<LoginScreen> {
       final profile = _signingUp
           ? await _auth.signUp(email: email, password: password)
           : await _auth.signIn(email: email, password: password);
+      if (profile == null) {
+        if (mounted) {
+          setState(() {
+            _awaitingOtp = true;
+            _pendingEmail = email;
+            _message = 'Enter the 6-digit code sent to $email.';
+          });
+        }
+        return;
+      }
       if (mounted) {
         _enter(profile);
       }
@@ -96,6 +124,50 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
   }
+
+  Future<void> _verifyOtp() async {
+    final email = _pendingEmail;
+    final token = _otpController.text.trim();
+    if (email == null || !RegExp(r'^\d{6}$').hasMatch(token)) {
+      setState(() => _message = 'Enter the 6-digit confirmation code.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _message = null;
+    });
+    try {
+      final profile = await _auth.verifySignupOtp(email: email, token: token);
+      if (mounted) _enter(profile);
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _message = error.message);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _message = 'Email confirmation failed: $error');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _resendOtp() async {
+    final email = _pendingEmail;
+    if (email == null) return;
+    setState(() => _loading = true);
+    try {
+      await _auth.resendSignupOtp(email);
+      if (mounted) setState(() => _message = 'A new code has been sent.');
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _message = error.message);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _message = 'Unable to resend the code: $error');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   void _enter(AuthProfile profile) {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
@@ -114,8 +186,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
   Future<void> _logoutFromDashboard(BuildContext context) async {
-    if (SupabaseConfig.isReady) {
+    if (SupabaseConfig.isSupabaseReady) {
+      await const PushNotificationService().unregister();
       await _auth.signOut();
     }
     if (!context.mounted) {
@@ -126,6 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
       (_) => false,
     );
   }
+
   void _preview(UserRole role) {
     _enter(
       AuthProfile(
@@ -145,6 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
   @override
   Widget build(BuildContext context) {
     const ink = Color(0xFF102033);
@@ -234,14 +310,32 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 32),
                     _AuthFormPanel(
                       signingUp: _signingUp,
+                      awaitingOtp: _awaitingOtp,
                       loading: _loading,
                       message: _message,
                       emailController: _emailController,
                       passwordController: _passwordController,
+                      confirmPasswordController: _confirmPasswordController,
+                      otpController: _otpController,
                       onSubmit: _submit,
+                      onVerifyOtp: _verifyOtp,
+                      onResendOtp: _resendOtp,
+                      onBackToSignUp: _loading
+                          ? null
+                          : () => setState(() {
+                              _awaitingOtp = false;
+                              _pendingEmail = null;
+                              _otpController.clear();
+                              _confirmPasswordController.clear();
+                              _message = null;
+                            }),
                       onToggleMode: _loading
                           ? null
-                          : () => setState(() => _signingUp = !_signingUp),
+                          : () => setState(() {
+                              _signingUp = !_signingUp;
+                              _confirmPasswordController.clear();
+                              _message = null;
+                            }),
                       onPreviewUser: () => _preview(UserRole.user),
                       onPreviewAdmin: () => _preview(UserRole.admin),
                     ),
@@ -255,24 +349,37 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
 class _AuthFormPanel extends StatelessWidget {
   const _AuthFormPanel({
     required this.signingUp,
+    required this.awaitingOtp,
     required this.loading,
     required this.message,
     required this.emailController,
     required this.passwordController,
+    required this.confirmPasswordController,
+    required this.otpController,
     required this.onSubmit,
+    required this.onVerifyOtp,
+    required this.onResendOtp,
+    required this.onBackToSignUp,
     required this.onToggleMode,
     required this.onPreviewUser,
     required this.onPreviewAdmin,
   });
   final bool signingUp;
+  final bool awaitingOtp;
   final bool loading;
   final String? message;
   final TextEditingController emailController;
   final TextEditingController passwordController;
+  final TextEditingController confirmPasswordController;
+  final TextEditingController otpController;
   final VoidCallback onSubmit;
+  final VoidCallback onVerifyOtp;
+  final VoidCallback onResendOtp;
+  final VoidCallback? onBackToSignUp;
   final VoidCallback? onToggleMode;
   final VoidCallback onPreviewUser;
   final VoidCallback onPreviewAdmin;
@@ -284,58 +391,130 @@ class _AuthFormPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
-            key: const Key('login-email'),
-            controller: emailController,
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-            style: const TextStyle(color: Color(0xFF102033)),
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.email_outlined),
+          if (awaitingOtp) ...[
+            const Text(
+              'Confirm your email',
+              style: TextStyle(
+                color: Color(0xFF102033),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            key: const Key('login-password'),
-            controller: passwordController,
-            obscureText: true,
-            autofillHints: const [AutofillHints.password],
-            style: const TextStyle(color: Color(0xFF102033)),
-            decoration: const InputDecoration(
-              labelText: 'Password',
-              prefixIcon: Icon(Icons.lock_outline_rounded),
+            const SizedBox(height: 6),
+            const Text(
+              'Use the one-time code from your email to activate your account.',
+              style: TextStyle(color: Color(0xFF536477), fontSize: 13),
             ),
-            onSubmitted: (_) => onSubmit(),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Password must be at least 6 characters.',
-            style: TextStyle(color: Color(0xFF536477), fontSize: 13),
-          ),
+            const SizedBox(height: 14),
+            TextField(
+              key: const Key('signup-otp'),
+              controller: otpController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: const TextStyle(
+                color: Color(0xFF102033),
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 8,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Confirmation code',
+                prefixIcon: Icon(Icons.verified_outlined),
+                counterText: '',
+              ),
+              onSubmitted: (_) => onVerifyOtp(),
+            ),
+          ] else ...[
+            TextField(
+              key: const Key('login-email'),
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              style: const TextStyle(color: Color(0xFF102033)),
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('login-password'),
+              controller: passwordController,
+              obscureText: true,
+              autofillHints: const [AutofillHints.password],
+              style: const TextStyle(color: Color(0xFF102033)),
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                prefixIcon: Icon(Icons.lock_outline_rounded),
+              ),
+              onSubmitted: (_) => onSubmit(),
+            ),
+            if (signingUp) ...[
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('signup-confirm-password'),
+                controller: confirmPasswordController,
+                obscureText: true,
+                autofillHints: const [AutofillHints.newPassword],
+                style: const TextStyle(color: Color(0xFF102033)),
+                decoration: const InputDecoration(
+                  labelText: 'Confirm password',
+                  prefixIcon: Icon(Icons.lock_reset_outlined),
+                ),
+                onSubmitted: (_) => onSubmit(),
+              ),
+            ],
+            const SizedBox(height: 10),
+            const Text(
+              'Password must be at least 6 characters.',
+              style: TextStyle(color: Color(0xFF536477), fontSize: 13),
+            ),
+          ],
           if (message != null) ...[
             const SizedBox(height: 14),
             _SheetNotice(message: message!),
           ],
           const SizedBox(height: 18),
           FilledButton.icon(
-            key: const Key('login-submit'),
-            onPressed: loading ? null : onSubmit,
+            key: Key(awaitingOtp ? 'signup-verify' : 'login-submit'),
+            onPressed: loading
+                ? null
+                : awaitingOtp
+                ? onVerifyOtp
+                : onSubmit,
             icon: loading
                 ? const TrasiaLoadingCompass(
                     size: 18,
-                    semanticLabel: 'Signing in',
+                    semanticLabel: 'Processing',
                   )
                 : const Icon(Icons.arrow_forward_rounded),
-            label: Text(signingUp ? 'Sign up' : 'Log in'),
-          ),
-          TextButton(
-            onPressed: onToggleMode,
-            child: Text(
-              signingUp ? 'I already have an account' : 'Create a user account',
+            label: Text(
+              awaitingOtp
+                  ? 'Confirm email'
+                  : signingUp
+                  ? 'Sign up'
+                  : 'Log in',
             ),
           ),
-          if (!SupabaseConfig.isReady) ...[
+          if (awaitingOtp) ...[
+            TextButton(
+              onPressed: loading ? null : onResendOtp,
+              child: const Text('Resend code'),
+            ),
+            TextButton(
+              onPressed: onBackToSignUp,
+              child: const Text('Use a different email'),
+            ),
+          ] else
+            TextButton(
+              onPressed: onToggleMode,
+              child: Text(
+                signingUp
+                    ? 'I already have an account'
+                    : 'Create a user account',
+              ),
+            ),
+          if (!SupabaseConfig.isSupabaseReady) ...[
             const SizedBox(height: 14),
             Row(
               children: [
@@ -364,6 +543,7 @@ class _AuthFormPanel extends StatelessWidget {
     );
   }
 }
+
 class _AuthPreviewButton extends StatelessWidget {
   const _AuthPreviewButton({
     required this.icon,
@@ -390,6 +570,7 @@ class _AuthPreviewButton extends StatelessWidget {
     );
   }
 }
+
 BoxDecoration _authPanelDecoration() {
   return BoxDecoration(
     color: Colors.white,

@@ -1,4 +1,5 @@
 part of '../main.dart';
+
 class _RewardsData {
   static List<_RewardVoucher> vouchers = [];
   static Future<void> load() async {
@@ -18,6 +19,7 @@ class _RewardsData {
         )
         .toList();
   }
+
   static IconData _getIconData(String name) {
     switch (name) {
       case 'Icons.local_taxi_rounded':
@@ -31,7 +33,9 @@ class _RewardsData {
     }
   }
 }
+
 const _kfcVoucherImage = 'assets/branding/kfc_voucher.png';
+
 class RedeemedVoucher {
   const RedeemedVoucher({
     required this.id,
@@ -57,6 +61,7 @@ class RedeemedVoucher {
       usedAt: usedAt ?? this.usedAt,
     );
   }
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
@@ -78,6 +83,7 @@ class RedeemedVoucher {
     );
   }
 }
+
 class CheckedInPlace {
   const CheckedInPlace({required this.placeKey, required this.checkedInAt});
   final String placeKey;
@@ -95,7 +101,9 @@ class CheckedInPlace {
     );
   }
 }
+
 enum _RewardKind { hubPool, kfc }
+
 class _RewardVoucher {
   const _RewardVoucher({
     required this.id,
@@ -116,6 +124,7 @@ class _RewardVoucher {
   final Color accentColor;
   final double hubPoolCredit;
 }
+
 class _RewardsEntryCard extends StatelessWidget {
   const _RewardsEntryCard({required this.points, required this.onTap});
   final int points;
@@ -199,6 +208,7 @@ class _RewardsEntryCard extends StatelessWidget {
     );
   }
 }
+
 class _CheckInMemoriesEntryCard extends StatelessWidget {
   const _CheckInMemoriesEntryCard({
     required this.checkedInCount,
@@ -275,6 +285,7 @@ class _CheckInMemoriesEntryCard extends StatelessWidget {
     );
   }
 }
+
 class CheckInMemoriesPage extends StatelessWidget {
   const CheckInMemoriesPage({
     required this.checkedInPlaces,
@@ -333,6 +344,7 @@ class CheckInMemoriesPage extends StatelessWidget {
     );
   }
 }
+
 class _CheckInMemoriesHeader extends StatelessWidget {
   const _CheckInMemoriesHeader({required this.count});
   final int count;
@@ -392,6 +404,7 @@ class _CheckInMemoriesHeader extends StatelessWidget {
     );
   }
 }
+
 class _MemoryBubble extends StatelessWidget {
   const _MemoryBubble({required this.size, required this.opacity});
   final double size;
@@ -408,6 +421,7 @@ class _MemoryBubble extends StatelessWidget {
     );
   }
 }
+
 class _EmptyCheckInMemories extends StatelessWidget {
   const _EmptyCheckInMemories();
   @override
@@ -444,6 +458,7 @@ class _EmptyCheckInMemories extends StatelessWidget {
     );
   }
 }
+
 class _CheckInMemoryTicket extends StatelessWidget {
   const _CheckInMemoryTicket({
     required this.memory,
@@ -562,6 +577,7 @@ class _CheckInMemoryTicket extends StatelessWidget {
     );
   }
 }
+
 String _titleCase(String value) {
   return value
       .split(' ')
@@ -569,6 +585,7 @@ String _titleCase(String value) {
       .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
       .join(' ');
 }
+
 class RewardsPage extends StatefulWidget {
   const RewardsPage({
     required this.initialPoints,
@@ -576,11 +593,16 @@ class RewardsPage extends StatefulWidget {
     super.key,
   });
   final int initialPoints;
-  final bool Function(String voucherId, int pointCost, double hubPoolCredit)
+  final Future<bool> Function(
+    String voucherId,
+    int pointCost,
+    double hubPoolCredit,
+  )
   onRedeem;
   @override
   State<RewardsPage> createState() => _RewardsPageState();
 }
+
 class _RewardsPageState extends State<RewardsPage> {
   late int _points = widget.initialPoints;
   Future<void> _openVoucher(_RewardVoucher voucher) async {
@@ -592,29 +614,40 @@ class _RewardsPageState extends State<RewardsPage> {
       builder: (sheetContext) => _RewardDetailsSheet(
         voucher: voucher,
         availablePoints: _points,
-        onRedeem: () {
-          final redeemed = widget.onRedeem(
-            voucher.id,
-            voucher.pointCost,
-            voucher.hubPoolCredit,
-          );
-          if (!redeemed) {
-            return;
-          }
-          setState(() => _points -= voucher.pointCost);
-          Navigator.of(sheetContext).pop();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            if (voucher.kind == _RewardKind.kfc) {
-              _showVoucherSaved();
-            } else {
-              _showCreditSuccess(voucher);
+        onRedeem: () async {
+          try {
+            final redeemed = await widget.onRedeem(
+              voucher.id,
+              voucher.pointCost,
+              voucher.hubPoolCredit,
+            );
+            if (!redeemed || !mounted) {
+              return;
             }
-          });
+            setState(() => _points -= voucher.pointCost);
+            if (sheetContext.mounted) {
+              Navigator.of(sheetContext).pop();
+            }
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              if (voucher.kind == _RewardKind.kfc) {
+                _showVoucherSaved();
+              } else {
+                _showCreditSuccess(voucher);
+              }
+            });
+          } catch (_) {
+            if (sheetContext.mounted) {
+              ScaffoldMessenger.of(sheetContext).showSnackBar(
+                const SnackBar(content: Text('Unable to redeem this reward.')),
+              );
+            }
+          }
         },
       ),
     );
   }
+
   Future<void> _showCreditSuccess(_RewardVoucher voucher) {
     return showDialog<void>(
       context: context,
@@ -639,6 +672,7 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
     );
   }
+
   Future<void> _showVoucherSaved() {
     return showDialog<void>(
       context: context,
@@ -712,6 +746,7 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
     );
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -761,11 +796,13 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
     );
   }
+
   @override
   void dispose() {
     super.dispose();
   }
 }
+
 class VoucherWalletPage extends StatefulWidget {
   const VoucherWalletPage({
     required this.vouchers,
@@ -773,10 +810,11 @@ class VoucherWalletPage extends StatefulWidget {
     super.key,
   });
   final List<RedeemedVoucher> vouchers;
-  final ValueChanged<String> onVoucherUsed;
+  final Future<void> Function(String voucherId) onVoucherUsed;
   @override
   State<VoucherWalletPage> createState() => _VoucherWalletPageState();
 }
+
 class _VoucherWalletPageState extends State<VoucherWalletPage> {
   late List<RedeemedVoucher> _vouchers = List.of(widget.vouchers);
   Future<void> _openVoucher(RedeemedVoucher voucher, {required bool history}) {
@@ -788,15 +826,19 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
       builder: (sheetContext) => _RedeemedVoucherDetailsSheet(
         voucher: voucher,
         history: history,
-        onMarkUsed: () {
+        onMarkUsed: () async {
           Navigator.of(sheetContext).pop();
-          _markUsed(voucher);
+          await _markUsed(voucher);
         },
       ),
     );
   }
-  void _markUsed(RedeemedVoucher voucher) {
-    widget.onVoucherUsed(voucher.id);
+
+  Future<void> _markUsed(RedeemedVoucher voucher) async {
+    await widget.onVoucherUsed(voucher.id);
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _vouchers = [
         for (final item in _vouchers)
@@ -810,6 +852,7 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
       context,
     ).showSnackBar(const SnackBar(content: Text('Voucher moved to History')));
   }
+
   @override
   Widget build(BuildContext context) {
     final available = [
@@ -860,11 +903,13 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
       ),
     );
   }
+
   @override
   void dispose() {
     super.dispose();
   }
 }
+
 class _VoucherList extends StatelessWidget {
   const _VoucherList({
     required this.vouchers,
@@ -924,6 +969,7 @@ class _VoucherList extends StatelessWidget {
     );
   }
 }
+
 class _RedeemedVoucherCard extends StatelessWidget {
   const _RedeemedVoucherCard({
     required this.voucher,
@@ -1002,6 +1048,7 @@ class _RedeemedVoucherCard extends StatelessWidget {
     );
   }
 }
+
 class _RedeemedVoucherDetailsSheet extends StatelessWidget {
   const _RedeemedVoucherDetailsSheet({
     required this.voucher,
@@ -1010,7 +1057,7 @@ class _RedeemedVoucherDetailsSheet extends StatelessWidget {
   });
   final RedeemedVoucher voucher;
   final bool history;
-  final VoidCallback onMarkUsed;
+  final Future<void> Function() onMarkUsed;
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -1082,7 +1129,7 @@ class _RedeemedVoucherDetailsSheet extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton.icon(
                   key: const Key('mark-voucher-used'),
-                  onPressed: onMarkUsed,
+                  onPressed: () => unawaited(onMarkUsed()),
                   icon: const Icon(Icons.check_rounded),
                   label: const Text('Mark as used'),
                 ),
@@ -1094,6 +1141,7 @@ class _RedeemedVoucherDetailsSheet extends StatelessWidget {
     );
   }
 }
+
 class _KfcVoucherImage extends StatelessWidget {
   const _KfcVoucherImage({
     required this.width,
@@ -1156,10 +1204,12 @@ class _KfcVoucherImage extends StatelessWidget {
     );
   }
 }
+
 String _voucherDate(DateTime dateTime) {
   final localDate = dateTime.toLocal();
   return '${localDate.day.toString().padLeft(2, '0')}/${localDate.month.toString().padLeft(2, '0')}/${localDate.year}';
 }
+
 class _RewardPointsHeader extends StatelessWidget {
   const _RewardPointsHeader({required this.points});
   final int points;
@@ -1202,6 +1252,7 @@ class _RewardPointsHeader extends StatelessWidget {
     );
   }
 }
+
 class _RewardBrandMark extends StatelessWidget {
   const _RewardBrandMark({required this.voucher, required this.iconSize});
   final _RewardVoucher voucher;
@@ -1220,6 +1271,7 @@ class _RewardBrandMark extends StatelessWidget {
     return Icon(voucher.icon, color: voucher.accentColor, size: iconSize);
   }
 }
+
 class _RewardVoucherCard extends StatelessWidget {
   const _RewardVoucherCard({
     required this.voucher,
@@ -1321,6 +1373,7 @@ class _RewardVoucherCard extends StatelessWidget {
     );
   }
 }
+
 class _RewardDetailsSheet extends StatelessWidget {
   const _RewardDetailsSheet({
     required this.voucher,
@@ -1329,7 +1382,7 @@ class _RewardDetailsSheet extends StatelessWidget {
   });
   final _RewardVoucher voucher;
   final int availablePoints;
-  final VoidCallback onRedeem;
+  final Future<void> Function() onRedeem;
   @override
   Widget build(BuildContext context) {
     final canRedeem = availablePoints >= voucher.pointCost;
@@ -1394,7 +1447,7 @@ class _RewardDetailsSheet extends StatelessWidget {
               width: double.infinity,
               child: FilledButton.icon(
                 key: const Key('reward-redeem-button'),
-                onPressed: canRedeem ? onRedeem : null,
+                onPressed: canRedeem ? () => unawaited(onRedeem()) : null,
                 icon: const Icon(Icons.redeem_rounded),
                 label: Text(
                   canRedeem

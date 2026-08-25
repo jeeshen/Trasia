@@ -1,4 +1,5 @@
 part of '../main.dart';
+
 class AccountConsoleScreen extends StatefulWidget {
   const AccountConsoleScreen({
     required this.role,
@@ -33,8 +34,8 @@ class AccountConsoleScreen extends StatefulWidget {
   final List<FavoritePlace> favoritePlaces;
   final List<TripHistoryEntry> tripHistory;
   final List<RedeemedVoucher> vouchers;
-  final ValueChanged<String> onVoucherUsed;
-  final ValueChanged<double> onTopUp;
+  final Future<void> Function(String voucherId) onVoucherUsed;
+  final Future<void> Function(double amount) onTopUp;
   final ValueChanged<FavoritePlace> onRemoveFavorite;
   final ValueChanged<FavoritePlace> onRevisitFavorite;
   final ValueChanged<TripHistoryEntry> onRevisitHistory;
@@ -42,6 +43,7 @@ class AccountConsoleScreen extends StatefulWidget {
   @override
   State<AccountConsoleScreen> createState() => _AccountConsoleScreenState();
 }
+
 class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   Uint8List? _avatarBytes;
@@ -51,6 +53,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
     super.initState();
     unawaited(_loadAvatar());
   }
+
   @override
   void didUpdateWidget(covariant AccountConsoleScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -59,6 +62,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       unawaited(_loadAvatar());
     }
   }
+
   Future<void> _loadAvatar() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -71,6 +75,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       }
     } catch (_) {}
   }
+
   Future<void> _pickAvatar() async {
     try {
       final image = await _imagePicker.pickImage(
@@ -114,6 +119,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       );
     }
   }
+
   void _showWallet() {
     showModalBottomSheet<void>(
       context: context,
@@ -143,9 +149,9 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
               children: [
                 Expanded(
                   child: FilledButton(
-                    onPressed: () {
-                      widget.onTopUp(20);
+                    onPressed: () async {
                       Navigator.pop(context);
+                      await widget.onTopUp(20);
                     },
                     child: const Text('Top up RM20'),
                   ),
@@ -153,9 +159,9 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () {
-                      widget.onTopUp(50);
+                    onPressed: () async {
                       Navigator.pop(context);
+                      await widget.onTopUp(50);
                     },
                     child: const Text('Top up RM50'),
                   ),
@@ -167,6 +173,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       ),
     );
   }
+
   void _showHistory() {
     showModalBottomSheet<void>(
       context: context,
@@ -186,6 +193,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       ),
     );
   }
+
   void _showVouchers() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -196,6 +204,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       ),
     );
   }
+
   Future<void> _confirmRevisit(TripHistoryEntry entry) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -207,6 +216,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
     Navigator.of(context).pop();
     widget.onRevisitHistory(entry);
   }
+
   void _showFavorites() {
     showModalBottomSheet<void>(
       context: context,
@@ -227,6 +237,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       ),
     );
   }
+
   void _showGovernmentData() {
     showModalBottomSheet<void>(
       context: context,
@@ -243,6 +254,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       ),
     );
   }
+
   void _showTerms() {
     showModalBottomSheet<void>(
       context: context,
@@ -266,6 +278,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       ),
     );
   }
+
   @override
   Widget build(BuildContext context) {
     const ink = Color(0xFF102033);
@@ -483,11 +496,13 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       ),
     );
   }
+
   @override
   void dispose() {
     super.dispose();
   }
 }
+
 class _RevisitConfirmDialog extends StatelessWidget {
   const _RevisitConfirmDialog({required this.placeName});
   final String placeName;
@@ -581,6 +596,7 @@ class _RevisitConfirmDialog extends StatelessWidget {
     );
   }
 }
+
 class _HistorySheet extends StatelessWidget {
   const _HistorySheet({
     required this.entries,
@@ -638,6 +654,7 @@ class _HistorySheet extends StatelessWidget {
     );
   }
 }
+
 class _HistoryEmptyState extends StatelessWidget {
   const _HistoryEmptyState();
   @override
@@ -673,6 +690,7 @@ class _HistoryEmptyState extends StatelessWidget {
     );
   }
 }
+
 class _HistoryEntryCard extends StatelessWidget {
   const _HistoryEntryCard({required this.entry, required this.onTap});
   final TripHistoryEntry entry;
@@ -771,6 +789,7 @@ class _HistoryEntryCard extends StatelessWidget {
     );
   }
 }
+
 class _HistoryCategoryPill extends StatelessWidget {
   const _HistoryCategoryPill({required this.label, required this.color});
   final String label;
@@ -794,6 +813,7 @@ class _HistoryCategoryPill extends StatelessWidget {
     );
   }
 }
+
 String _historyTimestamp(DateTime dateTime) {
   final local = dateTime.toLocal();
   final day = local.day.toString().padLeft(2, '0');
@@ -802,6 +822,7 @@ String _historyTimestamp(DateTime dateTime) {
   final minute = local.minute.toString().padLeft(2, '0');
   return '$day/$month/${local.year} $hour:$minute';
 }
+
 class _FavoritesSheet extends StatefulWidget {
   const _FavoritesSheet({
     required this.places,
@@ -816,6 +837,7 @@ class _FavoritesSheet extends StatefulWidget {
   @override
   State<_FavoritesSheet> createState() => _FavoritesSheetState();
 }
+
 class _FavoritesSheetState extends State<_FavoritesSheet> {
   late List<FavoritePlace> _places;
   @override
@@ -823,6 +845,7 @@ class _FavoritesSheetState extends State<_FavoritesSheet> {
     super.initState();
     _places = List<FavoritePlace>.of(widget.places);
   }
+
   void _remove(FavoritePlace place) {
     setState(() {
       _places = [
@@ -832,6 +855,7 @@ class _FavoritesSheetState extends State<_FavoritesSheet> {
     });
     widget.onRemove(place);
   }
+
   Future<void> _revisit(FavoritePlace place) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -843,6 +867,7 @@ class _FavoritesSheetState extends State<_FavoritesSheet> {
     Navigator.of(context).pop();
     widget.onRevisit(place);
   }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -894,11 +919,13 @@ class _FavoritesSheetState extends State<_FavoritesSheet> {
       ),
     );
   }
+
   @override
   void dispose() {
     super.dispose();
   }
 }
+
 class _FavoritesEmptyState extends StatelessWidget {
   const _FavoritesEmptyState();
   @override
@@ -938,6 +965,7 @@ class _FavoritesEmptyState extends StatelessWidget {
     );
   }
 }
+
 class _FavoritePlaceCard extends StatelessWidget {
   const _FavoritePlaceCard({
     required this.place,
@@ -1037,6 +1065,7 @@ class _FavoritePlaceCard extends StatelessWidget {
     );
   }
 }
+
 class _FavoritePlaceMeta extends StatelessWidget {
   const _FavoritePlaceMeta({required this.icon, required this.text});
   final IconData icon;
@@ -1062,6 +1091,7 @@ class _FavoritePlaceMeta extends StatelessWidget {
     );
   }
 }
+
 class _GovernmentDataSheet extends StatelessWidget {
   const _GovernmentDataSheet({required this.scrollController});
   final ScrollController scrollController;
@@ -1110,6 +1140,7 @@ class _GovernmentDataSheet extends StatelessWidget {
     );
   }
 }
+
 class _GovernmentDataSummary extends StatelessWidget {
   const _GovernmentDataSummary();
   @override
@@ -1141,6 +1172,7 @@ class _GovernmentDataSummary extends StatelessWidget {
     );
   }
 }
+
 class _GovernmentDataCard extends StatelessWidget {
   const _GovernmentDataCard({required this.source});
   final GovernmentDataSource source;
@@ -1216,6 +1248,7 @@ class _GovernmentDataCard extends StatelessWidget {
     );
   }
 }
+
 class _DataDetailBlock extends StatelessWidget {
   const _DataDetailBlock({required this.title, required this.text});
   final String title;
@@ -1246,6 +1279,7 @@ class _DataDetailBlock extends StatelessWidget {
     );
   }
 }
+
 class _ProfileSettingRow extends StatelessWidget {
   const _ProfileSettingRow({
     super.key,
@@ -1335,6 +1369,7 @@ class _ProfileSettingRow extends StatelessWidget {
     );
   }
 }
+
 class _ProfileSheet extends StatelessWidget {
   const _ProfileSheet({
     required this.title,
@@ -1381,22 +1416,19 @@ class _ProfileSheet extends StatelessWidget {
     );
   }
 }
+
 void _showSuccessToast(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      duration: const Duration(seconds: 2),
-    ),
+    SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
   );
 }
+
 void _showErrorToast(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      duration: const Duration(seconds: 2),
-    ),
+    SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
   );
 }
+
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     this.currentUsername,
@@ -1425,7 +1457,12 @@ class _SettingsPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 24, top: 24, right: 24, bottom: 8),
+            padding: const EdgeInsets.only(
+              left: 24,
+              top: 24,
+              right: 24,
+              bottom: 8,
+            ),
             child: Text(
               title,
               style: const TextStyle(
@@ -1441,7 +1478,14 @@ class _SettingsPage extends StatelessWidget {
       ),
     );
   }
-  Widget _buildSettingsTile(IconData icon, String title, String subtitle, {VoidCallback? onTap, bool isDestructive = false}) {
+
+  Widget _buildSettingsTile(
+    IconData icon,
+    String title,
+    String subtitle, {
+    VoidCallback? onTap,
+    bool isDestructive = false,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1454,32 +1498,59 @@ class _SettingsPage extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: isDestructive ? const Color(0xFFF43F5E).withValues(alpha: 0.1) : const Color(0xFFF7F9FC),
+                  color: isDestructive
+                      ? const Color(0xFFF43F5E).withValues(alpha: 0.1)
+                      : const Color(0xFFF7F9FC),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: isDestructive ? const Color(0xFFF43F5E) : const Color(0xFF0057C8), size: 20),
+                child: Icon(
+                  icon,
+                  color: isDestructive
+                      ? const Color(0xFFF43F5E)
+                      : const Color(0xFF0057C8),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: isDestructive ? const Color(0xFFF43F5E) : const Color(0xFF1F2937))),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: isDestructive
+                            ? const Color(0xFFF43F5E)
+                            : const Color(0xFF1F2937),
+                      ),
+                    ),
                     if (subtitle.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(subtitle, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
                     ],
                   ],
                 ),
               ),
               if (onTap != null && !isDestructive)
-                const Icon(Icons.chevron_right_rounded, color: Color(0xFFD1D5DB)),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFFD1D5DB),
+                ),
             ],
           ),
         ),
       ),
     );
   }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AuthProfile?>(
@@ -1519,9 +1590,23 @@ class _SettingsPage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Settings', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF102033))),
+                          Text(
+                            'Settings',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF102033),
+                            ),
+                          ),
                           SizedBox(height: 6),
-                          Text('Manage your account and system preferences.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF68788C))),
+                          Text(
+                            'Manage your account and system preferences.',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF68788C),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1544,7 +1629,12 @@ class _SettingsPage extends StatelessWidget {
                       );
                     },
                   ),
-                  const Divider(height: 1, color: Color(0xFFF3F4F6), indent: 80, endIndent: 24),
+                  const Divider(
+                    height: 1,
+                    color: Color(0xFFF3F4F6),
+                    indent: 80,
+                    endIndent: 24,
+                  ),
                   _buildSettingsTile(
                     Icons.email_outlined,
                     'Email Address',
@@ -1583,17 +1673,15 @@ class _SettingsPage extends StatelessWidget {
     );
   }
 }
+
 class EditEmailPage extends StatefulWidget {
-  const EditEmailPage({
-    super.key,
-    this.currentEmail,
-    this.onEmailChanged,
-  });
+  const EditEmailPage({super.key, this.currentEmail, this.onEmailChanged});
   final String? currentEmail;
   final ValueChanged<String>? onEmailChanged;
   @override
   State<EditEmailPage> createState() => _EditEmailPageState();
 }
+
 class _EditEmailPageState extends State<EditEmailPage> {
   late final TextEditingController _controller;
   Timer? _debounce;
@@ -1607,12 +1695,14 @@ class _EditEmailPageState extends State<EditEmailPage> {
     _controller = TextEditingController(text: widget.currentEmail);
     _controller.addListener(_onTextChanged);
   }
+
   @override
   void dispose() {
     _controller.dispose();
     _debounce?.cancel();
     super.dispose();
   }
+
   void _onTextChanged() {
     final text = _controller.text.trim();
     if (text == widget.currentEmail) {
@@ -1647,6 +1737,7 @@ class _EditEmailPageState extends State<EditEmailPage> {
       () => _checkAvailability(text),
     );
   }
+
   Future<void> _checkAvailability(String email) async {
     final authService = const AuthService();
     final available = await authService.isEmailAvailable(email);
@@ -1663,6 +1754,7 @@ class _EditEmailPageState extends State<EditEmailPage> {
       });
     }
   }
+
   Future<void> _save() async {
     final newEmail = _controller.text.trim();
     if (newEmail.isEmpty ||
@@ -1688,10 +1780,7 @@ class _EditEmailPageState extends State<EditEmailPage> {
       await authService.updateEmail(newEmail);
       widget.onEmailChanged?.call(newEmail);
       if (mounted) {
-        _showSuccessToast(
-          context,
-          'Email updated successfully.',
-        );
+        _showSuccessToast(context, 'Email updated successfully.');
         Navigator.of(context).pop();
       }
     } catch (e) {
@@ -1708,6 +1797,7 @@ class _EditEmailPageState extends State<EditEmailPage> {
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -1840,11 +1930,13 @@ class _EditEmailPageState extends State<EditEmailPage> {
     );
   }
 }
+
 class EditPasswordPage extends StatefulWidget {
   const EditPasswordPage({super.key});
   @override
   State<EditPasswordPage> createState() => _EditPasswordPageState();
 }
+
 class _EditPasswordPageState extends State<EditPasswordPage> {
   final _oldPassCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -1883,7 +1975,7 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
         debugPrint("AUTH MESSAGE: ${e.message}");
         debugPrint("AUTH STATUS: ${e.statusCode}");
       }
-      debugPrintStack();
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() => _isLoading = false);
       String errorStr = e.toString().toLowerCase();
@@ -1900,7 +1992,8 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
       } else if (errorStr.contains('new password should be different') ||
           errorStr.contains('password cannot be reused') ||
           errorStr.contains('same password')) {
-        friendlyMsg = 'Your new password must be different from your current password.';
+        friendlyMsg =
+            'Your new password must be different from your current password.';
       } else if (errorStr.contains('weak password') ||
           errorStr.contains('password should be at least')) {
         friendlyMsg = 'Please choose a stronger password.';
@@ -1913,6 +2006,7 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
       _showErrorToast(context, friendlyMsg);
     }
   }
+
   @override
   void dispose() {
     _oldPassCtrl.dispose();
@@ -1920,6 +2014,7 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
     _confirmCtrl.dispose();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -2035,6 +2130,7 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
     );
   }
 }
+
 class EditUsernamePage extends StatefulWidget {
   const EditUsernamePage({
     super.key,
@@ -2046,6 +2142,7 @@ class EditUsernamePage extends StatefulWidget {
   @override
   State<EditUsernamePage> createState() => _EditUsernamePageState();
 }
+
 class _EditUsernamePageState extends State<EditUsernamePage> {
   late final TextEditingController _controller;
   Timer? _debounce;
@@ -2062,6 +2159,7 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
     _controller.addListener(_onTextChanged);
     _loadProfile();
   }
+
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
     try {
@@ -2083,12 +2181,14 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
   @override
   void dispose() {
     _controller.dispose();
     _debounce?.cancel();
     super.dispose();
   }
+
   void _onTextChanged() {
     final text = _controller.text.trim();
     if (text == _fetchedUsername) {
@@ -2119,6 +2219,7 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
       () => _checkAvailability(text),
     );
   }
+
   Future<void> _checkAvailability(String username) async {
     final authService = const AuthService();
     final available = await authService.isUsernameAvailable(username);
@@ -2136,6 +2237,7 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
       if (mounted) setState(() => _isChecking = false);
     }
   }
+
   Future<void> _generateSuggestions(String base) async {
     final authService = const AuthService();
     final suggestions = <String>[];
@@ -2159,6 +2261,7 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
       });
     }
   }
+
   Future<void> _save() async {
     final newUsername = _controller.text.trim();
     if (newUsername.isEmpty) {
@@ -2200,6 +2303,7 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Theme(

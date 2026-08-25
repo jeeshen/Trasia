@@ -1,4 +1,5 @@
 part of '../main.dart';
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     required this.profile,
@@ -10,7 +11,9 @@ class DashboardScreen extends StatefulWidget {
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
-class _DashboardScreenState extends State<DashboardScreen> {
+
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   int _tab = 0;
   int _previousTab = 0;
   late double _wallet;
@@ -29,7 +32,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   LatLng? _sharedCurrentLocation;
   double? _sharedCurrentAccuracyMeters;
   bool _centeringOnLocation = false;
-  bool _mapFocusOnCurrentLocation = false;
   List<FavoritePlace> _favoritePlaces = const [];
   List<TripHistoryEntry> _tripHistory = const [];
   int _transitDemoArrivalRequest = 0;
@@ -37,25 +39,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _planDemoArrivalRequest = 0;
   String? _username;
   late AuthProfile _currentProfile;
+  List<TrasiaNotification> _notifications = const [];
+  Offset? _notificationButtonPosition;
   bool _hasCenteredOnInitialLocation = false;
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _syncWithProfile(widget.profile);
     globalAuthProfileNotifier.addListener(_onGlobalProfileChanged);
     globalMapController.addListener(_onMapControllerChanged);
+    unawaited(const PushNotificationService().initialize());
+    unawaited(_loadNotifications());
+    unawaited(_reconcilePendingTopUps());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         unawaited(_loadInitialLocation());
       }
     });
   }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     globalAuthProfileNotifier.removeListener(_onGlobalProfileChanged);
     globalMapController.removeListener(_onMapControllerChanged);
     super.dispose();
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && SupabaseConfig.isSupabaseReady) {
+      unawaited(const PushNotificationService().initialize());
+      unawaited(_refreshProfile());
+    }
+  }
+
   void _syncWithProfile(AuthProfile p) {
     _currentProfile = p;
     _username = p.username;
@@ -69,15 +88,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _favoritePlaces = p.favoritePlaces;
     _tripHistory = p.tripHistory;
   }
+
   void _onGlobalProfileChanged() {
     final updated = globalAuthProfileNotifier.value;
     if (updated != null && mounted) {
       setState(() => _syncWithProfile(updated));
     }
   }
+
   Future<void> _refreshProfile() async {
     await const AuthService().currentProfile();
   }
+
+  Future<void> _reconcilePendingTopUps() async {
+    if (!SupabaseConfig.isSupabaseReady) return;
+    await const StripeTopUpService().reconcilePending();
+    await _refreshProfile();
+  }
+
+  Future<void> _loadNotifications() async {
+    if (!SupabaseConfig.isSupabaseReady) return;
+    try {
+      final notifications = await const NotificationService().load();
+      if (mounted) setState(() => _notifications = notifications);
+    } catch (_) {}
+  }
+
+  void _addNotification(String title, String body) {
+    final notification = TrasiaNotification(
+      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      title: title,
+      body: body,
+      type: 'car_pool',
+      createdAt: DateTime.now(),
+    );
+    setState(() {
+      _notifications = [notification, ..._notifications].take(50).toList();
+    });
+    if (SupabaseConfig.isSupabaseReady) {
+      unawaited(
+        const NotificationService()
+            .create(title: title, body: body, type: 'car_pool')
+            .catchError((_) {}),
+      );
+      unawaited(
+        const PushNotificationService()
+            .sendCarPoolNotification(title: title, body: body)
+            .catchError((_) {}),
+      );
+    }
+  }
+
+  Future<void> _showNotifications() async {
+    if (!mounted) return;
+    if (_notifications.any((notification) => !notification.isRead)) {
+      setState(() {
+        _notifications = [
+          for (final notification in _notifications)
+            notification.isRead
+                ? notification
+                : notification.copyWith(readAt: DateTime.now()),
+        ];
+      });
+      if (SupabaseConfig.isSupabaseReady) {
+        unawaited(const NotificationService().markAllRead().catchError((_) {}));
+      }
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (_) => _NotificationsSheet(notifications: _notifications),
+    );
+  }
+
   void _onMapControllerChanged() {
     if (mounted) setState(() {});
     final controller = globalMapController.value;
@@ -90,6 +175,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       unawaited(controller.flyToLatLngZoom(location, 17.0));
     }
   }
+
   void _openTransitFor(String destination, BlindBoxTravelMode? travelMode) {
     setState(() {
       _transitDestination = destination;
@@ -99,6 +185,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _tab = 0;
     });
   }
+
   void _cancelDestination(String destination) {
     setState(() {
       if (_ongoingDestination == destination) {
@@ -106,20 +193,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
   }
-  void _deductFare(double fare) {
-    setState(() {
-      _wallet = max(0, _wallet - fare);
-      _hubPoolTransactions++;
-    });
-    _saveProfile();
+
+  Future<bool> _deductFare(double fare) async {
+    if (!SupabaseConfig.isSupabaseReady) {
+      setState(() {
+        _wallet = max(0, _wallet - fare);
+        _hubPoolTransactions++;
+      });
+      return true;
+    }
+    final charged = await const AuthService().deductRideFare(fare);
+    await _refreshProfile();
+    return charged;
   }
-  void _topUp(double amount) {
-    setState(() => _wallet += amount);
-    _saveProfile();
+
+  Future<void> _topUp(double amount) async {
+    if (!SupabaseConfig.isSupabaseReady) {
+      setState(() => _wallet += amount);
+      return;
+    }
+    try {
+      await const StripeTopUpService().payInApp(amount.toInt());
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+      await _refreshProfile();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment completed. Your credit is refreshing.'),
+          ),
+        );
+      }
+    } on AuthException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to start top-up: $error')),
+        );
+      }
+    }
   }
-  bool _redeemReward(String voucherId, int pointCost, double hubPoolCredit) {
+
+  Future<bool> _redeemReward(
+    String voucherId,
+    int pointCost,
+    double hubPoolCredit,
+  ) async {
     if (_rewardPoints < pointCost) {
       return false;
+    }
+    if (SupabaseConfig.isSupabaseReady) {
+      final redeemed = await const AuthService().redeemVoucher(voucherId);
+      await _refreshProfile();
+      return redeemed;
     }
     setState(() {
       _rewardPoints -= pointCost;
@@ -137,14 +267,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ];
       }
     });
-    _saveProfile();
-    _saveProfile();
     return true;
   }
-  bool _checkInPlace(String placeName) {
+
+  Future<bool> _checkInPlace(String placeName) async {
     final placeKey = _placeCheckInKey(placeName);
     if (_checkedInPlaces.containsKey(placeKey)) {
       return false;
+    }
+    if (SupabaseConfig.isSupabaseReady) {
+      final earned = await const AuthService().checkInAttraction(placeName);
+      await _refreshProfile();
+      return earned;
     }
     setState(() {
       _checkedInPlaces = {
@@ -156,14 +290,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       };
       _rewardPoints += 50;
     });
-    _saveProfile();
     return true;
   }
-  void _markVoucherUsed(String voucherId) {
+
+  Future<void> _markVoucherUsed(String voucherId) async {
     final index = _redeemedVouchers.indexWhere(
       (voucher) => voucher.id == voucherId,
     );
     if (index < 0 || _redeemedVouchers[index].usedAt != null) {
+      return;
+    }
+    if (SupabaseConfig.isSupabaseReady) {
+      await const AuthService().markVoucherUsed(voucherId);
+      await _refreshProfile();
       return;
     }
     setState(() {
@@ -175,8 +314,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _redeemedVouchers[i],
       ];
     });
-    _saveProfile();
   }
+
   void _saveTransitRoute(DestinationCandidate? destination) {
     setState(() {
       _savedTransitRoutes++;
@@ -187,8 +326,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     });
     _saveProfile();
-    _saveProfile();
   }
+
   Future<void> _saveDemoPlanCompletion(List<ItineraryStop> stops) async {
     setState(() {
       _savedTransitRoutes++;
@@ -210,6 +349,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const SnackBar(content: Text('Plan trip saved to History')),
     );
   }
+
   void _saveRideCompletion(DestinationCandidate? destination, double fare) {
     setState(() {
       _addTripHistory(
@@ -220,7 +360,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     });
     _saveProfile();
+    _addNotification(
+      'Hub-Pool ride completed',
+      '${destination?.name ?? 'Your destination'} reached. Fare: RM ${fare.toStringAsFixed(2)}.',
+    );
   }
+
   void _completeDemoArrival() {
     setState(() {
       switch (_tab) {
@@ -233,12 +378,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
   }
+
   void _revisitHistoryEntry(TripHistoryEntry entry) {
     final travelMode = entry.category == 'Ride'
         ? BlindBoxTravelMode.drive
         : BlindBoxTravelMode.transit;
     _openTransitFor(entry.placeName, travelMode);
   }
+
   void _revisitFavoritePlace(FavoritePlace place) {
     final sourceTab = _tab == 4 ? _previousTab : _tab;
     if (sourceTab == 1) {
@@ -258,6 +405,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     _openTransitFor(place.name, null);
   }
+
   void _addTripHistory({
     required String placeName,
     required String category,
@@ -276,14 +424,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ..._tripHistory,
     ].take(50).toList();
   }
+
   void _toggleFavoritePlace(Attraction attraction) {
     final place = FavoritePlace.fromAttraction(attraction);
     _toggleFavorite(place);
   }
+
   void _toggleFavoriteDestination(DestinationCandidate destination) {
     final place = FavoritePlace.fromDestinationCandidate(destination);
     _toggleFavorite(place);
   }
+
   void _toggleFavorite(FavoritePlace place) {
     final exists = _favoritePlaces.any((favorite) => favorite.key == place.key);
     setState(() {
@@ -305,6 +456,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
   void _removeFavoritePlace(FavoritePlace place) {
     setState(() {
       _favoritePlaces = [
@@ -314,6 +466,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     _saveProfile();
   }
+
   void _showMapFavorites() {
     showModalBottomSheet<void>(
       context: context,
@@ -334,8 +487,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
   void _saveProfile() {
-    if (!SupabaseConfig.isReady) return;
+    if (!SupabaseConfig.isSupabaseReady) return;
     final updatedProfile = widget.profile.copyWith(
       credit: _wallet,
       savedTransitRoutes: _savedTransitRoutes,
@@ -349,6 +503,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
     unawaited(const AuthService().updateProfile(updatedProfile));
   }
+
   void _updateMapView(SharedMapView view) {
     final incomingLocation = view.currentLocation;
     if (incomingLocation != null) {
@@ -359,14 +514,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (globalMapViewNotifier.value.signature == effectiveView.signature) {
       return;
     }
-    final previousView = globalMapViewNotifier.value;
-    final oldPrefix = previousView.signature.split('|').first;
+    final oldPrefix = globalMapViewNotifier.value.signature.split('|').first;
     final newPrefix = effectiveView.signature.split('|').first;
-    if (oldPrefix != newPrefix ||
-        previousView.candidate?.placeId != effectiveView.candidate?.placeId ||
-        previousView.focusDestination != effectiveView.focusDestination) {
-      _mapFocusOnCurrentLocation = false;
-    }
     globalMapViewNotifier.value = effectiveView;
     final target = effectiveView.vehicleLocation ?? effectiveView.initialTarget;
     final zoom = effectiveView.vehicleLocation != null
@@ -379,6 +528,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       unawaited(globalMapController.value!.flyToLatLngZoom(target, zoom));
     }
   }
+
   SharedMapView _mapViewWithSharedSelfLocation(SharedMapView view) {
     final location = view.currentLocation ?? _sharedCurrentLocation;
     if (location == null) {
@@ -408,6 +558,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       extraPolylines: view.extraPolylines,
     );
   }
+
   Future<void> _centerSharedMapOnCurrentLocation() async {
     final controller = globalMapController.value;
     if (controller == null || _centeringOnLocation) {
@@ -415,30 +566,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     setState(() => _centeringOnLocation = true);
     try {
-      final view = globalMapViewNotifier.value;
-      final routePoints = view.selectedRoute?.points ?? const <LatLng>[];
-      final destination =
-          view.focusDestination ??
-          view.candidate?.location ??
-          (routePoints.isEmpty ? null : routePoints.last);
-      if (destination != null && _mapFocusOnCurrentLocation) {
-        await controller.flyToLatLngZoom(destination, 14.5);
-        _mapFocusOnCurrentLocation = false;
-        return;
-      }
       final location = await _readDeviceLocation();
       if (!mounted || location == null) {
         return;
       }
       _setSharedSelfLocation(location, 0);
-      await controller.flyToLatLngZoom(location, 17.0);
-      _mapFocusOnCurrentLocation = destination != null;
+      await controller.setCameraPosition(
+        CameraPosition(target: location, zoom: 17, tilt: 0, bearing: 0),
+      );
     } finally {
       if (mounted) {
         setState(() => _centeringOnLocation = false);
       }
     }
   }
+
   Future<void> _loadInitialLocation() async {
     if (_centeringOnLocation) {
       return;
@@ -457,6 +599,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
   }
+
   Future<LatLng?> _readDeviceLocation() async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     var permission = await Geolocator.checkPermission();
@@ -506,6 +649,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return null;
     }
   }
+
   Future<void> _showLocationSettingsDialog() async {
     await showDialog<void>(
       context: context,
@@ -531,6 +675,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
   void _setSharedSelfLocation(
     LatLng location,
     double? accuracyMeters, {
@@ -569,6 +714,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       unawaited(controller.flyToLatLngZoom(location, 17.0));
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
@@ -600,6 +746,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         wallet: _wallet,
         onFareDeducted: _deductFare,
         onRideCompleted: _saveRideCompletion,
+        onNotification: _addNotification,
         demoArrivalRequest: _hubPoolDemoArrivalRequest,
         favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
         onToggleFavorite: _toggleFavoriteDestination,
@@ -685,8 +832,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onMapCreated: (controller) {
                     globalMapController.value = controller;
                   },
-                  onCameraMove: () {
-                  },
+                  onCameraMove: () {},
                 );
               },
             ),
@@ -699,6 +845,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: pages,
           ),
           if (_tab != 2 && _tab != 4) _buildMapControls(),
+          if (_tab != 4) _buildNotificationButton(),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -716,7 +863,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         borderRadius: BorderRadius.circular(40),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF0B7CFF).withValues(alpha: 0.15),
+                            color: const Color(
+                              0xFF0B7CFF,
+                            ).withValues(alpha: 0.15),
                             blurRadius: 32,
                             spreadRadius: -4,
                             offset: const Offset(0, 16),
@@ -768,7 +917,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   gradient: LinearGradient(
                                     colors: [
                                       const Color(0xFF0B7CFF),
-                                      const Color(0xFF0B7CFF).withValues(alpha: 0.8),
+                                      const Color(
+                                        0xFF0B7CFF,
+                                      ).withValues(alpha: 0.8),
                                     ],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
@@ -776,10 +927,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   borderRadius: BorderRadius.circular(25),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF0B7CFF).withValues(alpha: 0.4),
+                                      color: const Color(
+                                        0xFF0B7CFF,
+                                      ).withValues(alpha: 0.4),
                                       blurRadius: 16,
                                       offset: const Offset(0, 6),
-                                    )
+                                    ),
                                   ],
                                 ),
                               ),
@@ -789,13 +942,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               children: [
                                 _buildNavItem(Icons.map_rounded, 'Transit', 0),
                                 const SizedBox(width: 8),
-                                _buildNavItem(Icons.directions_car_rounded, 'Ride', 1),
+                                _buildNavItem(
+                                  Icons.directions_car_rounded,
+                                  'Ride',
+                                  1,
+                                ),
                                 const SizedBox(width: 8),
-                                _buildNavItem(Icons.dashboard_rounded, 'Dashboard', 2),
+                                _buildNavItem(
+                                  Icons.dashboard_rounded,
+                                  'Dashboard',
+                                  2,
+                                ),
                                 const SizedBox(width: 8),
-                                _buildNavItem(Icons.backpack_rounded, 'Plan', 3),
+                                _buildNavItem(
+                                  Icons.backpack_rounded,
+                                  'Plan',
+                                  3,
+                                ),
                                 const SizedBox(width: 8),
-                                _buildNavItem(Icons.account_circle_rounded, 'Account', 4),
+                                _buildNavItem(
+                                  Icons.account_circle_rounded,
+                                  'Account',
+                                  4,
+                                ),
                               ],
                             ),
                           ],
@@ -811,6 +980,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
   Widget _buildMapControls({bool behindExpandedResults = false}) {
     return ValueListenableBuilder<SharedMapView>(
       valueListenable: globalMapViewNotifier,
@@ -860,6 +1030,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
     );
   }
+
+  Widget _buildNotificationButton() {
+    final unreadCount = _notifications
+        .where((notification) => !notification.isRead)
+        .length;
+    final size = MediaQuery.sizeOf(context);
+    final padding = MediaQuery.paddingOf(context);
+    final defaultPosition = Offset(16, size.height - padding.bottom - 176);
+    final storedPosition = _notificationButtonPosition ?? defaultPosition;
+    final position = Offset(
+      storedPosition.dx.clamp(8, size.width - 56),
+      storedPosition.dy.clamp(padding.top + 8, defaultPosition.dy),
+    );
+    return Positioned(
+      left: position.dx,
+      top: position.dy,
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          final nextPosition = position + details.delta;
+          setState(() {
+            _notificationButtonPosition = Offset(
+              nextPosition.dx.clamp(8, size.width - 56),
+              nextPosition.dy.clamp(padding.top + 8, defaultPosition.dy),
+            );
+          });
+        },
+        child: Material(
+          color: Colors.white,
+          elevation: 8,
+          shadowColor: Colors.black.withValues(alpha: 0.18),
+          shape: const CircleBorder(),
+          child: InkWell(
+            key: const Key('notifications-button'),
+            onTap: _showNotifications,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(
+                    Icons.notifications_none_rounded,
+                    color: Color(0xFF102033),
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      top: 7,
+                      right: 7,
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 17,
+                          minHeight: 17,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE04470),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : '$unreadCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildNavItem(IconData icon, String label, int index) {
     final isSelected = _tab == index;
     return Semantics(
@@ -881,10 +1130,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               transitionBuilder: (child, animation) {
-                 return ScaleTransition(
-                   scale: animation,
-                   child: child,
-                 );
+                return ScaleTransition(scale: animation, child: child);
               },
               child: Icon(
                 icon,
@@ -901,12 +1147,77 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
+
+class _NotificationsSheet extends StatelessWidget {
+  const _NotificationsSheet({required this.notifications});
+  final List<TrasiaNotification> notifications;
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SizedBox(
+        height: min(MediaQuery.sizeOf(context).height * .72, 560),
+        child: notifications.isEmpty
+            ? const Center(
+                child: Text(
+                  'No notifications yet.',
+                  style: TextStyle(color: Color(0xFF667085)),
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                itemCount: notifications.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final notification = notifications[index];
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFFE8F2FF),
+                      foregroundColor: TrasiaColors.primary,
+                      child: Icon(
+                        notification.type == 'car_pool'
+                            ? Icons.directions_car_rounded
+                            : Icons.notifications_rounded,
+                      ),
+                    ),
+                    title: Text(
+                      notification.title,
+                      style: const TextStyle(
+                        color: Color(0xFF172033),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${notification.body}\n${_notificationTime(notification.createdAt)}',
+                      style: const TextStyle(
+                        color: Color(0xFF667085),
+                        height: 1.35,
+                      ),
+                    ),
+                    isThreeLine: true,
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+String _notificationTime(DateTime dateTime) {
+  final difference = DateTime.now().difference(dateTime);
+  if (difference.inMinutes < 1) return 'Just now';
+  if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+  if (difference.inDays < 1) return '${difference.inHours}h ago';
+  return '${difference.inDays}d ago';
+}
+
 class _DashboardOverviewPage extends StatefulWidget {
   const _DashboardOverviewPage({required this.active});
   final bool active;
   @override
   State<_DashboardOverviewPage> createState() => _DashboardOverviewPageState();
 }
+
 class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
   static const _sourceUrls = [
     'https://data.gov.my/data-catalogue/fuelprice',
@@ -931,6 +1242,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       unawaited(_loadGovernmentData());
     }
   }
+
   @override
   void didUpdateWidget(covariant _DashboardOverviewPage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -938,6 +1250,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       unawaited(_loadGovernmentData());
     }
   }
+
   Future<Map<String, dynamic>> _fetchPageData(Uri uri) async {
     final response = await http.get(uri).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) {
@@ -958,6 +1271,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
     }
     return pageProps;
   }
+
   Future<void> _loadGovernmentData() async {
     setState(() {
       _loading = true;
@@ -988,6 +1302,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       });
     }
   }
+
   Future<void> _loadRapidComparison() async {
     final origin = _rapidOrigin;
     final destination = _rapidDestination;
@@ -1009,6 +1324,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ),
     );
   }
+
   Future<void> _loadKtmbComparison() async {
     final origin = _ktmbOrigin;
     final destination = _ktmbDestination;
@@ -1030,6 +1346,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ),
     );
   }
+
   Future<void> _loadComparison({required int index, required Uri uri}) async {
     setState(() => _comparisonLoading = true);
     try {
@@ -1051,6 +1368,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -1128,6 +1446,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ),
     );
   }
+
   Widget _buildFuelData() {
     final page = _sourceData[0]!;
     final rows =
@@ -1191,6 +1510,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ],
     );
   }
+
   Widget _buildRapidData() {
     final page = _sourceData[1]!;
     final dropdown =
@@ -1245,6 +1565,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ],
     );
   }
+
   Widget _buildPublicTransportData() {
     final page = _sourceData[2]!;
     final callout =
@@ -1285,6 +1606,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ],
     );
   }
+
   Widget _buildKtmbData() {
     final page = _sourceData[3]!;
     final dropdown = page['dropdown'] as Map<String, dynamic>? ?? const {};
@@ -1356,6 +1678,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       ],
     );
   }
+
   Widget _comparisonResult(
     Map<String, dynamic> page,
     String? origin,
@@ -1383,11 +1706,13 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       reverseMonthly: (reverse['monthly'] as num?)?.toDouble() ?? 0,
     );
   }
+
   @override
   void dispose() {
     super.dispose();
   }
 }
+
 class _GovernmentLoading extends StatelessWidget {
   const _GovernmentLoading();
   @override
@@ -1407,6 +1732,7 @@ class _GovernmentLoading extends StatelessWidget {
     );
   }
 }
+
 class _GovernmentError extends StatelessWidget {
   const _GovernmentError({required this.message, required this.onRetry});
   final String message;
@@ -1435,6 +1761,7 @@ class _GovernmentError extends StatelessWidget {
     );
   }
 }
+
 class _GovernmentEmpty extends StatelessWidget {
   const _GovernmentEmpty();
   @override
@@ -1449,6 +1776,7 @@ class _GovernmentEmpty extends StatelessWidget {
     );
   }
 }
+
 class _GovernmentSelectionPrompt extends StatelessWidget {
   const _GovernmentSelectionPrompt();
   @override
@@ -1469,6 +1797,7 @@ class _GovernmentSelectionPrompt extends StatelessWidget {
     );
   }
 }
+
 class _GovernmentSectionHeader extends StatelessWidget {
   const _GovernmentSectionHeader({
     required this.icon,
@@ -1533,6 +1862,7 @@ class _GovernmentSectionHeader extends StatelessWidget {
     );
   }
 }
+
 class _FuelPriceGrid extends StatelessWidget {
   const _FuelPriceGrid({required this.latest});
   final Map<String, dynamic> latest;
@@ -1592,6 +1922,7 @@ class _FuelPriceGrid extends StatelessWidget {
     );
   }
 }
+
 class _GovernmentDropdown extends StatelessWidget {
   const _GovernmentDropdown({
     required this.label,
@@ -1610,7 +1941,10 @@ class _GovernmentDropdown extends StatelessWidget {
     return DropdownButtonFormField<String>(
       initialValue: options.contains(value) ? value : null,
       isExpanded: true,
-      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF68788C)),
+      icon: const Icon(
+        Icons.keyboard_arrow_down_rounded,
+        color: Color(0xFF68788C),
+      ),
       dropdownColor: Colors.white,
       borderRadius: BorderRadius.circular(14),
       style: const TextStyle(
@@ -1638,7 +1972,10 @@ class _GovernmentDropdown extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: TrasiaColors.primary, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
       items: [
         for (final option in options)
@@ -1655,6 +1992,7 @@ class _GovernmentDropdown extends StatelessWidget {
     );
   }
 }
+
 class _RidershipComparison extends StatelessWidget {
   const _RidershipComparison({
     required this.origin,
@@ -1728,6 +2066,7 @@ class _RidershipComparison extends StatelessWidget {
     );
   }
 }
+
 class _ComparisonBar extends StatelessWidget {
   const _ComparisonBar({
     required this.label,
@@ -1787,6 +2126,7 @@ class _ComparisonBar extends StatelessWidget {
     );
   }
 }
+
 class _MonthlyRidership extends StatelessWidget {
   const _MonthlyRidership({required this.label, required this.value});
   final String label;
@@ -1813,6 +2153,7 @@ class _MonthlyRidership extends StatelessWidget {
     );
   }
 }
+
 class _PublicTransportMetric extends StatelessWidget {
   const _PublicTransportMetric({
     required this.label,
@@ -1881,6 +2222,7 @@ class _PublicTransportMetric extends StatelessWidget {
     );
   }
 }
+
 class _GovernmentSourceNote extends StatelessWidget {
   const _GovernmentSourceNote({required this.url, this.updated});
   final String url;
@@ -1918,10 +2260,12 @@ class _GovernmentSourceNote extends StatelessWidget {
     );
   }
 }
+
 String _formatDashboardNumber(double value) {
   final rounded = value.round().toString();
   return rounded.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
 }
+
 String _ktmbServiceLabel(String service) {
   return switch (service) {
     'ets' => 'ETS',
@@ -1932,6 +2276,7 @@ String _ktmbServiceLabel(String service) {
     _ => service,
   };
 }
+
 class _AnimatedSegmentedBar extends StatelessWidget {
   const _AnimatedSegmentedBar({
     required this.tabs,
@@ -1947,7 +2292,7 @@ class _AnimatedSegmentedBar extends StatelessWidget {
       height: 48,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F6FF), 
+        color: const Color(0xFFF0F6FF),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Stack(
@@ -1966,7 +2311,7 @@ class _AnimatedSegmentedBar extends StatelessWidget {
               heightFactor: 1.0,
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0B7CFF), 
+                  color: const Color(0xFF0B7CFF),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(

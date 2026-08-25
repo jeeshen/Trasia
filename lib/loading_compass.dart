@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 class TrasiaLoadingCompass extends StatelessWidget {
   const TrasiaLoadingCompass({
     super.key,

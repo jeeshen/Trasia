@@ -21,14 +21,76 @@ Rapid KL rail, Rapid KL bus, MRT feeder, and KTMB data.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+Copy `.env.example` to `.env`, then fill in the four public client values.
+Never put Supabase secret keys, Stripe secret keys, webhook secrets, SMTP
+credentials, or Firebase service-account credentials in `.env`.
 
-A few resources to get you started if this is your first Flutter project:
+Run `flutter pub get`, then `flutter run`.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Supabase OTP email confirmation
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The app signs users up with Supabase Auth and verifies the 6-digit email OTP
+before opening the dashboard. Configure Supabase Auth > Email provider with
+Confirm email enabled, and set the confirmation email template to include
+`{{ .Token }}`.
+
+For production delivery, configure Brevo as Supabase's custom SMTP provider:
+
+- SMTP host: `smtp-relay.brevo.com`
+- Port: `587`
+- Username: your Brevo login email
+- Password: your Brevo SMTP key
+- Sender email: a verified Brevo sender
+
+Run `trasia_schema.sql`, then `security_hardening.sql`. The hardening script
+limits profile writes to safe columns and moves fares, reward redemption,
+check-ins, and voucher use into authenticated database functions. Never put
+the Brevo SMTP key in `.env` or the Flutter app.
+
+## Stripe sandbox credit top-up
+
+Wallet top-ups use Stripe's native PaymentSheet in test mode. The Edge Function
+verifies successful payments directly with Stripe, and the signed webhook
+provides recovery when the app closes before confirmation.
+
+The `credit_topups` table and idempotent credit function are in
+`stripe_topups.sql`. The repository's `supabase/config.toml` disables gateway
+JWT verification only for `stripe-topup`, allowing Stripe to reach the signed
+webhook while the function authenticates app requests itself.
+
+Configure these secrets in Supabase **Project Settings > Edge Functions >
+Secrets**:
+
+- `STRIPE_SECRET_KEY`: Stripe test secret key beginning with `sk_test_`
+- `STRIPE_WEBHOOK_SECRET`: signing secret beginning with `whsec_`
+
+Add the Stripe publishable test key to the Flutter app's `.env` file:
+
+`STRIPE_PUBLISHABLE_KEY=pk_test_...`
+
+Only use a `pk_test_` key in the app. Never put `sk_test_` or `whsec_` values
+in `.env` or in Flutter code. The publishable key can also be supplied at
+build time with `--dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...`.
+
+In Stripe **Developers > Webhooks** while test mode is enabled, create an
+endpoint at:
+
+`https://ffrhaempwlpqewxjpdea.supabase.co/functions/v1/stripe-topup`
+
+Subscribe it to `payment_intent.succeeded`. Keep
+`checkout.session.completed` and `checkout.session.async_payment_succeeded`
+enabled if older hosted Checkout sessions may still be used. Use Stripe test card
+`4242 4242 4242 4242`, any future expiry, and any CVC.
+
+## Car-Pool push notifications
+
+Run `push_notifications.sql` before deploying `send-push`. Device tokens are
+owned and reassigned by the authenticated Edge Function; client roles have no
+direct access to the token table. Android uses `google-services.json`. iOS uses
+`GoogleService-Info.plist`, Push Notifications entitlements, and Background
+Modes for fetch and remote notifications.
+
+Set the complete Firebase service-account JSON as the
+`FIREBASE_SERVICE_ACCOUNT_JSON` secret for the `send-push` Edge Function. The
+service account needs permission to send Firebase Cloud Messaging messages.
+Upload an APNs authentication key in Firebase before testing iOS push delivery.

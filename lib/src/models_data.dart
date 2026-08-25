@@ -1,4 +1,5 @@
 part of '../main.dart';
+
 class TrasiaData {
   static List<Driver> drivers = [];
   static List<Attraction> attractions = [];
@@ -52,6 +53,7 @@ class TrasiaData {
         .toList();
   }
 }
+
 class DestinationCandidate {
   const DestinationCandidate({
     required this.name,
@@ -64,6 +66,7 @@ class DestinationCandidate {
   final LatLng location;
   final String placeId;
 }
+
 String _userFacingTransitText(String value) {
   return value
       .replaceAll(
@@ -73,6 +76,7 @@ String _userFacingTransitText(String value) {
       .replaceAll(RegExp(r'\s{2,}'), ' ')
       .trim();
 }
+
 class _GoogleMapsApi {
   static const _maxAccessWalkMeters = 1600.0;
   static const _maxTotalWalkMeters = 3000.0;
@@ -112,6 +116,7 @@ class _GoogleMapsApi {
     }
     return candidates;
   }
+
   static DestinationCandidate _candidateFromTextSearch(
     Map<String, dynamic> place,
     String fallbackName,
@@ -128,6 +133,7 @@ class _GoogleMapsApi {
       ),
     );
   }
+
   static List<DestinationCandidate> _localSuggestions(String query) {
     final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) {
@@ -142,6 +148,7 @@ class _GoogleMapsApi {
           suggestion,
     ];
   }
+
   static Future<_DrivingRoute> fetchDrivingRoute({
     required LatLng origin,
     required LatLng destination,
@@ -182,6 +189,7 @@ class _GoogleMapsApi {
           'Google Directions API: $directionsError';
     }
   }
+
   static Future<List<_TransitApiRoute>> fetchTransitRoutes({
     required LatLng origin,
     required LatLng destination,
@@ -217,6 +225,7 @@ class _GoogleMapsApi {
           'Google Directions Transit: $directionsError';
     }
   }
+
   static Future<List<_TransitApiRoute>> _fetchRoutesApiTransitRoutes({
     required LatLng origin,
     required LatLng destination,
@@ -296,6 +305,7 @@ class _GoogleMapsApi {
     }
     return parsedRoutes;
   }
+
   static Future<List<_TransitApiRoute>> _fetchDirectionsTransitRoutes({
     required LatLng origin,
     required LatLng destination,
@@ -337,6 +347,7 @@ class _GoogleMapsApi {
     }
     return parsedRoutes;
   }
+
   static _TransitApiRoute? _parseDirectionsTransitRoute(
     Map<String, dynamic> route, {
     required String originName,
@@ -472,6 +483,7 @@ class _GoogleMapsApi {
       longAccessWalk: longAccessWalk,
     );
   }
+
   static String _legacyTransitModeLabel(Map<String, dynamic> details) {
     final line = details['line'] as Map<String, dynamic>? ?? const {};
     final agencies = line['agencies'] as List<dynamic>? ?? const [];
@@ -493,6 +505,7 @@ class _GoogleMapsApi {
       if (agency.isEmpty && routeName.isEmpty) vehicleName,
     ].join(' ');
   }
+
   static IconData _legacyTransitModeIcon(Map<String, dynamic> details) {
     final line = details['line'] as Map<String, dynamic>? ?? const {};
     final vehicle = line['vehicle'] as Map<String, dynamic>? ?? const {};
@@ -502,6 +515,7 @@ class _GoogleMapsApi {
       _ => Icons.train_rounded,
     };
   }
+
   static LatLng? _legacyLatLng(Object? location) {
     final value = location as Map<String, dynamic>?;
     final latitude = (value?['lat'] as num?)?.toDouble();
@@ -510,6 +524,7 @@ class _GoogleMapsApi {
         ? null
         : LatLng(latitude, longitude);
   }
+
   static _TransitApiRoute? _parseTransitRoute(
     Map<String, dynamic> route, {
     required String originName,
@@ -656,6 +671,7 @@ class _GoogleMapsApi {
       longAccessWalk: hasExcessiveWalk,
     );
   }
+
   static String _walkingStepFromName(
     int index,
     List<Map<String, dynamic>> steps, {
@@ -673,6 +689,7 @@ class _GoogleMapsApi {
         stopDetails['arrivalStop'] as Map<String, dynamic>? ?? const {};
     return (arrival['name'] as String?) ?? 'Transfer point';
   }
+
   static String _walkingStepToName(
     int index,
     List<Map<String, dynamic>> steps, {
@@ -689,6 +706,7 @@ class _GoogleMapsApi {
         stopDetails['departureStop'] as Map<String, dynamic>? ?? const {};
     return (departure['name'] as String?) ?? 'Nearby transit stop';
   }
+
   static String _transitModeLabel(Map<String, dynamic> transitDetails) {
     final line =
         transitDetails['transitLine'] as Map<String, dynamic>? ?? const {};
@@ -711,6 +729,7 @@ class _GoogleMapsApi {
       if (agency.isEmpty && routeName.isEmpty) vehicleName,
     ].join(' ');
   }
+
   static String _vehicleTypeName(String? type) {
     return switch (type) {
       'BUS' => 'Bus',
@@ -720,6 +739,7 @@ class _GoogleMapsApi {
       _ => 'Public transit',
     };
   }
+
   static IconData _transitModeIcon(Map<String, dynamic> transitDetails) {
     final line =
         transitDetails['transitLine'] as Map<String, dynamic>? ?? const {};
@@ -730,6 +750,7 @@ class _GoogleMapsApi {
       _ => Icons.train_rounded,
     };
   }
+
   static LatLng? _routeLatLng(Object? location) {
     final locationMap = location as Map<String, dynamic>?;
     final latLng = locationMap?['latLng'] as Map<String, dynamic>? ?? const {};
@@ -739,6 +760,7 @@ class _GoogleMapsApi {
         ? null
         : LatLng(latitude, longitude);
   }
+
   static Future<_DrivingRoute> _fetchRoutesDrivingRoute({
     required LatLng origin,
     required LatLng destination,
@@ -812,6 +834,7 @@ class _GoogleMapsApi {
       durationSeconds: durationSeconds,
     );
   }
+
   static Future<_DrivingRoute> _fetchDirectionsRoute({
     required LatLng origin,
     required LatLng destination,
@@ -865,6 +888,7 @@ class _GoogleMapsApi {
       durationSeconds: durationSeconds,
     );
   }
+
   static Future<_DrivingRoute> _fetchOsrmDrivingRoute({
     required LatLng origin,
     required LatLng destination,
@@ -888,6 +912,7 @@ class _GoogleMapsApi {
     }
     throw lastError ?? 'No road routing service available';
   }
+
   static Future<_DrivingRoute> _fetchOsrmRouteFromServer({
     required String host,
     required String pathPrefix,
@@ -934,12 +959,14 @@ class _GoogleMapsApi {
       durationSeconds: durationSeconds,
     );
   }
+
   static double _parseGoogleDurationSeconds(String? duration) {
     if (duration == null || !duration.endsWith('s')) {
       return 0;
     }
     return double.tryParse(duration.substring(0, duration.length - 1)) ?? 0;
   }
+
   static String _formatDuration(String? duration) {
     if (duration == null || !duration.endsWith('s')) {
       return '--';
@@ -956,10 +983,12 @@ class _GoogleMapsApi {
     final remainder = minutes % 60;
     return remainder == 0 ? '$hours hr' : '$hours hr $remainder min';
   }
+
   static String _formatSeconds(num seconds) {
     final minutes = max(1, (seconds / 60).round());
     return _formatMinutes(minutes);
   }
+
   static String _formatMinutes(num minutesValue) {
     final minutes = max(1, minutesValue.round());
     if (minutes < 60) {
@@ -969,6 +998,7 @@ class _GoogleMapsApi {
     final remainder = minutes % 60;
     return remainder == 0 ? '$hours hr' : '$hours hr $remainder min';
   }
+
   static String _formatMeters(int? meters) {
     if (meters == null) {
       return '--';
@@ -978,6 +1008,7 @@ class _GoogleMapsApi {
     }
     return '${(meters / 1000).toStringAsFixed(1)} km';
   }
+
   static List<LatLng> _decodePolyline(String encoded) {
     if (encoded.isEmpty) {
       return const [];
@@ -1009,6 +1040,7 @@ class _GoogleMapsApi {
     return points;
   }
 }
+
 class _DrivingRoute {
   const _DrivingRoute({
     required this.points,
@@ -1023,6 +1055,7 @@ class _DrivingRoute {
   final double distanceMeters;
   final double durationSeconds;
 }
+
 class _TransitApiRoute {
   const _TransitApiRoute({
     required this.option,
@@ -1040,6 +1073,7 @@ class _TransitApiRoute {
       .map((leg) => '${leg.fromName}|${leg.toName}|${leg.mode}')
       .join('>');
 }
+
 class TransitOption {
   const TransitOption({
     required this.label,
@@ -1096,6 +1130,7 @@ class TransitOption {
       nextInstruction: nextInstruction ?? this.nextInstruction,
     );
   }
+
   List<LatLng> get points {
     final all = <LatLng>[];
     for (final leg in legs) {
@@ -1110,6 +1145,7 @@ class TransitOption {
     return all;
   }
 }
+
 class RouteLeg {
   const RouteLeg({
     required this.fromName,
@@ -1128,13 +1164,16 @@ class RouteLeg {
   final IconData icon;
   final List<LatLng> points;
 }
+
 enum _TransitMode { rail, bus, feeder, walk }
+
 class _TransitStopNode {
   const _TransitStopNode(this.id, this.name, this.location);
   final String id;
   final String name;
   final LatLng location;
 }
+
 class _TransitEdge {
   const _TransitEdge({
     required this.fromId,
@@ -1164,6 +1203,7 @@ class _TransitEdge {
       _TransitMode.walk => 'Walk',
     };
   }
+
   IconData get icon {
     return switch (mode) {
       _TransitMode.rail => Icons.train_rounded,
@@ -1172,6 +1212,7 @@ class _TransitEdge {
       _TransitMode.walk => Icons.directions_walk_rounded,
     };
   }
+
   _TransitEdge get reversed => copyWith(fromId: toId, toId: fromId);
   _TransitEdge copyWith({String? fromId, String? toId, bool? transferPenalty}) {
     return _TransitEdge(
@@ -1185,8 +1226,10 @@ class _TransitEdge {
       transferPenalty: transferPenalty ?? this.transferPenalty,
     );
   }
+
   List<LatLng> pointsFor(LatLng from, LatLng to) => [from, to];
 }
+
 class _TransitRouteVariant {
   const _TransitRouteVariant({
     required this.label,
@@ -1199,6 +1242,7 @@ class _TransitRouteVariant {
   final double crowdBias;
   final double Function(_TransitEdge edge) costFor;
 }
+
 class GovernmentDataSource {
   const GovernmentDataSource({
     required this.name,
@@ -1217,6 +1261,7 @@ class GovernmentDataSource {
   final IconData icon;
   final Color color;
 }
+
 const governmentDataSources = [
   GovernmentDataSource(
     name: 'data.gov.my',
@@ -1539,6 +1584,7 @@ const _klTransitEdges = [
     fare: 2.20,
   ),
 ];
+
 class Driver {
   const Driver(
     this.name,
@@ -1562,11 +1608,13 @@ class Driver {
     );
   }
 }
+
 class _DriverArrival {
   const _DriverArrival({required this.driver, required this.route});
   final Driver driver;
   final _DrivingRoute route;
 }
+
 class Attraction {
   const Attraction({
     required this.name,
@@ -1601,6 +1649,7 @@ class Attraction {
     return max(0, (baseCost * multiplier).round());
   }
 }
+
 class FavoritePlace {
   const FavoritePlace({
     required this.name,
@@ -1686,6 +1735,7 @@ class FavoritePlace {
     };
   }
 }
+
 class TripHistoryEntry {
   const TripHistoryEntry({
     required this.placeName,
@@ -1720,6 +1770,7 @@ class TripHistoryEntry {
     };
   }
 }
+
 class ItineraryStop {
   const ItineraryStop({
     required this.order,
@@ -1740,6 +1791,7 @@ class ItineraryStop {
   final BlindBoxTravelMode travelMode;
   final int cost;
 }
+
 extension on PriceTier {
   String get label => switch (this) {
     PriceTier.budget => 'Budget',
@@ -1747,12 +1799,14 @@ extension on PriceTier {
     PriceTier.luxury => 'Luxury',
   };
 }
+
 String _formatClock(int minutes) {
   final normalized = minutes % (24 * 60);
   final hour = normalized ~/ 60;
   final minute = normalized % 60;
   return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 }
+
 String _pointKey(LatLng? point) {
   if (point == null) {
     return 'none';

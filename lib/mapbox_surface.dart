@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'loading_compass.dart';
 import 'main.dart' show DestinationCandidate, TransitOption, TrasiaColors;
+
 const _mapboxAccessToken =
     'pk.eyJ1IjoiamVlc2hlbiIsImEiOiJjbW9uNGIzYjMwYXg1MnBwc214ZmM0dTFjIn0.VHq4AAucdQxUz865oPSwYg';
 const _mapboxStyleUri = mapbox.MapboxStyles.LIGHT;
@@ -45,6 +46,7 @@ Color routeModeColor(String mode) {
   }
   return const Color(0xFF5B78D6);
 }
+
 class AppMapController {
   AppMapController(this.mapboxMap);
   final mapbox.MapboxMap mapboxMap;
@@ -64,6 +66,7 @@ class AppMapController {
       mapbox.MapAnimationOptions(duration: 1000),
     );
   }
+
   Future<void> setCameraPosition(gmaps.CameraPosition position) {
     return mapboxMap.setCamera(
       mapbox.CameraOptions(
@@ -79,6 +82,7 @@ class AppMapController {
       ),
     );
   }
+
   Future<void> easeToCameraPosition(
     gmaps.CameraPosition position, {
     int durationMs = 240,
@@ -98,6 +102,7 @@ class AppMapController {
       mapbox.MapAnimationOptions(duration: durationMs),
     );
   }
+
   Future<void> flyToLatLngZoom(gmaps.LatLng location, double zoom) {
     return mapboxMap.flyTo(
       mapbox.CameraOptions(
@@ -109,6 +114,7 @@ class AppMapController {
       mapbox.MapAnimationOptions(duration: 1000),
     );
   }
+
   Future<void> flyToBounds(gmaps.LatLngBounds bounds, double padding) async {
     final camera = await mapboxMap.cameraForCoordinateBounds(
       mapbox.CoordinateBounds(
@@ -140,6 +146,7 @@ class AppMapController {
     await mapboxMap.flyTo(camera, mapbox.MapAnimationOptions(duration: 1000));
   }
 }
+
 class LiveMapboxSurface extends StatefulWidget {
   const LiveMapboxSurface({
     super.key,
@@ -185,6 +192,7 @@ class LiveMapboxSurface extends StatefulWidget {
   @override
   State<LiveMapboxSurface> createState() => _LiveMapboxSurfaceState();
 }
+
 class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   mapbox.MapboxMap? _mapboxMap;
   mapbox.PointAnnotationManager? _pointManager;
@@ -213,6 +221,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     super.initState();
     _initMapbox();
   }
+
   Future<void> _initMapbox() async {
     mapbox.LogConfiguration.registerLogWriterBackend(SilentLogBackend());
     await mapbox.MapboxOptions.setAccessToken(_mapboxAccessToken);
@@ -220,12 +229,14 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       setState(() => _isMapboxInitialized = true);
     }
   }
+
   @override
   void dispose() {
     _pointTapEvents?.cancel();
     _pointTapCallbacks.clear();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
     final target =
@@ -249,7 +260,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
               ? mapbox.MapWidget(
                   key: const ValueKey('mapWidget'),
                   textureView: true,
-                  cameraOptions: mapbox.CameraOptions(
+                  viewport: mapbox.CameraViewportState(
                     center: mapbox.Point(
                       coordinates: mapbox.Position(
                         target.longitude,
@@ -280,11 +291,13 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       ],
     );
   }
+
   Future<void> _onMapCreated(mapbox.MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
     await _hideMapOrnaments(mapboxMap);
     widget.onMapCreated(AppMapController(mapboxMap));
   }
+
   Future<void> _hideMapOrnaments(mapbox.MapboxMap mapboxMap) async {
     await mapboxMap.compass.updateSettings(
       mapbox.CompassSettings(enabled: false, visibility: false),
@@ -297,6 +310,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       mapbox.AttributionSettings(enabled: false, clickable: false),
     );
   }
+
   void _markLoaded() {
     if (!_isMapLoaded && mounted) {
       setState(() => _isMapLoaded = true);
@@ -304,6 +318,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     _scheduleAnnotationUpdate();
     _scheduleVehicleUpdate();
   }
+
   @override
   void didUpdateWidget(covariant LiveMapboxSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -323,6 +338,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       _scheduleRouteProgressUpdate();
     }
   }
+
   bool _staticMapContentChanged(LiveMapboxSurface oldWidget) {
     return oldWidget.currentLocation != widget.currentLocation ||
         oldWidget.currentAccuracyMeters != widget.currentAccuracyMeters ||
@@ -336,6 +352,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
         !identical(oldWidget.extraMarkers, widget.extraMarkers) ||
         !identical(oldWidget.extraPolylines, widget.extraPolylines);
   }
+
   void _scheduleAnnotationUpdate() {
     _annotationUpdateRequested = true;
     if (_annotationUpdateRunning) {
@@ -344,6 +361,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     _annotationUpdateRunning = true;
     unawaited(_drainAnnotationUpdates());
   }
+
   Future<void> _drainAnnotationUpdates() async {
     while (mounted && _annotationUpdateRequested) {
       _annotationUpdateRequested = false;
@@ -361,9 +379,11 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       _scheduleAnnotationUpdate();
     }
   }
+
   Future<void> _ensureAnnotationManagers() {
     return _annotationSetup ??= _createAnnotationManagers();
   }
+
   Future<void> _createAnnotationManagers() async {
     final mapboxMap = _mapboxMap;
     if (mapboxMap == null) {
@@ -390,6 +410,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       },
     );
   }
+
   Future<void> _updateAnnotations() async {
     if (_pointManager == null ||
         _polylineManager == null ||
@@ -409,7 +430,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
                 .map((p) => mapbox.Position(p.longitude, p.latitude))
                 .toList(),
           ),
-          lineColor: polyline.color.value,
+          lineColor: polyline.color.toARGB32(),
           lineWidth: polyline.width.toDouble(),
         ),
       );
@@ -427,7 +448,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
                   .map((p) => mapbox.Position(p.longitude, p.latitude))
                   .toList(),
             ),
-            lineColor: routeModeColor(leg.mode).value,
+            lineColor: routeModeColor(leg.mode).toARGB32(),
             lineWidth: 5.0,
           ),
         );
@@ -510,6 +531,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     _scheduleRouteProgressUpdate();
     _scheduleVehicleUpdate();
   }
+
   void _scheduleRouteProgressUpdate() {
     _routeProgressUpdateRequested = true;
     if (_routeProgressUpdateRunning) {
@@ -518,6 +540,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     _routeProgressUpdateRunning = true;
     unawaited(_drainRouteProgressUpdates());
   }
+
   Future<void> _drainRouteProgressUpdates() async {
     while (mounted && _routeProgressUpdateRequested) {
       _routeProgressUpdateRequested = false;
@@ -535,6 +558,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       _scheduleRouteProgressUpdate();
     }
   }
+
   Future<void> _updateRouteProgress() async {
     final manager = _polylineManager;
     final route = widget.selectedRoute;
@@ -558,6 +582,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       await manager.update(annotation);
     }
   }
+
   void _scheduleVehicleUpdate() {
     _vehicleUpdateRequested = true;
     if (_vehicleUpdateRunning) {
@@ -566,6 +591,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     _vehicleUpdateRunning = true;
     unawaited(_drainVehicleUpdates());
   }
+
   Future<void> _drainVehicleUpdates() async {
     while (mounted && _vehicleUpdateRequested) {
       _vehicleUpdateRequested = false;
@@ -583,6 +609,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       _scheduleVehicleUpdate();
     }
   }
+
   Future<void> _updateVehicleAnnotation() async {
     final manager = _vehiclePointManager;
     if (manager == null) {
@@ -617,6 +644,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       ..iconRotate = widget.vehicleBearing;
     await manager.update(annotation);
   }
+
   Future<void> _createCircle(
     gmaps.LatLng location, {
     required double radius,
@@ -628,12 +656,13 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       mapbox.CircleAnnotationOptions(
         geometry: _point(location),
         circleRadius: radius,
-        circleColor: color.value,
+        circleColor: color.toARGB32(),
         circleStrokeWidth: strokeWidth,
-        circleStrokeColor: (strokeColor ?? Colors.transparent).value,
+        circleStrokeColor: (strokeColor ?? Colors.transparent).toARGB32(),
       ),
     );
   }
+
   Future<void> _createDestinationMarker(gmaps.LatLng location) async {
     await _pointManager!.create(
       mapbox.PointAnnotationOptions(
@@ -645,6 +674,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       ),
     );
   }
+
   Future<void> _createTransferMarker(gmaps.LatLng location, Color color) async {
     await _pointManager!.create(
       mapbox.PointAnnotationOptions(
@@ -656,11 +686,13 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       ),
     );
   }
+
   mapbox.Point _point(gmaps.LatLng location) {
     return mapbox.Point(
       coordinates: mapbox.Position(location.longitude, location.latitude),
     );
   }
+
   List<gmaps.LatLng> _remainingRoutePoints(
     List<gmaps.LatLng> points,
     double progress,
@@ -698,6 +730,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     );
     return [current, ...points.skip(segmentIndex + 1)];
   }
+
   double _mapDistanceMeters(gmaps.LatLng from, gmaps.LatLng to) {
     const earthRadiusMeters = 6371000.0;
     final fromLatitude = from.latitude * pi / 180;
@@ -712,24 +745,29 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
             sin(longitudeDelta / 2);
     return earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
+
   Future<Uint8List> _selfMarker() {
     return _selfMarkerBytes ??= _drawSelfMarker();
   }
+
   Future<Uint8List> _destinationMarker() {
     return _destinationMarkerBytes ??= _drawDestinationMarker();
   }
+
   Future<Uint8List> _transferMarker(Color color) {
     return _transferMarkerBytes.putIfAbsent(
-      color.value,
+      color.toARGB32(),
       () => _drawTransferMarker(color),
     );
   }
+
   Future<Uint8List> _vehicleMarker(Color color) {
     return _vehicleMarkerBytes.putIfAbsent(
-      color.value,
+      color.toARGB32(),
       () => _drawVehicleMarker(color),
     );
   }
+
   Future<Uint8List> _drawVehicleMarker(Color color) async {
     const size = 112.0;
     final recorder = ui.PictureRecorder();
@@ -806,6 +844,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
   }
+
   Future<Uint8List> _drawSelfMarker() async {
     const size = 96.0;
     final recorder = ui.PictureRecorder();
@@ -846,6 +885,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
   }
+
   Future<Uint8List> _drawDestinationMarker() async {
     const width = 96.0;
     const height = 120.0;
@@ -878,6 +918,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
   }
+
   Future<Uint8List> _drawTransferMarker(Color color) async {
     const width = 64.0;
     const height = 80.0;
@@ -911,6 +952,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
   }
+
   Uint8List? _markerBytes(gmaps.Marker marker) {
     try {
       final iconJson = marker.icon.toJson() as List<dynamic>;
@@ -931,8 +973,8 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     return null;
   }
 }
+
 class SilentLogBackend extends mapbox.LogWriterBackend {
   @override
-  void writeLog(mapbox.LoggingLevel level, String message) {
-  }
+  void writeLog(mapbox.LoggingLevel level, String message) {}
 }

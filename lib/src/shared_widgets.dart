@@ -1,121 +1,5 @@
 part of '../main.dart';
-class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({
-    required this.role,
-    required this.wallet,
-    required this.showWallet,
-  });
-  final UserRole role;
-  final double wallet;
-  final bool showWallet;
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
-      child: Row(
-        children: [
-          IconButton.filledTonal(
-            onPressed: () {},
-            icon: const Icon(Icons.menu_rounded),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  role == UserRole.admin ? 'Admin Dashboard' : 'Discover KL',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  role == UserRole.admin
-                      ? 'Registry and system controls'
-                      : showWallet
-                      ? 'Wallet RM ${wallet.toStringAsFixed(2)}'
-                      : 'Classic destination itinerary',
-                  style: TextStyle(color: Colors.white.withValues(alpha: .7)),
-                ),
-              ],
-            ),
-          ),
-          const CircleAvatar(
-            radius: 24,
-            backgroundColor: TrasiaColors.primary,
-            child: Icon(Icons.person_rounded),
-          ),
-        ],
-      ),
-    );
-  }
-}
-class _BlueShell extends StatelessWidget {
-  const _BlueShell({required this.child});
-  final Widget child;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF061827), Color(0xFF083F7C), Color(0xFF06111D)],
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-class _GlassPanel extends StatelessWidget {
-  const _GlassPanel({required this.child});
-  final Widget child;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: .14)),
-      ),
-      child: child,
-    );
-  }
-}
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
-    required this.icon,
-    required this.title,
-    required this.trailing,
-  });
-  final IconData icon;
-  final String title;
-  final String trailing;
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF40A9FF)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-            ),
-          ),
-          Text(
-            trailing,
-            style: TextStyle(color: Colors.white.withValues(alpha: .62)),
-          ),
-        ],
-      ),
-    );
-  }
-}
+
 class _MapSearchWindow extends StatelessWidget {
   const _MapSearchWindow({
     required this.fromController,
@@ -329,6 +213,7 @@ class _MapSearchWindow extends StatelessWidget {
     );
   }
 }
+
 class _MapLocationButton extends StatelessWidget {
   const _MapLocationButton({required this.loading, required this.onPressed});
   final bool loading;
@@ -363,6 +248,7 @@ class _MapLocationButton extends StatelessWidget {
     );
   }
 }
+
 class _DemoArrivalButton extends StatelessWidget {
   const _DemoArrivalButton({required this.onPressed});
   final VoidCallback onPressed;
@@ -387,6 +273,7 @@ class _DemoArrivalButton extends StatelessWidget {
     );
   }
 }
+
 class _MapFavoritesButton extends StatelessWidget {
   const _MapFavoritesButton({required this.onPressed});
   final VoidCallback onPressed;
@@ -418,6 +305,7 @@ class _MapFavoritesButton extends StatelessWidget {
     );
   }
 }
+
 class _SheetNotice extends StatelessWidget {
   const _SheetNotice({required this.message});
   final String message;
@@ -451,6 +339,7 @@ class _SheetNotice extends StatelessWidget {
     );
   }
 }
+
 class _DestinationConfirmCard extends StatelessWidget {
   const _DestinationConfirmCard({
     required this.candidate,
@@ -547,6 +436,7 @@ class _DestinationConfirmCard extends StatelessWidget {
     );
   }
 }
+
 class _RouteChoiceCard extends StatelessWidget {
   const _RouteChoiceCard({
     required this.route,
@@ -638,6 +528,7 @@ class _RouteChoiceCard extends StatelessWidget {
     );
   }
 }
+
 class _DarkMiniMetric extends StatelessWidget {
   const _DarkMiniMetric(this.icon, this.label, {this.flex = 1});
   final IconData icon;
@@ -669,6 +560,7 @@ class _DarkMiniMetric extends StatelessWidget {
     );
   }
 }
+
 String _compactDurationLabel(String value) {
   final hours = RegExp(
     r'(\d+)\s*(?:hours?|hrs?|h)\b',
@@ -688,6 +580,7 @@ String _compactDurationLabel(String value) {
     if (minuteValue != null) '${minuteValue}M',
   ].join();
 }
+
 class _TripDetailsDropdown extends StatefulWidget {
   const _TripDetailsDropdown({
     required this.destination,
@@ -704,6 +597,7 @@ class _TripDetailsDropdown extends StatefulWidget {
   @override
   State<_TripDetailsDropdown> createState() => _TripDetailsDropdownState();
 }
+
 class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
   bool _expanded = false;
   @override
@@ -818,11 +712,13 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
       ),
     );
   }
+
   @override
   void dispose() {
     super.dispose();
   }
 }
+
 class _NextLegCard extends StatelessWidget {
   const _NextLegCard({required this.leg, required this.onTap});
   final RouteLeg leg;
@@ -876,6 +772,7 @@ class _NextLegCard extends StatelessWidget {
     );
   }
 }
+
 class _TripLegRow extends StatelessWidget {
   const _TripLegRow({
     required this.leg,
@@ -957,6 +854,7 @@ class _TripLegRow extends StatelessWidget {
     );
   }
 }
+
 class _MapLoadingPill extends StatelessWidget {
   const _MapLoadingPill();
   @override
@@ -964,6 +862,7 @@ class _MapLoadingPill extends StatelessWidget {
     return const TrasiaLoadingCompass();
   }
 }
+
 class _DriverCard extends StatelessWidget {
   const _DriverCard({required this.driver});
   final Driver driver;
@@ -999,6 +898,7 @@ class _DriverCard extends StatelessWidget {
     );
   }
 }
+
 class _PlanSlider extends StatelessWidget {
   const _PlanSlider({
     required this.icon,
@@ -1059,6 +959,7 @@ class _PlanSlider extends StatelessWidget {
     );
   }
 }
+
 class _PlanSectionTitle extends StatelessWidget {
   const _PlanSectionTitle({
     required this.icon,
@@ -1111,6 +1012,7 @@ class _PlanSectionTitle extends StatelessWidget {
     );
   }
 }
+
 class _PlanPanel extends StatelessWidget {
   const _PlanPanel({required this.child});
   final Widget child;
@@ -1134,6 +1036,7 @@ class _PlanPanel extends StatelessWidget {
     );
   }
 }
+
 class _BlindBoxTravelModeSelector extends StatelessWidget {
   const _BlindBoxTravelModeSelector({
     required this.value,
@@ -1194,7 +1097,9 @@ class _BlindBoxTravelModeSelector extends StatelessWidget {
     );
   }
 }
+
 enum _MapStopAction { proceed, checkIn, cancel }
+
 class _FeatureCResultsToggle extends StatelessWidget {
   const _FeatureCResultsToggle({
     required this.count,
@@ -1217,6 +1122,7 @@ class _FeatureCResultsToggle extends StatelessWidget {
     );
   }
 }
+
 class _FeatureCTripCompletedBanner extends StatelessWidget {
   const _FeatureCTripCompletedBanner({required this.onPlanAnotherTrip});
   final VoidCallback onPlanAnotherTrip;
@@ -1273,6 +1179,7 @@ class _FeatureCTripCompletedBanner extends StatelessWidget {
     );
   }
 }
+
 class _FeatureCResultsSheet extends StatelessWidget {
   const _FeatureCResultsSheet({
     required this.stops,
@@ -1440,6 +1347,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
     );
   }
 }
+
 class _MapStopActionSheet extends StatelessWidget {
   const _MapStopActionSheet({
     required this.stop,
@@ -1588,6 +1496,7 @@ class _MapStopActionSheet extends StatelessWidget {
     );
   }
 }
+
 class _MapStopDetailRow extends StatelessWidget {
   const _MapStopDetailRow({required this.icon, required this.text});
   final IconData icon;
@@ -1614,12 +1523,15 @@ class _MapStopDetailRow extends StatelessWidget {
     );
   }
 }
+
 String _placeCheckInKey(String placeName) {
   return placeName.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '-');
 }
+
 String _checkInPayloadForPlaceName(String placeName) {
   return 'trasia://kl-blind-box/check-in/${_placeCheckInKey(placeName)}';
 }
+
 class _CheckInScannerPage extends StatefulWidget {
   const _CheckInScannerPage({
     required this.targetName,
@@ -1630,6 +1542,7 @@ class _CheckInScannerPage extends StatefulWidget {
   @override
   State<_CheckInScannerPage> createState() => _CheckInScannerPageState();
 }
+
 class _CheckInScannerPageState extends State<_CheckInScannerPage> {
   late MobileScannerController _controller;
   bool _handledScan = false;
@@ -1653,6 +1566,7 @@ class _CheckInScannerPageState extends State<_CheckInScannerPage> {
       }
     });
   }
+
   Future<void> _startScanner() async {
     await _controller.start(cameraDirection: CameraFacing.back);
     if (!mounted || _controller.value.isRunning) {
@@ -1661,12 +1575,14 @@ class _CheckInScannerPageState extends State<_CheckInScannerPage> {
     setState(() => _usingFrontCamera = true);
     await _controller.start(cameraDirection: CameraFacing.front);
   }
+
   @override
   void dispose() {
     unawaited(SystemChrome.setPreferredOrientations(DeviceOrientation.values));
     unawaited(_controller.dispose());
     super.dispose();
   }
+
   void _handleDetect(BarcodeCapture capture) {
     if (_handledScan) {
       return;
@@ -1693,6 +1609,7 @@ class _CheckInScannerPageState extends State<_CheckInScannerPage> {
     unawaited(_controller.stop());
     Navigator.of(context).pop(payload);
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1787,6 +1704,7 @@ class _CheckInScannerPageState extends State<_CheckInScannerPage> {
     );
   }
 }
+
 class _FeatureCTripProgressPanel extends StatelessWidget {
   const _FeatureCTripProgressPanel({
     required this.stops,
@@ -1952,6 +1870,7 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
     );
   }
 }
+
 class _ItineraryStopCard extends StatelessWidget {
   const _ItineraryStopCard({
     required this.stop,
@@ -2072,6 +1991,7 @@ class _ItineraryStopCard extends StatelessWidget {
     );
   }
 }
+
 class _ItineraryDetailRow extends StatelessWidget {
   const _ItineraryDetailRow({required this.icon, required this.text});
   final IconData icon;
@@ -2093,23 +2013,6 @@ class _ItineraryDetailRow extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-class _LedgerRow extends StatelessWidget {
-  const _LedgerRow(this.label, this.value);
-  final String label;
-  final String value;
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 9),
-      child: Row(
-        children: [
-          Expanded(child: Text(label)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
         ],
       ),
     );

@@ -1,34 +1,42 @@
 part of '../main.dart';
+
 class _AdminAnalyticsView extends StatefulWidget {
-  const _AdminAnalyticsView({super.key});
+  const _AdminAnalyticsView();
   @override
   State<_AdminAnalyticsView> createState() => _AdminAnalyticsViewState();
 }
+
 class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
-  int _section = 0; 
+  int _section = 0;
   bool _loading = true;
   String? _error;
   late DateTime _selectedWeekStart;
   List<dynamic> _users = [];
-  List<dynamic> _admins = [];
   List<dynamic> _drivers = [];
   List<dynamic> _vouchers = [];
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _selectedWeekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+    _selectedWeekStart = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: now.weekday - 1));
     _fetchAnalytics();
   }
+
   Future<void> _showWeekPickerBottomSheet() async {
     final DateTime? newWeek = await showModalBottomSheet<DateTime>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) {
         return _WeekPickerSheet(currentWeekStart: _selectedWeekStart);
-      }
+      },
     );
     if (newWeek != null && newWeek != _selectedWeekStart) {
       setState(() {
@@ -37,17 +45,37 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       _fetchAnalytics();
     }
   }
+
   Widget _buildWeekPickerTitle(String prefix) {
     final end = _selectedWeekStart.add(const Duration(days: 6));
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final startStr = '${_selectedWeekStart.day.toString().padLeft(2, '0')} ${months[_selectedWeekStart.month - 1]} ${_selectedWeekStart.year}';
-    final endStr = '${end.day.toString().padLeft(2, '0')} ${months[end.month - 1]} ${end.year}';
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final startStr =
+        '${_selectedWeekStart.day.toString().padLeft(2, '0')} ${months[_selectedWeekStart.month - 1]} ${_selectedWeekStart.year}';
+    final endStr =
+        '${end.day.toString().padLeft(2, '0')} ${months[end.month - 1]} ${end.year}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           prefix,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1F2937),
+          ),
         ),
         const SizedBox(height: 16),
         InkWell(
@@ -63,14 +91,26 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.calendar_month_rounded, color: Color(0xFF0057C8), size: 18),
+                const Icon(
+                  Icons.calendar_month_rounded,
+                  color: Color(0xFF0057C8),
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '$startStr – $endStr',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1F2937)),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1F2937),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF6B7280), size: 20),
+                const Icon(
+                  Icons.arrow_drop_down_rounded,
+                  color: Color(0xFF6B7280),
+                  size: 20,
+                ),
               ],
             ),
           ),
@@ -78,6 +118,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ],
     );
   }
+
   Future<void> _fetchAnalytics() async {
     if (!mounted) return;
     setState(() {
@@ -85,15 +126,17 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       _error = null;
     });
     try {
-      final uRes = await Supabase.instance.client.rpc('admin_get_users', params: {
-        'p_search_query': '',
-        'p_offset': 0,
-        'p_limit': 10000,
-        'p_sort_asc': true
-      });
+      final uRes = await Supabase.instance.client.rpc(
+        'admin_get_users',
+        params: {
+          'p_search_query': '',
+          'p_offset': 0,
+          'p_limit': 10000,
+          'p_sort_asc': true,
+        },
+      );
       final allProfiles = List<dynamic>.from(uRes as List);
       _users = allProfiles.where((u) => u['role'] == 'user').toList();
-      _admins = allProfiles.where((u) => u['role'] == 'admin').toList();
       _drivers = await Supabase.instance.client.from('drivers').select();
       _vouchers = await Supabase.instance.client.from('vouchers').select();
     } catch (e) {
@@ -106,6 +149,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       });
     }
   }
+
   Widget _buildEmptyState() {
     return Container(
       width: double.infinity,
@@ -134,7 +178,13 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ),
     );
   }
-  Widget _buildCard({String? title, Widget? titleWidget, required Widget child, double height = 300}) {
+
+  Widget _buildCard({
+    String? title,
+    Widget? titleWidget,
+    required Widget child,
+    double height = 300,
+  }) {
     return Container(
       width: double.infinity,
       height: height,
@@ -171,7 +221,12 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ),
     );
   }
-  Widget _buildSummaryCard({required String title, required String value, required Color color}) {
+
+  Widget _buildSummaryCard({
+    required String title,
+    required String value,
+    required Color color,
+  }) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -212,6 +267,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ),
     );
   }
+
   Widget _buildLineChart(List<dynamic> data, Color color, String tooltipLabel) {
     if (data.isEmpty) return _buildEmptyState();
     Map<int, int> counts = {for (var i = 0; i <= 6; i++) i: 0};
@@ -220,13 +276,19 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       final dt = DateTime.tryParse(item['created_at']);
       if (dt == null) continue;
       final dtDate = DateTime(dt.year, dt.month, dt.day);
-      final weekStart = DateTime(_selectedWeekStart.year, _selectedWeekStart.month, _selectedWeekStart.day);
+      final weekStart = DateTime(
+        _selectedWeekStart.year,
+        _selectedWeekStart.month,
+        _selectedWeekStart.day,
+      );
       final diff = dtDate.difference(weekStart).inDays;
       if (diff >= 0 && diff <= 6) {
         counts[diff] = counts[diff]! + 1;
       }
     }
-    double maxY = counts.values.isEmpty ? 0 : counts.values.reduce(max).toDouble();
+    double maxY = counts.values.isEmpty
+        ? 0
+        : counts.values.reduce(max).toDouble();
     if (maxY == 0) {
       return Container(
         width: double.infinity,
@@ -259,7 +321,20 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       return FlSpot(e.key.toDouble(), e.value.toDouble());
     }).toList();
     spots.sort((a, b) => a.x.compareTo(b.x));
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return LineChart(
       LineChartData(
@@ -268,15 +343,17 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           drawVerticalLine: false,
           drawHorizontalLine: true,
           horizontalInterval: max(1, (maxY / 4).ceilToDouble()),
-          getDrawingHorizontalLine: (value) => FlLine(
-            color: const Color(0xFFF3F4F6),
-            strokeWidth: 1,
-          ),
+          getDrawingHorizontalLine: (value) =>
+              FlLine(color: const Color(0xFFF3F4F6), strokeWidth: 1),
         ),
         titlesData: FlTitlesData(
           show: true,
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -284,10 +361,18 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
               interval: 1,
               getTitlesWidget: (value, meta) {
                 final dayOffset = value.toInt();
-                if (dayOffset < 0 || dayOffset > 6) return const SizedBox.shrink();
+                if (dayOffset < 0 || dayOffset > 6) {
+                  return const SizedBox.shrink();
+                }
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Text(weekdays[dayOffset], style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                  child: Text(
+                    weekdays[dayOffset],
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
                 );
               },
             ),
@@ -299,7 +384,13 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
               reservedSize: 42,
               getTitlesWidget: (value, meta) {
                 if (value % 1 != 0) return const SizedBox.shrink();
-                return Text(value.toInt().toString(), style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)));
+                return Text(
+                  value.toInt().toString(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF6B7280),
+                  ),
+                );
               },
             ),
           ),
@@ -318,12 +409,13 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
             isStrokeCapRound: true,
             dotData: FlDotData(
               show: true,
-              getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                radius: 5,
-                color: Colors.white,
-                strokeWidth: 3,
-                strokeColor: color,
-              ),
+              getDotPainter: (spot, percent, barData, index) =>
+                  FlDotCirclePainter(
+                    radius: 5,
+                    color: Colors.white,
+                    strokeWidth: 3,
+                    strokeColor: color,
+                  ),
             ),
             belowBarData: BarAreaData(
               show: true,
@@ -351,7 +443,10 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
                   children: [
                     TextSpan(
                       text: '$tooltipLabel: ${spot.y.toInt()}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 );
@@ -364,13 +459,20 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       curve: Curves.easeOutCubic,
     );
   }
+
   Widget _buildUsersTab() {
     int newThisWeek = 0;
-    final endOfWeek = _selectedWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+    final endOfWeek = _selectedWeekStart.add(
+      const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+    );
     for (final u in _users) {
       if (u['created_at'] != null) {
         final d = DateTime.tryParse(u['created_at']);
-        if (d != null && d.isAfter(_selectedWeekStart.subtract(const Duration(seconds: 1))) && d.isBefore(endOfWeek)) {
+        if (d != null &&
+            d.isAfter(
+              _selectedWeekStart.subtract(const Duration(seconds: 1)),
+            ) &&
+            d.isBefore(endOfWeek)) {
           newThisWeek++;
         }
       }
@@ -407,14 +509,20 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ],
     );
   }
+
   Widget _buildDriversTab() {
     int newThisWeek = 0;
-    final now = DateTime.now();
-    final endOfWeek = _selectedWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+    final endOfWeek = _selectedWeekStart.add(
+      const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+    );
     for (final d in _drivers) {
       if (d['created_at'] != null) {
         final dt = DateTime.tryParse(d['created_at']);
-        if (dt != null && dt.isAfter(_selectedWeekStart.subtract(const Duration(seconds: 1))) && dt.isBefore(endOfWeek)) {
+        if (dt != null &&
+            dt.isAfter(
+              _selectedWeekStart.subtract(const Duration(seconds: 1)),
+            ) &&
+            dt.isBefore(endOfWeek)) {
           newThisWeek++;
         }
       }
@@ -423,7 +531,11 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       children: [
         _buildCard(
           titleWidget: _buildWeekPickerTitle('Driver Registrations'),
-          child: _buildLineChart(_drivers, const Color(0xFFF97316), 'New Drivers'),
+          child: _buildLineChart(
+            _drivers,
+            const Color(0xFFF97316),
+            'New Drivers',
+          ),
         ),
         const SizedBox(height: 24),
         IntrinsicHeight(
@@ -451,13 +563,20 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ],
     );
   }
+
   Widget _buildVouchersTab() {
     int newThisWeek = 0;
-    final endOfWeek = _selectedWeekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+    final endOfWeek = _selectedWeekStart.add(
+      const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+    );
     for (final v in _vouchers) {
       if (v['created_at'] != null) {
         final dt = DateTime.tryParse(v['created_at']);
-        if (dt != null && dt.isAfter(_selectedWeekStart.subtract(const Duration(seconds: 1))) && dt.isBefore(endOfWeek)) {
+        if (dt != null &&
+            dt.isAfter(
+              _selectedWeekStart.subtract(const Duration(seconds: 1)),
+            ) &&
+            dt.isBefore(endOfWeek)) {
           newThisWeek++;
         }
       }
@@ -466,7 +585,11 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       children: [
         _buildCard(
           titleWidget: _buildWeekPickerTitle('Vouchers Created'),
-          child: _buildLineChart(_vouchers, const Color(0xFF10B981), 'New Vouchers'),
+          child: _buildLineChart(
+            _vouchers,
+            const Color(0xFF10B981),
+            'New Vouchers',
+          ),
         ),
         const SizedBox(height: 24),
         IntrinsicHeight(
@@ -494,6 +617,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       ],
     );
   }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -564,7 +688,10 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
               ],
             ),
           )
-        else if (_loading && _users.isEmpty && _drivers.isEmpty && _vouchers.isEmpty)
+        else if (_loading &&
+            _users.isEmpty &&
+            _drivers.isEmpty &&
+            _vouchers.isEmpty)
           const Padding(
             padding: EdgeInsets.only(top: 100),
             child: Center(child: CircularProgressIndicator()),
@@ -578,25 +705,31 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
     );
   }
 }
+
 class _WeekPickerSheet extends StatefulWidget {
   final DateTime currentWeekStart;
   const _WeekPickerSheet({required this.currentWeekStart});
   @override
   State<_WeekPickerSheet> createState() => _WeekPickerSheetState();
 }
+
 class _WeekPickerSheetState extends State<_WeekPickerSheet> {
   late final ScrollController _scrollController;
   final int _baseIndex = 10000;
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController(initialScrollOffset: _baseIndex * 56.0 - 150.0);
+    _scrollController = ScrollController(
+      initialScrollOffset: _baseIndex * 56.0 - 150.0,
+    );
   }
+
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
   }
+
   void _jumpToDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -613,13 +746,31 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
       },
     );
     if (picked != null) {
-      final selectedWeekStart = DateTime(picked.year, picked.month, picked.day).subtract(Duration(days: picked.weekday - 1));
+      final selectedWeekStart = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+      ).subtract(Duration(days: picked.weekday - 1));
       if (mounted) Navigator.pop(context, selectedWeekStart);
     }
   }
+
   @override
   Widget build(BuildContext context) {
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return Container(
       height: 400,
       padding: const EdgeInsets.only(top: 24, bottom: 16),
@@ -629,7 +780,11 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
             padding: EdgeInsets.symmetric(horizontal: 24),
             child: Text(
               'Select Week',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1F2937),
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -640,20 +795,33 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
               itemCount: 20000,
               itemBuilder: (context, index) {
                 final offsetWeeks = index - _baseIndex;
-                final weekStart = widget.currentWeekStart.add(Duration(days: offsetWeeks * 7));
+                final weekStart = widget.currentWeekStart.add(
+                  Duration(days: offsetWeeks * 7),
+                );
                 final weekEnd = weekStart.add(const Duration(days: 6));
-                final startStr = '${weekStart.day.toString().padLeft(2, '0')} ${months[weekStart.month - 1]} ${weekStart.year}';
-                final endStr = '${weekEnd.day.toString().padLeft(2, '0')} ${months[weekEnd.month - 1]} ${weekEnd.year}';
+                final startStr =
+                    '${weekStart.day.toString().padLeft(2, '0')} ${months[weekStart.month - 1]} ${weekStart.year}';
+                final endStr =
+                    '${weekEnd.day.toString().padLeft(2, '0')} ${months[weekEnd.month - 1]} ${weekEnd.year}';
                 final isSelected = offsetWeeks == 0;
                 return InkWell(
                   onTap: () => Navigator.pop(context, weekStart),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
-                    color: isSelected ? const Color(0xFF0057C8).withValues(alpha: 0.1) : Colors.transparent,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 0,
+                    ),
+                    color: isSelected
+                        ? const Color(0xFF0057C8).withValues(alpha: 0.1)
+                        : Colors.transparent,
                     child: Row(
                       children: [
                         if (isSelected)
-                          const Icon(Icons.check_rounded, color: Color(0xFF0057C8), size: 20)
+                          const Icon(
+                            Icons.check_rounded,
+                            color: Color(0xFF0057C8),
+                            size: 20,
+                          )
                         else
                           const SizedBox(width: 20),
                         const SizedBox(width: 16),
@@ -661,8 +829,12 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
                           '$startStr – $endStr',
                           style: TextStyle(
                             fontSize: 16,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            color: isSelected ? const Color(0xFF0057C8) : const Color(0xFF1F2937),
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? const Color(0xFF0057C8)
+                                : const Color(0xFF1F2937),
                           ),
                         ),
                       ],
@@ -678,14 +850,24 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextButton.icon(
               onPressed: _jumpToDate,
-              icon: const Icon(Icons.calendar_today_rounded, color: Color(0xFF0057C8), size: 20),
+              icon: const Icon(
+                Icons.calendar_today_rounded,
+                color: Color(0xFF0057C8),
+                size: 20,
+              ),
               label: const Text(
                 'Jump to Date',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF0057C8)),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0057C8),
+                ),
               ),
               style: TextButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),

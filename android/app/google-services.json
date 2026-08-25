@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "113461449954",
+    "project_id": "trasia-3ca75",
+    "storage_bucket": "trasia-3ca75.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:113461449954:android:06845917923537401fbabb",
+        "android_client_info": {
+          "package_name": "com.example.trasia"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSEOHAIUrRYyZJmHvUayY2I8NCLGDpCNk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
