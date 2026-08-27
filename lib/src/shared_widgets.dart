@@ -1184,6 +1184,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
   const _FeatureCResultsSheet({
     required this.stops,
     required this.priceTier,
+    required this.favoritePlaceNames,
     required this.ongoingDestination,
     required this.tripStatus,
     required this.activeStopIndex,
@@ -1194,6 +1195,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
     required this.onClose,
     required this.onCancel,
     required this.onFocusStop,
+    required this.onToggleFavorite,
     required this.onChooseRoute,
     required this.onStartTrip,
     required this.onArrived,
@@ -1203,6 +1205,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
   });
   final List<ItineraryStop> stops;
   final PriceTier priceTier;
+  final Set<String> favoritePlaceNames;
   final String? ongoingDestination;
   final FeatureCTripStatus tripStatus;
   final int activeStopIndex;
@@ -1213,6 +1216,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
   final VoidCallback onClose;
   final Future<bool> Function(ItineraryStop stop) onCancel;
   final ValueChanged<ItineraryStop> onFocusStop;
+  final ValueChanged<Attraction> onToggleFavorite;
   final ValueChanged<String> onChooseRoute;
   final VoidCallback onStartTrip;
   final VoidCallback onArrived;
@@ -1316,6 +1320,9 @@ class _FeatureCResultsSheet extends StatelessWidget {
                           ),
                           child: _ItineraryStopCard(
                             stop: stops[i],
+                            favorite: favoritePlaceNames.contains(
+                              stops[i].attraction.name.toLowerCase(),
+                            ),
                             active:
                                 i == activeStopIndex &&
                                 !completedStopNames.contains(
@@ -1331,6 +1338,8 @@ class _FeatureCResultsSheet extends StatelessWidget {
                             ongoing:
                                 ongoingDestination == stops[i].attraction.name,
                             onFocus: () => onFocusStop(stops[i]),
+                            onToggleFavorite: () =>
+                                onToggleFavorite(stops[i].attraction),
                             onNavigate: () =>
                                 onChooseRoute(stops[i].attraction.name),
                           ),
@@ -1874,19 +1883,23 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
 class _ItineraryStopCard extends StatelessWidget {
   const _ItineraryStopCard({
     required this.stop,
+    required this.favorite,
     required this.active,
     required this.completed,
     required this.arrived,
     required this.ongoing,
     required this.onFocus,
+    required this.onToggleFavorite,
     required this.onNavigate,
   });
   final ItineraryStop stop;
+  final bool favorite;
   final bool active;
   final bool completed;
   final bool arrived;
   final bool ongoing;
   final VoidCallback onFocus;
+  final VoidCallback onToggleFavorite;
   final VoidCallback onNavigate;
   @override
   Widget build(BuildContext context) {
@@ -1943,6 +1956,23 @@ class _ItineraryStopCard extends StatelessWidget {
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                           ),
+                        ),
+                      ),
+                      IconButton(
+                        key: ValueKey(
+                          'favorite-${stop.attraction.name.toLowerCase()}',
+                        ),
+                        tooltip: favorite
+                            ? 'Remove from Favorites'
+                            : 'Save to Favorites',
+                        onPressed: onToggleFavorite,
+                        color: favorite
+                            ? const Color(0xFFE04470)
+                            : TrasiaColors.primary,
+                        icon: Icon(
+                          favorite
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
                         ),
                       ),
                     ],

@@ -968,6 +968,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
               _FeatureCResultsSheet(
                 stops: _itinerary,
                 priceTier: _priceTier,
+                favoritePlaceNames: widget.favoritePlaceNames,
                 ongoingDestination: widget.ongoingDestination,
                 tripStatus: _tripStatus,
                 activeStopIndex: _activeStopIndex,
@@ -978,6 +979,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
                 onClose: () => setState(() => _itineraryListVisible = false),
                 onCancel: _confirmCancel,
                 onFocusStop: _focusItineraryStop,
+                onToggleFavorite: widget.onToggleFavorite,
                 onChooseRoute: (destination) =>
                     widget.onGoNow(destination, _travelMode),
                 onStartTrip: _startFeatureCTrip,

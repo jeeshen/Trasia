@@ -14,6 +14,58 @@ INSERT INTO vouchers (id, title, description, point_cost, kind, icon, accent_col
   ('hubpool-10', 'RM10 HubPool Credit', 'Add RM10 credit to your Trasia HubPool wallet.', 150, 'hubPool', 'Icons.directions_car_rounded', '0xFF0057C8', 10),
   ('kfc-5', 'RM5 KFC Voucher', 'Show the demo voucher code at KFC for RM5 off.', 120, 'kfc', 'Icons.restaurant_rounded', '0xFFE1251B', 0);
 
+CREATE OR REPLACE FUNCTION public.redeem_voucher(p_voucher_id text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  voucher public.vouchers%ROWTYPE;
+  redeemed_voucher jsonb;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN false;
+  END IF;
+
+  SELECT * INTO voucher
+  FROM public.vouchers
+  WHERE id = p_voucher_id;
+
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  IF voucher.kind = 'kfc' THEN
+    redeemed_voucher := jsonb_build_object(
+      'id', voucher.id || '-' || floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint,
+      'title', voucher.title,
+      'description', voucher.description,
+      'code', 'TRASIA-KFC-RM5',
+      'redeemedAt', to_char(timezone('utc', clock_timestamp()), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'usedAt', NULL
+    );
+  END IF;
+
+  UPDATE public.profiles
+  SET reward_points = reward_points - voucher.point_cost,
+      credit = credit + voucher.hub_pool_credit,
+      redeemed_vouchers = CASE
+        WHEN redeemed_voucher IS NULL THEN redeemed_vouchers
+        ELSE jsonb_build_array(redeemed_voucher) || coalesce(redeemed_vouchers, '[]'::jsonb)
+      END,
+      updated_at = timezone('utc', now())
+  WHERE id = auth.uid()
+    AND reward_points >= voucher.point_cost;
+
+  RETURN FOUND;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.redeem_voucher(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.redeem_voucher(text) FROM anon;
+GRANT EXECUTE ON FUNCTION public.redeem_voucher(text) TO authenticated;
+
 CREATE TABLE IF NOT EXISTS local_suggestions (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, name text NOT NULL, address text NOT NULL, place_id text NOT NULL, lat double precision NOT NULL, lng double precision NOT NULL);
 ALTER TABLE local_suggestions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read access" ON local_suggestions FOR SELECT USING (true);
