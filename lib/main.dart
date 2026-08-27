@@ -20,6 +20,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'firebase_options.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 part 'src/core.dart';
+part 'src/image_service.dart';
 part 'src/auth.dart';
 part 'src/dashboard.dart';
 part 'src/transit.dart';
@@ -41,6 +42,10 @@ void main() {
         label: 'FlutterError: ${details.exceptionAsString()}',
         stackTrace: details.stack,
       );
+    };
+    ui.PlatformDispatcher.instance.onError = (error, stack) {
+      debugPrintStack(label: 'Uncaught async error: $error', stackTrace: stack);
+      return true;
     };
     runApp(const TrasiaBootstrap());
   } catch (e, stack) {
@@ -66,8 +71,7 @@ Future<void> _initializeApp() async {
       );
       SupabaseConfig.supabaseInitialized = true;
       try {
-        await TrasiaData.load();
-        await _RewardsData.load();
+        await Future.wait([TrasiaData.load(), _RewardsData.load()]);
       } catch (e, stack) {
         debugPrintStack(
           label: 'Optional Supabase data load failed: $e',
@@ -128,11 +132,6 @@ class _TrasiaBootstrapState extends State<TrasiaBootstrap> {
         );
       },
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }
 

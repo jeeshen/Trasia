@@ -279,12 +279,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const SizedBox(height: 40),
                     Center(
-                      child: Image.asset(
-                        'assets/branding/app_logo.png',
+                      child: const _AppImage(
+                        source: 'branding/app_logo.png',
                         width: 50,
                         height: 50,
                         fit: BoxFit.contain,
                         semanticLabel: 'Trasia logo',
+                        placeholder: Icon(
+                          Icons.navigation_rounded,
+                          color: TrasiaColors.primary,
+                          size: 40,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 18),

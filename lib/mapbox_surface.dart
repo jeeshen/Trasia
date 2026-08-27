@@ -214,6 +214,8 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   Future<Uint8List>? _destinationMarkerBytes;
   final Map<int, Future<Uint8List>> _transferMarkerBytes = {};
   final Map<int, Future<Uint8List>> _vehicleMarkerBytes = {};
+  final Expando<_RouteDistanceMetrics> _routeDistanceCache =
+      Expando<_RouteDistanceMetrics>();
   bool _isMapLoaded = false;
   bool _isMapboxInitialized = false;
   @override
@@ -340,8 +342,12 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
   }
 
   bool _staticMapContentChanged(LiveMapboxSurface oldWidget) {
-    return oldWidget.currentLocation != widget.currentLocation ||
-        oldWidget.currentAccuracyMeters != widget.currentAccuracyMeters ||
+    final displaysCurrentLocation =
+        oldWidget.showCurrentLocationMarker || widget.showCurrentLocationMarker;
+    return (displaysCurrentLocation &&
+            (oldWidget.currentLocation != widget.currentLocation ||
+                oldWidget.currentAccuracyMeters !=
+                    widget.currentAccuracyMeters)) ||
         oldWidget.candidate != widget.candidate ||
         !identical(oldWidget.selectedRoute, widget.selectedRoute) ||
         oldWidget.mapRefreshRevision != widget.mapRefreshRevision ||
@@ -701,13 +707,11 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       return points;
     }
     final currentProgress = progress.clamp(0, 1).toDouble();
-    final segmentLengths = <double>[];
-    var totalMeters = 0.0;
-    for (var i = 0; i < points.length - 1; i++) {
-      final length = _mapDistanceMeters(points[i], points[i + 1]);
-      segmentLengths.add(length);
-      totalMeters += length;
-    }
+    final metrics = _routeDistanceCache[points] ??= _buildRouteDistanceMetrics(
+      points,
+    );
+    final segmentLengths = metrics.segmentLengths;
+    final totalMeters = metrics.totalMeters;
     if (totalMeters == 0) {
       return [points.last, points.last];
     }
@@ -729,6 +733,17 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
       from.longitude + (to.longitude - from.longitude) * segmentProgress,
     );
     return [current, ...points.skip(segmentIndex + 1)];
+  }
+
+  _RouteDistanceMetrics _buildRouteDistanceMetrics(List<gmaps.LatLng> points) {
+    final segmentLengths = <double>[];
+    var totalMeters = 0.0;
+    for (var i = 0; i < points.length - 1; i++) {
+      final length = _mapDistanceMeters(points[i], points[i + 1]);
+      segmentLengths.add(length);
+      totalMeters += length;
+    }
+    return _RouteDistanceMetrics(segmentLengths, totalMeters);
   }
 
   double _mapDistanceMeters(gmaps.LatLng from, gmaps.LatLng to) {
@@ -972,6 +987,13 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
     }
     return null;
   }
+}
+
+class _RouteDistanceMetrics {
+  const _RouteDistanceMetrics(this.segmentLengths, this.totalMeters);
+
+  final List<double> segmentLengths;
+  final double totalMeters;
 }
 
 class SilentLogBackend extends mapbox.LogWriterBackend {

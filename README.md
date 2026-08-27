@@ -27,6 +27,14 @@ credentials, or Firebase service-account credentials in `.env`.
 
 Run `flutter pub get`, then `flutter run`.
 
+## Android APK signing
+
+`flutter build apk --release` uses the private signing values in
+`android/key.properties` when they are configured. Without that file, local
+release builds fall back to the Android debug key so the APK remains
+installable for testing; configure a private release keystore before
+distributing the app publicly.
+
 ## Supabase OTP email confirmation
 
 The app signs users up with Supabase Auth and verifies the 6-digit email OTP
@@ -42,10 +50,10 @@ For production delivery, configure Brevo as Supabase's custom SMTP provider:
 - Password: your Brevo SMTP key
 - Sender email: a verified Brevo sender
 
-Run `trasia_schema.sql`, then `security_hardening.sql`. The hardening script
-limits profile writes to safe columns and moves fares, reward redemption,
-check-ins, and voucher use into authenticated database functions. Never put
-the Brevo SMTP key in `.env` or the Flutter app.
+Ensure the Supabase schema, RLS policies, and authenticated database functions
+used by the app are deployed. Profile writes should be limited to safe columns,
+with fares, reward redemption, check-ins, and voucher use handled by database
+functions. Never put the Brevo SMTP key in `.env` or the Flutter app.
 
 ## Stripe sandbox credit top-up
 
@@ -53,9 +61,9 @@ Wallet top-ups use Stripe's native PaymentSheet in test mode. The Edge Function
 verifies successful payments directly with Stripe, and the signed webhook
 provides recovery when the app closes before confirmation.
 
-The `credit_topups` table and idempotent credit function are in
-`stripe_topups.sql`. The repository's `supabase/config.toml` disables gateway
-JWT verification only for `stripe-topup`, allowing Stripe to reach the signed
+The Supabase project must provide the `credit_topups` table and an idempotent
+credit function. The repository's `supabase/config.toml` disables gateway JWT
+verification only for `stripe-topup`, allowing Stripe to reach the signed
 webhook while the function authenticates app requests itself.
 
 Configure these secrets in Supabase **Project Settings > Edge Functions >
@@ -84,11 +92,11 @@ enabled if older hosted Checkout sessions may still be used. Use Stripe test car
 
 ## Car-Pool push notifications
 
-Run `push_notifications.sql` before deploying `send-push`. Device tokens are
-owned and reassigned by the authenticated Edge Function; client roles have no
-direct access to the token table. Android uses `google-services.json`. iOS uses
-`GoogleService-Info.plist`, Push Notifications entitlements, and Background
-Modes for fetch and remote notifications.
+Before deploying `send-push`, ensure its device-token table is present. Device
+tokens are owned and reassigned by the authenticated Edge Function; client
+roles have no direct access to the token table. Android uses
+`google-services.json`. iOS uses `GoogleService-Info.plist`, Push Notifications
+entitlements, and Background Modes for fetch and remote notifications.
 
 Set the complete Firebase service-account JSON as the
 `FIREBASE_SERVICE_ACCOUNT_JSON` secret for the `send-push` Edge Function. The

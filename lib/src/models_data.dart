@@ -6,7 +6,12 @@ class TrasiaData {
   static List<DestinationCandidate> localSuggestions = [];
   static Future<void> load() async {
     final client = Supabase.instance.client;
-    final driversData = await client.from('drivers').select();
+    final responses = await Future.wait<dynamic>([
+      client.from('drivers').select(),
+      client.from('local_suggestions').select(),
+      client.from('attractions').select(),
+    ]);
+    final driversData = responses[0] as List<dynamic>;
     drivers = driversData
         .map(
           (d) => Driver(
@@ -18,9 +23,7 @@ class TrasiaData {
           ),
         )
         .toList();
-    final localSuggestionsData = await client
-        .from('local_suggestions')
-        .select();
+    final localSuggestionsData = responses[1] as List<dynamic>;
     localSuggestions = localSuggestionsData
         .map(
           (d) => DestinationCandidate(
@@ -31,7 +34,7 @@ class TrasiaData {
           ),
         )
         .toList();
-    final attractionsData = await client.from('attractions').select();
+    final attractionsData = responses[2] as List<dynamic>;
     attractions = attractionsData
         .map(
           (d) => Attraction(
@@ -89,7 +92,7 @@ class _GoogleMapsApi {
       '/maps/api/place/textsearch/json',
       {'query': query, 'region': 'my', 'key': apiKey},
     );
-    final response = await http.get(uri);
+    final response = await http.get(uri).timeout(const Duration(seconds: 10));
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode == 200 && body['status'] == 'ZERO_RESULTS') {
       return const [];
@@ -770,41 +773,43 @@ class _GoogleMapsApi {
       'routespreferred.googleapis.com',
       '/v1:computeRoutes',
     );
-    final response = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask':
-            'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline',
-      },
-      body: jsonEncode({
-        'origin': {
-          'location': {
-            'latLng': {
-              'latitude': origin.latitude,
-              'longitude': origin.longitude,
-            },
+    final response = await http
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+            'X-Goog-FieldMask':
+                'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline',
           },
-        },
-        'destination': {
-          'location': {
-            'latLng': {
-              'latitude': destination.latitude,
-              'longitude': destination.longitude,
+          body: jsonEncode({
+            'origin': {
+              'location': {
+                'latLng': {
+                  'latitude': origin.latitude,
+                  'longitude': origin.longitude,
+                },
+              },
             },
-          },
-        },
-        'travelMode': 'DRIVE',
-        'routingPreference': 'TRAFFIC_AWARE',
-        'computeAlternativeRoutes': false,
-        'polylineQuality': 'HIGH_QUALITY',
-        'polylineEncoding': 'ENCODED_POLYLINE',
-        'languageCode': 'en',
-        'regionCode': 'MY',
-        'units': 'METRIC',
-      }),
-    );
+            'destination': {
+              'location': {
+                'latLng': {
+                  'latitude': destination.latitude,
+                  'longitude': destination.longitude,
+                },
+              },
+            },
+            'travelMode': 'DRIVE',
+            'routingPreference': 'TRAFFIC_AWARE',
+            'computeAlternativeRoutes': false,
+            'polylineQuality': 'HIGH_QUALITY',
+            'polylineEncoding': 'ENCODED_POLYLINE',
+            'languageCode': 'en',
+            'regionCode': 'MY',
+            'units': 'METRIC',
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode != 200) {
       final error = body['error'] as Map<String, dynamic>?;
@@ -849,7 +854,7 @@ class _GoogleMapsApi {
       'alternatives': 'false',
       'key': apiKey,
     });
-    final response = await http.get(uri);
+    final response = await http.get(uri).timeout(const Duration(seconds: 12));
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final status = body['status'] as String?;
     if (response.statusCode != 200 || status != 'OK') {

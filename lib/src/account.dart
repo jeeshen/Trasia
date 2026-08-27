@@ -297,7 +297,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
       child: ColoredBox(
         color: Colors.white,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
           children: [
             const Text(
               'Profile',
@@ -495,11 +495,6 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }
 
@@ -919,11 +914,6 @@ class _FavoritesSheetState extends State<_FavoritesSheet> {
       ),
     );
   }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }
 
 class _FavoritesEmptyState extends StatelessWidget {
@@ -1001,12 +991,12 @@ class _FavoritePlaceCard extends StatelessWidget {
                         alignment: Alignment.center,
                         child: Icon(Icons.place_rounded, color: place.color),
                       )
-                    : Image.asset(
-                        place.imageAsset,
+                    : _AppImage(
+                        source: place.imageAsset,
                         width: 72,
                         height: 72,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
+                        placeholder: Container(
                           width: 72,
                           height: 72,
                           color: place.color,

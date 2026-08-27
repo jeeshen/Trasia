@@ -31,33 +31,45 @@ class _AdminPanelState extends State<AdminPanel> {
     String label,
     _AdminView view,
     int index,
+    double itemExtent,
   ) {
     final isSelected = _currentView == view;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Semantics(
       label: label,
       button: true,
       selected: isSelected,
       child: Tooltip(
         message: label,
-        child: GestureDetector(
-          key: Key('nav-${label.toLowerCase()}'),
-          onTap: () => setState(() => _currentView = view),
-          behavior: HitTestBehavior.opaque,
-          child: SizedBox(
-            width: 50,
-            height: 50,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              transitionBuilder: (child, animation) {
-                return ScaleTransition(scale: animation, child: child);
-              },
-              child: Icon(
-                icon,
-                key: ValueKey(isSelected),
-                color: isSelected
-                    ? Colors.white
-                    : const Color(0xFF102033).withValues(alpha: 0.4),
-                size: 26,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: Key('nav-${label.toLowerCase()}'),
+            onTap: () => setState(() => _currentView = view),
+            borderRadius: BorderRadius.circular(22),
+            overlayColor: WidgetStatePropertyAll(
+              const Color(0xFF0B7CFF).withValues(alpha: 0.08),
+            ),
+            child: SizedBox(
+              width: itemExtent,
+              height: 44,
+              child: ExcludeSemantics(
+                child: Center(
+                  child: AnimatedScale(
+                    duration: reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    scale: isSelected ? 1.08 : 0.96,
+                    child: Icon(
+                      icon,
+                      color: isSelected
+                          ? const Color(0xFF075EB5)
+                          : const Color(0xFF20364E).withValues(alpha: 0.7),
+                      size: isSelected ? 25 : 23,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -119,107 +131,177 @@ class _AdminPanelState extends State<AdminPanel> {
       ),
       child: Scaffold(
         extendBody: true,
-        body: IndexedStack(index: _currentView.index, children: pages),
-        bottomNavigationBar: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  height: 72,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(40),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 24,
-                        spreadRadius: -4,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            IndexedStack(index: _currentView.index, children: pages),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: MediaQuery.paddingOf(context).bottom + 8,
+              child: _buildBottomNavigationBar(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const itemGap = 1.0;
+        const dockPadding = 4.0;
+        final itemExtent =
+            ((constraints.maxWidth - (dockPadding * 2) - (itemGap * 5)) / 6)
+                .clamp(44.0, 54.0)
+                .toDouble();
+        final dockWidth = (itemExtent * 6) + (itemGap * 5) + (dockPadding * 2);
+        final reduceMotion = MediaQuery.disableAnimationsOf(context);
+
+        return Center(
+          child: SizedBox(
+            width: dockWidth,
+            height: 56,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF071A30).withValues(alpha: 0.18),
+                    blurRadius: 10,
+                    spreadRadius: -3,
+                    offset: const Offset(0, 6),
                   ),
-                  child: Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 400),
-                        curve: Curves.easeOutCirc,
-                        left: _currentView.index * (50.0 + 8.0),
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0057C8),
-                            borderRadius: BorderRadius.circular(25),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFF0057C8,
-                                ).withValues(alpha: 0.3),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: const Color(0xFF17314C).withValues(alpha: 0.14),
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.76),
+                          const Color(0xFFE7F2FF).withValues(alpha: 0.52),
+                          Colors.white.withValues(alpha: 0.42),
+                        ],
+                        stops: const [0, 0.54, 1],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: dockPadding,
+                        vertical: 6,
+                      ),
+                      child: Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [
+                          AnimatedPositioned(
+                            duration: reduceMotion
+                                ? Duration.zero
+                                : const Duration(milliseconds: 220),
+                            curve: Curves.easeOutCubic,
+                            left: _currentView.index * (itemExtent + itemGap),
+                            child: Container(
+                              width: itemExtent,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.88),
+                                ),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.88),
+                                    const Color(
+                                      0xFFCBE3FF,
+                                    ).withValues(alpha: 0.72),
+                                  ],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF0B6ED0,
+                                    ).withValues(alpha: 0.18),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildNavItem(
+                                Icons.dashboard_rounded,
+                                'Dashboard',
+                                _AdminView.dashboard,
+                                0,
+                                itemExtent,
+                              ),
+                              const SizedBox(width: itemGap),
+                              _buildNavItem(
+                                Icons.local_taxi_rounded,
+                                'Drivers',
+                                _AdminView.drivers,
+                                1,
+                                itemExtent,
+                              ),
+                              const SizedBox(width: itemGap),
+                              _buildNavItem(
+                                Icons.local_offer_rounded,
+                                'Vouchers',
+                                _AdminView.vouchers,
+                                2,
+                                itemExtent,
+                              ),
+                              const SizedBox(width: itemGap),
+                              _buildNavItem(
+                                Icons.people_alt_rounded,
+                                'Users',
+                                _AdminView.users,
+                                3,
+                                itemExtent,
+                              ),
+                              const SizedBox(width: itemGap),
+                              _buildNavItem(
+                                Icons.analytics_rounded,
+                                'Analytics',
+                                _AdminView.analytics,
+                                4,
+                                itemExtent,
+                              ),
+                              const SizedBox(width: itemGap),
+                              _buildNavItem(
+                                Icons.settings_rounded,
+                                'Settings',
+                                _AdminView.settings,
+                                5,
+                                itemExtent,
                               ),
                             ],
                           ),
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildNavItem(
-                            Icons.dashboard_rounded,
-                            'Dashboard',
-                            _AdminView.dashboard,
-                            0,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildNavItem(
-                            Icons.local_taxi_rounded,
-                            'Drivers',
-                            _AdminView.drivers,
-                            1,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildNavItem(
-                            Icons.local_offer_rounded,
-                            'Vouchers',
-                            _AdminView.vouchers,
-                            2,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildNavItem(
-                            Icons.people_alt_rounded,
-                            'Users',
-                            _AdminView.users,
-                            3,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildNavItem(
-                            Icons.analytics_rounded,
-                            'Analytics',
-                            _AdminView.analytics,
-                            4,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildNavItem(
-                            Icons.settings_rounded,
-                            'Settings',
-                            _AdminView.settings,
-                            5,
-                          ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -261,79 +343,28 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
   Future<void> _fetchCounts() async {
     if (!SupabaseConfig.isSupabaseReady) return;
     setState(() => _loading = true);
-    List<dynamic> usersRes = [];
-    List<dynamic> adminsRes = [];
-    List<dynamic> driversRes = [];
-    List<dynamic> vouchersRes = [];
     try {
       final res = await Supabase.instance.client.rpc(
-        'admin_get_users',
-        params: {
-          'p_search_query': '',
-          'p_offset': 0,
-          'p_limit': 10000,
-          'p_sort_asc': true,
-        },
+        'admin_get_dashboard_counts',
       );
-      final allProfiles = List<dynamic>.from(res as List);
-      usersRes = allProfiles.where((u) => u['role'] == 'user').toList();
-      adminsRes = allProfiles.where((u) => u['role'] == 'admin').toList();
-    } catch (e) {
-      debugPrint('Error fetching profiles: $e');
-    }
-    try {
-      driversRes = await Supabase.instance.client.from('drivers').select();
-    } catch (e) {
-      debugPrint('Error fetching drivers: $e');
-    }
-    try {
-      vouchersRes = await Supabase.instance.client.from('vouchers').select();
-    } catch (e) {
-      debugPrint('Error fetching vouchers: $e');
-    }
-    try {
-      final now = DateTime.now();
-      final startOfWeek = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).subtract(Duration(days: now.weekday - 1));
-      int uCount = usersRes.length;
-      int uNewCount = usersRes.where((u) {
-        if (u['created_at'] == null) return false;
-        final date = DateTime.tryParse(u['created_at']);
-        return date != null &&
-            (date.isAfter(startOfWeek) || date.isAtSameMomentAs(startOfWeek));
-      }).length;
-      int dCount = driversRes.length;
-      int dNewCount = driversRes.where((d) {
-        if (d['created_at'] == null) return false;
-        final date = DateTime.tryParse(d['created_at']);
-        return date != null &&
-            (date.isAfter(startOfWeek) || date.isAtSameMomentAs(startOfWeek));
-      }).length;
-      int vCount = vouchersRes.length;
-      int vNewCount = vouchersRes.where((v) {
-        if (v['created_at'] == null) return false;
-        final date = DateTime.tryParse(v['created_at']);
-        return date != null &&
-            (date.isAfter(startOfWeek) || date.isAtSameMomentAs(startOfWeek));
-      }).length;
-      int aCount = adminsRes.length;
+      final counts = Map<String, dynamic>.from(res as Map);
+      if (counts['error'] != null) {
+        throw counts['error']!;
+      }
       if (mounted) {
         setState(() {
-          _usersCount = uCount;
-          _newUsersCount = uNewCount;
-          _driversCount = dCount;
-          _newDriversCount = dNewCount;
-          _vouchersCount = vCount;
-          _newVouchersCount = vNewCount;
-          _adminsCount = aCount;
+          _usersCount = (counts['users'] as num?)?.toInt() ?? 0;
+          _newUsersCount = (counts['new_users'] as num?)?.toInt() ?? 0;
+          _driversCount = (counts['drivers'] as num?)?.toInt() ?? 0;
+          _newDriversCount = (counts['new_drivers'] as num?)?.toInt() ?? 0;
+          _vouchersCount = (counts['vouchers'] as num?)?.toInt() ?? 0;
+          _newVouchersCount = (counts['new_vouchers'] as num?)?.toInt() ?? 0;
+          _adminsCount = (counts['admins'] as num?)?.toInt() ?? 0;
           _loading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error computing stats: $e');
+      debugPrint('Error fetching dashboard stats: $e');
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -987,6 +1018,8 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
   bool _loading = true;
   String _searchQuery = '';
   List<Map<String, dynamic>> _drivers = [];
+  Timer? _searchDebounce;
+  int _requestRevision = 0;
   @override
   void initState() {
     super.initState();
@@ -995,13 +1028,14 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
 
   Future<void> _fetchDrivers() async {
     if (!SupabaseConfig.isSupabaseReady) return;
+    final requestRevision = ++_requestRevision;
     setState(() => _loading = true);
     try {
       final response = await Supabase.instance.client.rpc(
         'admin_get_drivers',
         params: {'p_search_query': _searchQuery, 'p_sort_asc': true},
       );
-      if (mounted) {
+      if (mounted && requestRevision == _requestRevision) {
         setState(() {
           _drivers = List<Map<String, dynamic>>.from(response as List);
           _loading = false;
@@ -1009,13 +1043,19 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
         _adminDashboardKey.currentState?._fetchCounts();
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && requestRevision == _requestRevision) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading drivers: $e')));
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 
   Future<void> _deleteDriver(String id) async {
@@ -1126,7 +1166,11 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
                   style: const TextStyle(color: Color(0xFF1F2937)),
                   onChanged: (val) {
                     setState(() => _searchQuery = val);
-                    _fetchDrivers();
+                    _searchDebounce?.cancel();
+                    _searchDebounce = Timer(
+                      const Duration(milliseconds: 350),
+                      _fetchDrivers,
+                    );
                   },
                 ),
               ),
@@ -1272,6 +1316,9 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
   final int _pageSize = 20;
   final List<Map<String, dynamic>> _profiles = [];
   bool _hasMore = true;
+  bool _requestInFlight = false;
+  Timer? _searchDebounce;
+  int _requestRevision = 0;
   @override
   void initState() {
     super.initState();
@@ -1280,12 +1327,16 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
 
   Future<void> _fetchUsers({bool refresh = false}) async {
     if (!SupabaseConfig.isSupabaseReady) return;
+    if (!refresh && _requestInFlight) return;
     if (refresh) {
+      _requestRevision++;
       _currentPage = 0;
       _profiles.clear();
       _hasMore = true;
     }
     if (!_hasMore) return;
+    final requestRevision = _requestRevision;
+    _requestInFlight = true;
     setState(() => _loading = true);
     try {
       final from = _currentPage * _pageSize;
@@ -1299,23 +1350,33 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
         },
       );
       final data = List<Map<String, dynamic>>.from(response as List);
-      if (mounted) {
+      if (mounted && requestRevision == _requestRevision) {
         setState(() {
           _profiles.addAll(data);
           _hasMore = data.length == _pageSize;
           _currentPage++;
           _loading = false;
+          _requestInFlight = false;
         });
         _adminDashboardKey.currentState?._fetchCounts();
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _loading = false);
+      if (mounted && requestRevision == _requestRevision) {
+        setState(() {
+          _loading = false;
+          _requestInFlight = false;
+        });
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading profiles: $e')));
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 
   Future<void> _deleteUser(String id) async {
@@ -1591,7 +1652,11 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                   style: const TextStyle(color: Color(0xFF1F2937)),
                   onChanged: (val) {
                     setState(() => _searchQuery = val);
-                    _fetchUsers(refresh: true);
+                    _searchDebounce?.cancel();
+                    _searchDebounce = Timer(
+                      const Duration(milliseconds: 350),
+                      () => _fetchUsers(refresh: true),
+                    );
                   },
                 ),
               ),
@@ -2146,6 +2211,8 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
   bool _loading = true;
   String _searchQuery = '';
   List<Map<String, dynamic>> _vouchers = [];
+  Timer? _searchDebounce;
+  int _requestRevision = 0;
   @override
   void initState() {
     super.initState();
@@ -2154,13 +2221,14 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
 
   Future<void> _fetchVouchers() async {
     if (!SupabaseConfig.isSupabaseReady) return;
+    final requestRevision = ++_requestRevision;
     setState(() => _loading = true);
     try {
       final response = await Supabase.instance.client.rpc(
         'admin_get_vouchers',
         params: {'p_search_query': _searchQuery},
       );
-      if (mounted) {
+      if (mounted && requestRevision == _requestRevision) {
         setState(() {
           _vouchers = List<Map<String, dynamic>>.from(response as List);
           _loading = false;
@@ -2168,13 +2236,19 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
         _adminDashboardKey.currentState?._fetchCounts();
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && requestRevision == _requestRevision) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading vouchers: $e')));
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 
   Future<void> _deleteVoucher(String id) async {
@@ -2338,7 +2412,11 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
                   style: const TextStyle(color: Color(0xFF1F2937)),
                   onChanged: (val) {
                     setState(() => _searchQuery = val);
-                    _fetchVouchers();
+                    _searchDebounce?.cancel();
+                    _searchDebounce = Timer(
+                      const Duration(milliseconds: 350),
+                      _fetchVouchers,
+                    );
                   },
                 ),
               ),

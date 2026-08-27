@@ -42,6 +42,8 @@ class _HubPoolScreenState extends State<HubPoolScreen>
   AppMapController? _mapController;
   static const _maxApproachSeconds = 60;
   late final AnimationController _carController;
+  int _lastCarFrame = -1;
+  String? _lastPublishedMapSignature;
   Timer? _timer;
   Timer? _destinationRouteRefreshTimer;
   Timer? _destinationSearchDebounce;
@@ -83,7 +85,12 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     _carController =
         AnimationController(vsync: this, duration: const Duration(seconds: 60))
           ..addListener(() {
-            if (mounted && _stage == RideStage.tracking) {
+            final frame = (_carController.value * 900).floor();
+            if (mounted &&
+                widget.active &&
+                _stage == RideStage.tracking &&
+                frame != _lastCarFrame) {
+              _lastCarFrame = frame;
               setState(() {});
             }
           });
@@ -105,9 +112,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
         _bookedPickupLocation == null) {
       unawaited(_loadPickupLocation(silent: true));
     }
-    if (widget.active &&
-        !oldWidget.active &&
-        _stage == RideStage.onboard) {
+    if (widget.active && !oldWidget.active && _stage == RideStage.onboard) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _followRideCamera();
       });
@@ -132,6 +137,7 @@ class _HubPoolScreenState extends State<HubPoolScreen>
     }
     _timer?.cancel();
     _carController.reset();
+    _lastCarFrame = -1;
     _stopRideLocationUpdates();
     setState(() {
       _destinationController.text = destination.name;
@@ -631,6 +637,10 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       return;
     }
     final view = _currentMapView;
+    if (_lastPublishedMapSignature == view.signature) {
+      return;
+    }
+    _lastPublishedMapSignature = view.signature;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && widget.active) {
         widget.onMapViewChanged(view);

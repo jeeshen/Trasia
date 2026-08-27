@@ -34,7 +34,7 @@ class _RewardsData {
   }
 }
 
-const _kfcVoucherImage = 'assets/branding/kfc_voucher.png';
+const _kfcVoucherImage = 'branding/kfc_voucher.png';
 
 class RedeemedVoucher {
   const RedeemedVoucher({
@@ -526,8 +526,8 @@ class _CheckInMemoryTicket extends StatelessWidget {
                               color: TrasiaColors.primary,
                             ),
                           )
-                        : Image.asset(
-                            place!.imageAsset,
+                        : _AppImage(
+                            source: place!.imageAsset,
                             width: 62,
                             height: 62,
                             fit: BoxFit.cover,
@@ -695,8 +695,8 @@ class _RewardsPageState extends State<RewardsPage> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-                child: Image.asset(
-                  _kfcVoucherImage,
+                child: const _AppImage(
+                  source: _kfcVoucherImage,
                   width: 76,
                   height: 76,
                   fit: BoxFit.cover,
@@ -795,11 +795,6 @@ class _RewardsPageState extends State<RewardsPage> {
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }
 
@@ -902,11 +897,6 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }
 
@@ -1160,8 +1150,8 @@ class _KfcVoucherImage extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(
-            _kfcVoucherImage,
+          const _AppImage(
+            source: _kfcVoucherImage,
             fit: BoxFit.cover,
             semanticLabel: 'KFC voucher',
           ),
@@ -1260,8 +1250,8 @@ class _RewardBrandMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (voucher.kind == _RewardKind.kfc) {
-      return Image.asset(
-        _kfcVoucherImage,
+      return const _AppImage(
+        source: _kfcVoucherImage,
         width: double.infinity,
         height: double.infinity,
         fit: BoxFit.cover,

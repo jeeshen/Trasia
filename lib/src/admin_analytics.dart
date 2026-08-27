@@ -11,9 +11,13 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
   bool _loading = true;
   String? _error;
   late DateTime _selectedWeekStart;
-  List<dynamic> _users = [];
-  List<dynamic> _drivers = [];
-  List<dynamic> _vouchers = [];
+  bool _hasData = false;
+  int _usersTotal = 0;
+  int _driversTotal = 0;
+  int _vouchersTotal = 0;
+  List<int> _usersDaily = List<int>.filled(7, 0);
+  List<int> _driversDaily = List<int>.filled(7, 0);
+  List<int> _vouchersDaily = List<int>.filled(7, 0);
   @override
   void initState() {
     super.initState();
@@ -126,19 +130,26 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       _error = null;
     });
     try {
-      final uRes = await Supabase.instance.client.rpc(
-        'admin_get_users',
+      final response = await Supabase.instance.client.rpc(
+        'admin_get_analytics',
         params: {
-          'p_search_query': '',
-          'p_offset': 0,
-          'p_limit': 10000,
-          'p_sort_asc': true,
+          'p_week_start':
+              '${_selectedWeekStart.year.toString().padLeft(4, '0')}-'
+              '${_selectedWeekStart.month.toString().padLeft(2, '0')}-'
+              '${_selectedWeekStart.day.toString().padLeft(2, '0')}',
         },
       );
-      final allProfiles = List<dynamic>.from(uRes as List);
-      _users = allProfiles.where((u) => u['role'] == 'user').toList();
-      _drivers = await Supabase.instance.client.from('drivers').select();
-      _vouchers = await Supabase.instance.client.from('vouchers').select();
+      final analytics = Map<String, dynamic>.from(response as Map);
+      if (analytics['error'] != null) {
+        throw analytics['error']!;
+      }
+      _usersTotal = (analytics['users_total'] as num?)?.toInt() ?? 0;
+      _driversTotal = (analytics['drivers_total'] as num?)?.toInt() ?? 0;
+      _vouchersTotal = (analytics['vouchers_total'] as num?)?.toInt() ?? 0;
+      _usersDaily = _dailyCounts(analytics['users_daily']);
+      _driversDaily = _dailyCounts(analytics['drivers_daily']);
+      _vouchersDaily = _dailyCounts(analytics['vouchers_daily']);
+      _hasData = true;
     } catch (e) {
       debugPrint('Error fetching analytics: $e');
       _error = 'Failed to load analytics data.';
@@ -148,6 +159,16 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
         _loading = false;
       });
     }
+  }
+
+  List<int> _dailyCounts(dynamic value) {
+    final values = value is List ? value : const <dynamic>[];
+    return List<int>.generate(
+      7,
+      (index) =>
+          index < values.length ? (values[index] as num?)?.toInt() ?? 0 : 0,
+      growable: false,
+    );
   }
 
   Widget _buildEmptyState() {
@@ -268,27 +289,9 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
     );
   }
 
-  Widget _buildLineChart(List<dynamic> data, Color color, String tooltipLabel) {
+  Widget _buildLineChart(List<int> data, Color color, String tooltipLabel) {
     if (data.isEmpty) return _buildEmptyState();
-    Map<int, int> counts = {for (var i = 0; i <= 6; i++) i: 0};
-    for (final item in data) {
-      if (item['created_at'] == null) continue;
-      final dt = DateTime.tryParse(item['created_at']);
-      if (dt == null) continue;
-      final dtDate = DateTime(dt.year, dt.month, dt.day);
-      final weekStart = DateTime(
-        _selectedWeekStart.year,
-        _selectedWeekStart.month,
-        _selectedWeekStart.day,
-      );
-      final diff = dtDate.difference(weekStart).inDays;
-      if (diff >= 0 && diff <= 6) {
-        counts[diff] = counts[diff]! + 1;
-      }
-    }
-    double maxY = counts.values.isEmpty
-        ? 0
-        : counts.values.reduce(max).toDouble();
+    final maxY = data.reduce(max).toDouble();
     if (maxY == 0) {
       return Container(
         width: double.infinity,
@@ -317,10 +320,10 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
         ),
       );
     }
-    final spots = counts.entries.map((e) {
-      return FlSpot(e.key.toDouble(), e.value.toDouble());
-    }).toList();
-    spots.sort((a, b) => a.x.compareTo(b.x));
+    final spots = <FlSpot>[
+      for (var index = 0; index < data.length; index++)
+        FlSpot(index.toDouble(), data[index].toDouble()),
+    ];
     final months = [
       'Jan',
       'Feb',
@@ -461,27 +464,16 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
   }
 
   Widget _buildUsersTab() {
-    int newThisWeek = 0;
-    final endOfWeek = _selectedWeekStart.add(
-      const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
-    );
-    for (final u in _users) {
-      if (u['created_at'] != null) {
-        final d = DateTime.tryParse(u['created_at']);
-        if (d != null &&
-            d.isAfter(
-              _selectedWeekStart.subtract(const Duration(seconds: 1)),
-            ) &&
-            d.isBefore(endOfWeek)) {
-          newThisWeek++;
-        }
-      }
-    }
+    final newThisWeek = _usersDaily.fold<int>(0, (sum, count) => sum + count);
     return Column(
       children: [
         _buildCard(
           titleWidget: _buildWeekPickerTitle('User Registrations'),
-          child: _buildLineChart(_users, const Color(0xFF0057C8), 'New Users'),
+          child: _buildLineChart(
+            _usersDaily,
+            const Color(0xFF0057C8),
+            'New Users',
+          ),
         ),
         const SizedBox(height: 24),
         IntrinsicHeight(
@@ -491,7 +483,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
               Expanded(
                 child: _buildSummaryCard(
                   title: 'Total Users',
-                  value: _users.length.toString(),
+                  value: _usersTotal.toString(),
                   color: const Color(0xFF1F2937),
                 ),
               ),
@@ -511,28 +503,13 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
   }
 
   Widget _buildDriversTab() {
-    int newThisWeek = 0;
-    final endOfWeek = _selectedWeekStart.add(
-      const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
-    );
-    for (final d in _drivers) {
-      if (d['created_at'] != null) {
-        final dt = DateTime.tryParse(d['created_at']);
-        if (dt != null &&
-            dt.isAfter(
-              _selectedWeekStart.subtract(const Duration(seconds: 1)),
-            ) &&
-            dt.isBefore(endOfWeek)) {
-          newThisWeek++;
-        }
-      }
-    }
+    final newThisWeek = _driversDaily.fold<int>(0, (sum, count) => sum + count);
     return Column(
       children: [
         _buildCard(
           titleWidget: _buildWeekPickerTitle('Driver Registrations'),
           child: _buildLineChart(
-            _drivers,
+            _driversDaily,
             const Color(0xFFF97316),
             'New Drivers',
           ),
@@ -545,7 +522,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
               Expanded(
                 child: _buildSummaryCard(
                   title: 'Total Drivers',
-                  value: _drivers.length.toString(),
+                  value: _driversTotal.toString(),
                   color: const Color(0xFF1F2937),
                 ),
               ),
@@ -565,28 +542,16 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
   }
 
   Widget _buildVouchersTab() {
-    int newThisWeek = 0;
-    final endOfWeek = _selectedWeekStart.add(
-      const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+    final newThisWeek = _vouchersDaily.fold<int>(
+      0,
+      (sum, count) => sum + count,
     );
-    for (final v in _vouchers) {
-      if (v['created_at'] != null) {
-        final dt = DateTime.tryParse(v['created_at']);
-        if (dt != null &&
-            dt.isAfter(
-              _selectedWeekStart.subtract(const Duration(seconds: 1)),
-            ) &&
-            dt.isBefore(endOfWeek)) {
-          newThisWeek++;
-        }
-      }
-    }
     return Column(
       children: [
         _buildCard(
           titleWidget: _buildWeekPickerTitle('Vouchers Created'),
           child: _buildLineChart(
-            _vouchers,
+            _vouchersDaily,
             const Color(0xFF10B981),
             'New Vouchers',
           ),
@@ -599,7 +564,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
               Expanded(
                 child: _buildSummaryCard(
                   title: 'Total Vouchers',
-                  value: _vouchers.length.toString(),
+                  value: _vouchersTotal.toString(),
                   color: const Color(0xFF1F2937),
                 ),
               ),
@@ -688,10 +653,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
               ],
             ),
           )
-        else if (_loading &&
-            _users.isEmpty &&
-            _drivers.isEmpty &&
-            _vouchers.isEmpty)
+        else if (_loading && !_hasData)
           const Padding(
             padding: EdgeInsets.only(top: 100),
             child: Center(child: CircularProgressIndicator()),

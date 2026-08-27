@@ -697,19 +697,19 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
     return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
 
-  Future<ui.Image> _loadFeatureCMarkerImage(String assetPath) async {
-    final data = await rootBundle.load(assetPath);
-    final bytes = data.buffer.asUint8List(
-      data.offsetInBytes,
-      data.lengthInBytes,
-    );
+  Future<ui.Image> _loadFeatureCMarkerImage(String source) async {
+    final bytes = await AppImageService.loadBytes(source);
     final codec = await ui.instantiateImageCodec(
       bytes,
       targetWidth: 108,
       targetHeight: 108,
     );
-    final frame = await codec.getNextFrame();
-    return frame.image;
+    try {
+      final frame = await codec.getNextFrame();
+      return frame.image;
+    } finally {
+      codec.dispose();
+    }
   }
 
   Set<Marker> _featureCMarkers() {
@@ -1103,10 +1103,5 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }

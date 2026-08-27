@@ -712,11 +712,6 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
       ),
     );
   }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }
 
 class _NextLegCard extends StatelessWidget {
@@ -1382,12 +1377,12 @@ class _MapStopActionSheet extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      stop.attraction.imageAsset,
+                    child: _AppImage(
+                      source: stop.attraction.imageAsset,
                       width: 76,
                       height: 76,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
+                      placeholder: Container(
                         width: 76,
                         height: 76,
                         color: stop.attraction.color,
@@ -1926,12 +1921,12 @@ class _ItineraryStopCard extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.asset(
-                stop.attraction.imageAsset,
+              child: _AppImage(
+                source: stop.attraction.imageAsset,
                 width: 84,
                 height: 84,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
+                placeholder: Container(
                   width: 84,
                   height: 84,
                   color: stop.attraction.color,

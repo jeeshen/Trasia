@@ -42,6 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   List<TrasiaNotification> _notifications = const [];
   Offset? _notificationButtonPosition;
   bool _hasCenteredOnInitialLocation = false;
+  Future<void> _profileSaveQueue = Future<void>.value();
   @override
   void initState() {
     super.initState();
@@ -490,7 +491,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   void _saveProfile() {
     if (!SupabaseConfig.isSupabaseReady) return;
-    final updatedProfile = widget.profile.copyWith(
+    final updatedProfile = _currentProfile.copyWith(
       credit: _wallet,
       savedTransitRoutes: _savedTransitRoutes,
       hubPoolTransactions: _hubPoolTransactions,
@@ -501,7 +502,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       favoritePlaces: _favoritePlaces,
       tripHistory: _tripHistory,
     );
-    unawaited(const AuthService().updateProfile(updatedProfile));
+    _profileSaveQueue = _profileSaveQueue
+        .then((_) => const AuthService().updateProfile(updatedProfile))
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrintStack(
+            label: 'Profile save failed: $error',
+            stackTrace: stackTrace,
+          );
+        });
   }
 
   void _updateMapView(SharedMapView view) {
@@ -718,59 +726,68 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      TransitRouterScreen(
-        active: _tab == 0,
-        mapController: globalMapController.value,
-        onMapViewChanged: _updateMapView,
-        destination: _transitDestination,
-        request: _transitRequest,
-        requestedMode: _transitRequestedMode,
-        ongoingDestination: _ongoingDestination,
-        onNavigationCancelled: () => setState(() {
-          _ongoingDestination = null;
-          _transitRequestedMode = null;
-        }),
-        onTransitRouteSaved: _saveTransitRoute,
-        demoArrivalRequest: _transitDemoArrivalRequest,
-        currentLocation: _sharedCurrentLocation,
-        currentAccuracyMeters: _sharedCurrentAccuracyMeters,
-        favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
-        onToggleFavorite: _toggleFavoriteDestination,
+      TickerMode(
+        enabled: _tab == 0,
+        child: TransitRouterScreen(
+          active: _tab == 0,
+          mapController: globalMapController.value,
+          onMapViewChanged: _updateMapView,
+          destination: _transitDestination,
+          request: _transitRequest,
+          requestedMode: _transitRequestedMode,
+          ongoingDestination: _ongoingDestination,
+          onNavigationCancelled: () => setState(() {
+            _ongoingDestination = null;
+            _transitRequestedMode = null;
+          }),
+          onTransitRouteSaved: _saveTransitRoute,
+          demoArrivalRequest: _transitDemoArrivalRequest,
+          currentLocation: _sharedCurrentLocation,
+          currentAccuracyMeters: _sharedCurrentAccuracyMeters,
+          favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
+          onToggleFavorite: _toggleFavoriteDestination,
+        ),
       ),
-      HubPoolScreen(
-        active: _tab == 1,
-        mapController: globalMapController.value,
-        onMapViewChanged: _updateMapView,
-        currentLocation: _sharedCurrentLocation,
-        currentAccuracyMeters: _sharedCurrentAccuracyMeters,
-        wallet: _wallet,
-        onFareDeducted: _deductFare,
-        onRideCompleted: _saveRideCompletion,
-        onNotification: _addNotification,
-        demoArrivalRequest: _hubPoolDemoArrivalRequest,
-        favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
-        onToggleFavorite: _toggleFavoriteDestination,
-        requestedDestination: _hubPoolRequestedDestination,
-        request: _hubPoolRequest,
+      TickerMode(
+        enabled: _tab == 1,
+        child: HubPoolScreen(
+          active: _tab == 1,
+          mapController: globalMapController.value,
+          onMapViewChanged: _updateMapView,
+          currentLocation: _sharedCurrentLocation,
+          currentAccuracyMeters: _sharedCurrentAccuracyMeters,
+          wallet: _wallet,
+          onFareDeducted: _deductFare,
+          onRideCompleted: _saveRideCompletion,
+          onNotification: _addNotification,
+          demoArrivalRequest: _hubPoolDemoArrivalRequest,
+          favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
+          onToggleFavorite: _toggleFavoriteDestination,
+          requestedDestination: _hubPoolRequestedDestination,
+          request: _hubPoolRequest,
+        ),
       ),
       _DashboardOverviewPage(active: _tab == 2),
-      PelancongPlanScreen(
-        active: _tab == 3,
-        mapController: globalMapController.value,
-        onMapViewChanged: _updateMapView,
-        currentLocation: _sharedCurrentLocation,
-        currentAccuracyMeters: _sharedCurrentAccuracyMeters,
-        ongoingDestination: _ongoingDestination,
-        favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
-        onToggleFavorite: _toggleFavoritePlace,
-        demoArrivalRequest: _planDemoArrivalRequest,
-        onDemoArrivalCompleted: _saveDemoPlanCompletion,
-        onGoNow: _openTransitFor,
-        onCancelDestination: _cancelDestination,
-        rewardPoints: _rewardPoints,
-        onRedeemReward: _redeemReward,
-        checkedInPlaces: _checkedInPlaces,
-        onCheckInPlace: _checkInPlace,
+      TickerMode(
+        enabled: _tab == 3,
+        child: PelancongPlanScreen(
+          active: _tab == 3,
+          mapController: globalMapController.value,
+          onMapViewChanged: _updateMapView,
+          currentLocation: _sharedCurrentLocation,
+          currentAccuracyMeters: _sharedCurrentAccuracyMeters,
+          ongoingDestination: _ongoingDestination,
+          favoritePlaceNames: {for (final place in _favoritePlaces) place.key},
+          onToggleFavorite: _toggleFavoritePlace,
+          demoArrivalRequest: _planDemoArrivalRequest,
+          onDemoArrivalCompleted: _saveDemoPlanCompletion,
+          onGoNow: _openTransitFor,
+          onCancelDestination: _cancelDestination,
+          rewardPoints: _rewardPoints,
+          onRedeemReward: _redeemReward,
+          checkedInPlaces: _checkedInPlaces,
+          onCheckInPlace: _checkInPlace,
+        ),
       ),
       ColoredBox(
         color: Colors.white,
@@ -846,138 +863,159 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           if (_tab != 2 && _tab != 4) _buildMapControls(),
           if (_tab != 4) _buildNotificationButton(),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: MediaQuery.paddingOf(context).bottom + 8,
+            child: _buildBottomNavigationBar(),
+          ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(40),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF0B7CFF,
-                            ).withValues(alpha: 0.15),
-                            blurRadius: 32,
-                            spreadRadius: -4,
-                            offset: const Offset(0, 16),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemGap = constraints.maxWidth < 340 ? 1.0 : 2.0;
+        const dockPadding = 4.0;
+        final itemExtent =
+            ((constraints.maxWidth - (dockPadding * 2) - (itemGap * 4)) / 5)
+                .clamp(48.0, 56.0)
+                .toDouble();
+        final dockWidth = (itemExtent * 5) + (itemGap * 4) + (dockPadding * 2);
+        final reduceMotion = MediaQuery.disableAnimationsOf(context);
+
+        return Center(
+          child: SizedBox(
+            width: dockWidth,
+            height: 60,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF071A30).withValues(alpha: 0.18),
+                    blurRadius: 10,
+                    spreadRadius: -3,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: const Color(0xFF17314C).withValues(alpha: 0.14),
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.76),
+                          const Color(0xFFE7F2FF).withValues(alpha: 0.52),
+                          Colors.white.withValues(alpha: 0.42),
+                        ],
+                        stops: const [0, 0.54, 1],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: dockPadding,
+                        vertical: 6,
+                      ),
+                      child: Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [
+                          AnimatedPositioned(
+                            duration: reduceMotion
+                                ? Duration.zero
+                                : const Duration(milliseconds: 220),
+                            curve: Curves.easeOutCubic,
+                            left: _tab * (itemExtent + itemGap),
+                            child: Container(
+                              width: itemExtent,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.88),
+                                ),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.88),
+                                    const Color(
+                                      0xFFCBE3FF,
+                                    ).withValues(alpha: 0.72),
+                                  ],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF0B6ED0,
+                                    ).withValues(alpha: 0.18),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 24,
-                            spreadRadius: -4,
-                            offset: const Offset(0, 8),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildNavItem(
+                                Icons.map_outlined,
+                                'Transit',
+                                0,
+                                itemExtent,
+                              ),
+                              SizedBox(width: itemGap),
+                              _buildNavItem(
+                                Icons.directions_car_outlined,
+                                'Ride',
+                                1,
+                                itemExtent,
+                              ),
+                              SizedBox(width: itemGap),
+                              _buildNavItem(
+                                Icons.grid_view_rounded,
+                                'Dashboard',
+                                2,
+                                itemExtent,
+                              ),
+                              SizedBox(width: itemGap),
+                              _buildNavItem(
+                                Icons.backpack_outlined,
+                                'Plan',
+                                3,
+                                itemExtent,
+                              ),
+                              SizedBox(width: itemGap),
+                              _buildNavItem(
+                                Icons.person_outline_rounded,
+                                'Account',
+                                4,
+                                itemExtent,
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
                   ),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(40),
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-                      child: Container(
-                        height: 72,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.75),
-                          borderRadius: BorderRadius.circular(40),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            width: 1.5,
-                          ),
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.white.withValues(alpha: 0.85),
-                              Colors.white.withValues(alpha: 0.5),
-                            ],
-                          ),
-                        ),
-                        child: Stack(
-                          alignment: Alignment.centerLeft,
-                          children: [
-                            AnimatedPositioned(
-                              duration: const Duration(milliseconds: 400),
-                              curve: Curves.easeOutCirc,
-                              left: _tab * (50.0 + 8.0),
-                              child: Container(
-                                width: 50,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      const Color(0xFF0B7CFF),
-                                      const Color(
-                                        0xFF0B7CFF,
-                                      ).withValues(alpha: 0.8),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(25),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(
-                                        0xFF0B7CFF,
-                                      ).withValues(alpha: 0.4),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildNavItem(Icons.map_rounded, 'Transit', 0),
-                                const SizedBox(width: 8),
-                                _buildNavItem(
-                                  Icons.directions_car_rounded,
-                                  'Ride',
-                                  1,
-                                ),
-                                const SizedBox(width: 8),
-                                _buildNavItem(
-                                  Icons.dashboard_rounded,
-                                  'Dashboard',
-                                  2,
-                                ),
-                                const SizedBox(width: 8),
-                                _buildNavItem(
-                                  Icons.backpack_rounded,
-                                  'Plan',
-                                  3,
-                                ),
-                                const SizedBox(width: 8),
-                                _buildNavItem(
-                                  Icons.account_circle_rounded,
-                                  'Account',
-                                  4,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1032,15 +1070,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildNotificationButton() {
+    const edgeInset = 8.0;
     final unreadCount = _notifications
         .where((notification) => !notification.isRead)
         .length;
     final size = MediaQuery.sizeOf(context);
     final padding = MediaQuery.paddingOf(context);
-    final defaultPosition = Offset(16, size.height - padding.bottom - 176);
+    final defaultPosition = Offset(
+      edgeInset,
+      size.height - padding.bottom - 176,
+    );
     final storedPosition = _notificationButtonPosition ?? defaultPosition;
     final position = Offset(
-      storedPosition.dx.clamp(8, size.width - 56),
+      storedPosition.dx.clamp(edgeInset, size.width - 48 - edgeInset),
       storedPosition.dy.clamp(padding.top + 8, defaultPosition.dy),
     );
     return Positioned(
@@ -1051,8 +1093,19 @@ class _DashboardScreenState extends State<DashboardScreen>
           final nextPosition = position + details.delta;
           setState(() {
             _notificationButtonPosition = Offset(
-              nextPosition.dx.clamp(8, size.width - 56),
+              nextPosition.dx.clamp(edgeInset, size.width - 48 - edgeInset),
               nextPosition.dy.clamp(padding.top + 8, defaultPosition.dy),
+            );
+          });
+        },
+        onPanEnd: (_) {
+          final current = _notificationButtonPosition ?? position;
+          setState(() {
+            _notificationButtonPosition = Offset(
+              current.dx + 24 < size.width / 2
+                  ? edgeInset
+                  : size.width - 48 - edgeInset,
+              current.dy,
             );
           });
         },
@@ -1109,36 +1162,52 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index) {
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    int index,
+    double itemExtent,
+  ) {
     final isSelected = _tab == index;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Semantics(
       label: label,
       button: true,
       selected: isSelected,
       child: Tooltip(
         message: label,
-        child: GestureDetector(
-          key: Key('nav-${label.toLowerCase()}'),
-          onTap: () => setState(() {
-            _previousTab = _tab;
-            _tab = index;
-          }),
-          behavior: HitTestBehavior.opaque,
-          child: SizedBox(
-            width: 50,
-            height: 50,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              transitionBuilder: (child, animation) {
-                return ScaleTransition(scale: animation, child: child);
-              },
-              child: Icon(
-                icon,
-                key: ValueKey(isSelected),
-                color: isSelected
-                    ? Colors.white
-                    : const Color(0xFF102033).withValues(alpha: 0.4),
-                size: 26,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: Key('nav-${label.toLowerCase()}'),
+            onTap: () => setState(() {
+              _previousTab = _tab;
+              _tab = index;
+            }),
+            borderRadius: BorderRadius.circular(29),
+            overlayColor: WidgetStatePropertyAll(
+              const Color(0xFF0B7CFF).withValues(alpha: 0.08),
+            ),
+            child: SizedBox(
+              width: itemExtent,
+              height: 58,
+              child: ExcludeSemantics(
+                child: Center(
+                  child: AnimatedScale(
+                    duration: reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    scale: isSelected ? 1.08 : 0.96,
+                    child: Icon(
+                      icon,
+                      color: isSelected
+                          ? const Color(0xFF075EB5)
+                          : const Color(0xFF20364E).withValues(alpha: 0.7),
+                      size: isSelected ? 28 : 26,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1229,7 +1298,9 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
   int _section = 0;
   bool _loading = true;
   bool _comparisonLoading = false;
+  int _comparisonRequest = 0;
   String? _error;
+  String? _comparisonError;
   String? _rapidOrigin;
   String? _rapidDestination;
   String _ktmbService = 'ets';
@@ -1348,22 +1419,26 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
   }
 
   Future<void> _loadComparison({required int index, required Uri uri}) async {
-    setState(() => _comparisonLoading = true);
+    final request = ++_comparisonRequest;
+    setState(() {
+      _comparisonLoading = true;
+      _comparisonError = null;
+    });
     try {
       final data = await _fetchPageData(uri);
-      if (mounted) {
+      if (mounted && request == _comparisonRequest) {
         setState(() => _sourceData[index] = data);
       }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          const SnackBar(
-            content: Text('Unable to load this government comparison.'),
-          ),
-        );
+    } catch (error) {
+      debugPrint('Government comparison unavailable: $error');
+      if (mounted && request == _comparisonRequest) {
+        setState(() {
+          _comparisonError =
+              'The official comparison service is temporarily unavailable.';
+        });
       }
     } finally {
-      if (mounted) {
+      if (mounted && request == _comparisonRequest) {
         setState(() => _comparisonLoading = false);
       }
     }
@@ -1540,8 +1615,11 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
           options: origins,
           onChanged: (value) {
             setState(() {
+              _comparisonRequest++;
               _rapidOrigin = value;
               _rapidDestination = null;
+              _comparisonLoading = false;
+              _comparisonError = null;
             });
           },
         ),
@@ -1551,7 +1629,10 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
           value: _rapidDestination,
           options: destinations,
           onChanged: (value) {
-            setState(() => _rapidDestination = value);
+            setState(() {
+              _rapidDestination = value;
+              _comparisonError = null;
+            });
             unawaited(_loadRapidComparison());
           },
         ),
@@ -1640,9 +1721,12 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
               return;
             }
             setState(() {
+              _comparisonRequest++;
               _ktmbService = value;
               _ktmbOrigin = null;
               _ktmbDestination = null;
+              _comparisonLoading = false;
+              _comparisonError = null;
             });
           },
         ),
@@ -1653,8 +1737,11 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
           options: origins,
           onChanged: (value) {
             setState(() {
+              _comparisonRequest++;
               _ktmbOrigin = value;
               _ktmbDestination = null;
+              _comparisonLoading = false;
+              _comparisonError = null;
             });
           },
         ),
@@ -1664,7 +1751,10 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
           value: _ktmbDestination,
           options: destinations,
           onChanged: (value) {
-            setState(() => _ktmbDestination = value);
+            setState(() {
+              _ktmbDestination = value;
+              _comparisonError = null;
+            });
             unawaited(_loadKtmbComparison());
           },
         ),
@@ -1692,6 +1782,12 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
         child: Padding(padding: EdgeInsets.all(20), child: _MapLoadingPill()),
       );
     }
+    if (_comparisonError != null) {
+      return _GovernmentComparisonError(
+        message: _comparisonError!,
+        onRetry: _section == 1 ? _loadRapidComparison : _loadKtmbComparison,
+      );
+    }
     final forward = page['A_to_B_callout'] as Map<String, dynamic>?;
     final reverse = page['B_to_A_callout'] as Map<String, dynamic>?;
     if (forward == null || reverse == null) {
@@ -1706,10 +1802,44 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
       reverseMonthly: (reverse['monthly'] as num?)?.toDouble() ?? 0,
     );
   }
+}
+
+class _GovernmentComparisonError extends StatelessWidget {
+  const _GovernmentComparisonError({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
 
   @override
-  void dispose() {
-    super.dispose();
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: Color(0xFFC2410C)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF7C2D12),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
   }
 }
 
