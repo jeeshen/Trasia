@@ -875,147 +875,28 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildBottomNavigationBar() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final itemGap = constraints.maxWidth < 340 ? 1.0 : 2.0;
-        const dockPadding = 4.0;
-        final itemExtent =
-            ((constraints.maxWidth - (dockPadding * 2) - (itemGap * 4)) / 5)
-                .clamp(48.0, 56.0)
-                .toDouble();
-        final dockWidth = (itemExtent * 5) + (itemGap * 4) + (dockPadding * 2);
-        final reduceMotion = MediaQuery.disableAnimationsOf(context);
-
-        return Center(
-          child: SizedBox(
-            width: dockWidth,
-            height: 60,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF071A30).withValues(alpha: 0.18),
-                    blurRadius: 10,
-                    spreadRadius: -3,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(
-                        color: const Color(0xFF17314C).withValues(alpha: 0.14),
-                      ),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.76),
-                          const Color(0xFFE7F2FF).withValues(alpha: 0.52),
-                          Colors.white.withValues(alpha: 0.42),
-                        ],
-                        stops: const [0, 0.54, 1],
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: dockPadding,
-                        vertical: 6,
-                      ),
-                      child: Stack(
-                        alignment: Alignment.centerLeft,
-                        children: [
-                          AnimatedPositioned(
-                            duration: reduceMotion
-                                ? Duration.zero
-                                : const Duration(milliseconds: 220),
-                            curve: Curves.easeOutCubic,
-                            left: _tab * (itemExtent + itemGap),
-                            child: Container(
-                              width: itemExtent,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.88),
-                                ),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Colors.white.withValues(alpha: 0.88),
-                                    const Color(
-                                      0xFFCBE3FF,
-                                    ).withValues(alpha: 0.72),
-                                  ],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFF0B6ED0,
-                                    ).withValues(alpha: 0.18),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildNavItem(
-                                Icons.map_outlined,
-                                'Transit',
-                                0,
-                                itemExtent,
-                              ),
-                              SizedBox(width: itemGap),
-                              _buildNavItem(
-                                Icons.directions_car_outlined,
-                                'Ride',
-                                1,
-                                itemExtent,
-                              ),
-                              SizedBox(width: itemGap),
-                              _buildNavItem(
-                                Icons.grid_view_rounded,
-                                'Dashboard',
-                                2,
-                                itemExtent,
-                              ),
-                              SizedBox(width: itemGap),
-                              _buildNavItem(
-                                Icons.backpack_outlined,
-                                'Plan',
-                                3,
-                                itemExtent,
-                              ),
-                              SizedBox(width: itemGap),
-                              _buildNavItem(
-                                Icons.person_outline_rounded,
-                                'Account',
-                                4,
-                                itemExtent,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    return _TrasiaBottomNavigationBar(
+      destinations: const [
+        _TrasiaNavDestination(icon: Icons.map_outlined, label: 'Transit'),
+        _TrasiaNavDestination(
+          icon: Icons.directions_car_outlined,
+          label: 'Ride',
+        ),
+        _TrasiaNavDestination(
+          icon: Icons.grid_view_rounded,
+          label: 'Dashboard',
+        ),
+        _TrasiaNavDestination(icon: Icons.backpack_outlined, label: 'Plan'),
+        _TrasiaNavDestination(
+          icon: Icons.person_outline_rounded,
+          label: 'Account',
+        ),
+      ],
+      selectedIndex: _tab,
+      onDestinationSelected: (index) => setState(() {
+        _previousTab = _tab;
+        _tab = index;
+      }),
     );
   }
 
@@ -1154,60 +1035,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ),
                 ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    int index,
-    double itemExtent,
-  ) {
-    final isSelected = _tab == index;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return Semantics(
-      label: label,
-      button: true,
-      selected: isSelected,
-      child: Tooltip(
-        message: label,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            key: Key('nav-${label.toLowerCase()}'),
-            onTap: () => setState(() {
-              _previousTab = _tab;
-              _tab = index;
-            }),
-            borderRadius: BorderRadius.circular(29),
-            overlayColor: WidgetStatePropertyAll(
-              const Color(0xFF0B7CFF).withValues(alpha: 0.08),
-            ),
-            child: SizedBox(
-              width: itemExtent,
-              height: 58,
-              child: ExcludeSemantics(
-                child: Center(
-                  child: AnimatedScale(
-                    duration: reduceMotion
-                        ? Duration.zero
-                        : const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    scale: isSelected ? 1.08 : 0.96,
-                    child: Icon(
-                      icon,
-                      color: isSelected
-                          ? const Color(0xFF075EB5)
-                          : const Color(0xFF20364E).withValues(alpha: 0.7),
-                      size: isSelected ? 28 : 26,
-                    ),
-                  ),
-                ),
               ),
             ),
           ),

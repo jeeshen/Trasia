@@ -1,5 +1,151 @@
 part of '../main.dart';
 
+class _TrasiaNavDestination {
+  const _TrasiaNavDestination({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+}
+
+class _TrasiaBottomNavigationBar extends StatelessWidget {
+  const _TrasiaBottomNavigationBar({
+    required this.destinations,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  final List<_TrasiaNavDestination> destinations;
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final animationDuration = reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final sideInset = constraints.maxWidth < 360 ? 6.0 : 12.0;
+        final availableWidth = max(0.0, constraints.maxWidth - (sideInset * 2));
+        const itemExtent = 54.0;
+        const dockPadding = 5.0;
+        final idealWidth =
+            (destinations.length * itemExtent) + (dockPadding * 2);
+        final dockWidth = min(availableWidth, idealWidth);
+
+        return Semantics(
+          container: true,
+          explicitChildNodes: true,
+          label: 'Primary navigation',
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: sideInset),
+            child: Center(
+              child: SizedBox(
+                width: dockWidth,
+                height: 62,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0xFFE0E7F0)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x1F071A30),
+                        blurRadius: 24,
+                        spreadRadius: -6,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(dockPadding),
+                    child: Row(
+                      children: [
+                        for (
+                          var index = 0;
+                          index < destinations.length;
+                          index++
+                        )
+                          Expanded(
+                            child: _TrasiaBottomNavigationItem(
+                              destination: destinations[index],
+                              selected: index == selectedIndex,
+                              animationDuration: animationDuration,
+                              onTap: () => onDestinationSelected(index),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TrasiaBottomNavigationItem extends StatelessWidget {
+  const _TrasiaBottomNavigationItem({
+    required this.destination,
+    required this.selected,
+    required this.animationDuration,
+    required this.onTap,
+  });
+
+  final _TrasiaNavDestination destination;
+  final bool selected;
+  final Duration animationDuration;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected
+        ? const Color(0xFF075EB5)
+        : const Color(0xFF607086);
+
+    return Semantics(
+      label: destination.label,
+      button: true,
+      selected: selected,
+      child: Tooltip(
+        message: destination.label,
+        child: Material(
+          color: selected ? const Color(0xFFE8F2FF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(17),
+          clipBehavior: Clip.antiAlias,
+          animationDuration: animationDuration,
+          child: InkWell(
+            key: Key('nav-${destination.label.toLowerCase()}'),
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(17),
+            overlayColor: WidgetStatePropertyAll(
+              TrasiaColors.primary.withValues(alpha: 0.08),
+            ),
+            child: SizedBox(
+              height: 52,
+              child: ExcludeSemantics(
+                child: Center(
+                  child: AnimatedScale(
+                    duration: animationDuration,
+                    curve: Curves.easeOutCubic,
+                    scale: selected ? 1.08 : 1,
+                    child: Icon(destination.icon, color: foreground, size: 24),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MapSearchWindow extends StatelessWidget {
   const _MapSearchWindow({
     required this.fromController,

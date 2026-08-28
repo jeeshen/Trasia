@@ -26,58 +26,6 @@ class _AdminPanelState extends State<AdminPanel> {
     }
   }
 
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    _AdminView view,
-    int index,
-    double itemExtent,
-  ) {
-    final isSelected = _currentView == view;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return Semantics(
-      label: label,
-      button: true,
-      selected: isSelected,
-      child: Tooltip(
-        message: label,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            key: Key('nav-${label.toLowerCase()}'),
-            onTap: () => setState(() => _currentView = view),
-            borderRadius: BorderRadius.circular(22),
-            overlayColor: WidgetStatePropertyAll(
-              const Color(0xFF0B7CFF).withValues(alpha: 0.08),
-            ),
-            child: SizedBox(
-              width: itemExtent,
-              height: 44,
-              child: ExcludeSemantics(
-                child: Center(
-                  child: AnimatedScale(
-                    duration: reduceMotion
-                        ? Duration.zero
-                        : const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    scale: isSelected ? 1.08 : 0.96,
-                    child: Icon(
-                      icon,
-                      color: isSelected
-                          ? const Color(0xFF075EB5)
-                          : const Color(0xFF20364E).withValues(alpha: 0.7),
-                      size: isSelected ? 25 : 23,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -148,160 +96,27 @@ class _AdminPanelState extends State<AdminPanel> {
   }
 
   Widget _buildBottomNavigationBar() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const itemGap = 1.0;
-        const dockPadding = 4.0;
-        final itemExtent =
-            ((constraints.maxWidth - (dockPadding * 2) - (itemGap * 5)) / 6)
-                .clamp(44.0, 54.0)
-                .toDouble();
-        final dockWidth = (itemExtent * 6) + (itemGap * 5) + (dockPadding * 2);
-        final reduceMotion = MediaQuery.disableAnimationsOf(context);
-
-        return Center(
-          child: SizedBox(
-            width: dockWidth,
-            height: 56,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF071A30).withValues(alpha: 0.18),
-                    blurRadius: 10,
-                    spreadRadius: -3,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: const Color(0xFF17314C).withValues(alpha: 0.14),
-                      ),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.76),
-                          const Color(0xFFE7F2FF).withValues(alpha: 0.52),
-                          Colors.white.withValues(alpha: 0.42),
-                        ],
-                        stops: const [0, 0.54, 1],
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: dockPadding,
-                        vertical: 6,
-                      ),
-                      child: Stack(
-                        alignment: Alignment.centerLeft,
-                        children: [
-                          AnimatedPositioned(
-                            duration: reduceMotion
-                                ? Duration.zero
-                                : const Duration(milliseconds: 220),
-                            curve: Curves.easeOutCubic,
-                            left: _currentView.index * (itemExtent + itemGap),
-                            child: Container(
-                              width: itemExtent,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(22),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.88),
-                                ),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Colors.white.withValues(alpha: 0.88),
-                                    const Color(
-                                      0xFFCBE3FF,
-                                    ).withValues(alpha: 0.72),
-                                  ],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFF0B6ED0,
-                                    ).withValues(alpha: 0.18),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildNavItem(
-                                Icons.dashboard_rounded,
-                                'Dashboard',
-                                _AdminView.dashboard,
-                                0,
-                                itemExtent,
-                              ),
-                              const SizedBox(width: itemGap),
-                              _buildNavItem(
-                                Icons.local_taxi_rounded,
-                                'Drivers',
-                                _AdminView.drivers,
-                                1,
-                                itemExtent,
-                              ),
-                              const SizedBox(width: itemGap),
-                              _buildNavItem(
-                                Icons.local_offer_rounded,
-                                'Vouchers',
-                                _AdminView.vouchers,
-                                2,
-                                itemExtent,
-                              ),
-                              const SizedBox(width: itemGap),
-                              _buildNavItem(
-                                Icons.people_alt_rounded,
-                                'Users',
-                                _AdminView.users,
-                                3,
-                                itemExtent,
-                              ),
-                              const SizedBox(width: itemGap),
-                              _buildNavItem(
-                                Icons.analytics_rounded,
-                                'Analytics',
-                                _AdminView.analytics,
-                                4,
-                                itemExtent,
-                              ),
-                              const SizedBox(width: itemGap),
-                              _buildNavItem(
-                                Icons.settings_rounded,
-                                'Settings',
-                                _AdminView.settings,
-                                5,
-                                itemExtent,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    return _TrasiaBottomNavigationBar(
+      destinations: const [
+        _TrasiaNavDestination(
+          icon: Icons.dashboard_rounded,
+          label: 'Dashboard',
+        ),
+        _TrasiaNavDestination(icon: Icons.local_taxi_rounded, label: 'Drivers'),
+        _TrasiaNavDestination(
+          icon: Icons.local_offer_rounded,
+          label: 'Vouchers',
+        ),
+        _TrasiaNavDestination(icon: Icons.people_alt_rounded, label: 'Users'),
+        _TrasiaNavDestination(
+          icon: Icons.analytics_rounded,
+          label: 'Analytics',
+        ),
+        _TrasiaNavDestination(icon: Icons.settings_rounded, label: 'Settings'),
+      ],
+      selectedIndex: _currentView.index,
+      onDestinationSelected: (index) =>
+          setState(() => _currentView = _AdminView.values[index]),
     );
   }
 }
