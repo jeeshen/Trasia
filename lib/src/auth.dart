@@ -7,17 +7,7 @@ class TrasiaApp extends StatelessWidget {
     return MaterialApp(
       title: 'Trasia',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: TrasiaColors.primary,
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: TrasiaColors.background,
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-        snackBarTheme: _trasiaSnackBarTheme,
-      ),
+      theme: TrasiaTheme.light,
       home: const LoginScreen(),
     );
   }
@@ -223,49 +213,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const ink = Color(0xFF102033);
-    const muted = Color(0xFF536477);
+    const ink = TrasiaColors.inkStrong;
+    const muted = TrasiaColors.muted;
     return Theme(
-      data: ThemeData(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: TrasiaColors.primary,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        useMaterial3: true,
-        snackBarTheme: _trasiaSnackBarTheme,
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFFF8FBFF),
-          prefixIconColor: muted,
-          labelStyle: const TextStyle(
-            color: muted,
-            fontWeight: FontWeight.w700,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFCCD8E6)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFCCD8E6)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: TrasiaColors.primary, width: 2),
-          ),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            textStyle: const TextStyle(fontWeight: FontWeight.w900),
-          ),
-        ),
-      ),
+      data: TrasiaTheme.light.copyWith(scaffoldBackgroundColor: Colors.white),
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
@@ -285,10 +236,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 50,
                         fit: BoxFit.contain,
                         semanticLabel: 'Trasia logo',
-                        placeholder: Icon(
-                          Icons.navigation_rounded,
-                          color: TrasiaColors.primary,
-                          size: 40,
+                        placeholder: Image(
+                          image: AssetImage('assets/branding/logo_loading.gif'),
+                          width: 50,
+                          height: 50,
+                          semanticLabel: 'Trasia logo',
                         ),
                       ),
                     ),
@@ -400,7 +352,7 @@ class _AuthFormPanel extends StatelessWidget {
             const Text(
               'Confirm your email',
               style: TextStyle(
-                color: Color(0xFF102033),
+                color: TrasiaColors.inkStrong,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
               ),
@@ -408,7 +360,7 @@ class _AuthFormPanel extends StatelessWidget {
             const SizedBox(height: 6),
             const Text(
               'Use the one-time code from your email to activate your account.',
-              style: TextStyle(color: Color(0xFF536477), fontSize: 13),
+              style: TextStyle(color: TrasiaColors.muted, fontSize: 13),
             ),
             const SizedBox(height: 14),
             TextField(
@@ -417,7 +369,7 @@ class _AuthFormPanel extends StatelessWidget {
               keyboardType: TextInputType.number,
               maxLength: 6,
               style: const TextStyle(
-                color: Color(0xFF102033),
+                color: TrasiaColors.inkStrong,
                 fontSize: 24,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 8,
@@ -435,7 +387,7 @@ class _AuthFormPanel extends StatelessWidget {
               controller: emailController,
               keyboardType: TextInputType.emailAddress,
               autofillHints: const [AutofillHints.email],
-              style: const TextStyle(color: Color(0xFF102033)),
+              style: const TextStyle(color: TrasiaColors.inkStrong),
               decoration: const InputDecoration(
                 labelText: 'Email',
                 prefixIcon: Icon(Icons.email_outlined),
@@ -447,7 +399,7 @@ class _AuthFormPanel extends StatelessWidget {
               controller: passwordController,
               obscureText: true,
               autofillHints: const [AutofillHints.password],
-              style: const TextStyle(color: Color(0xFF102033)),
+              style: const TextStyle(color: TrasiaColors.inkStrong),
               decoration: const InputDecoration(
                 labelText: 'Password',
                 prefixIcon: Icon(Icons.lock_outline_rounded),
@@ -461,7 +413,7 @@ class _AuthFormPanel extends StatelessWidget {
                 controller: confirmPasswordController,
                 obscureText: true,
                 autofillHints: const [AutofillHints.newPassword],
-                style: const TextStyle(color: Color(0xFF102033)),
+                style: const TextStyle(color: TrasiaColors.inkStrong),
                 decoration: const InputDecoration(
                   labelText: 'Confirm password',
                   prefixIcon: Icon(Icons.lock_reset_outlined),
@@ -472,7 +424,7 @@ class _AuthFormPanel extends StatelessWidget {
             const SizedBox(height: 10),
             const Text(
               'Password must be at least 6 characters.',
-              style: TextStyle(color: Color(0xFF536477), fontSize: 13),
+              style: TextStyle(color: TrasiaColors.muted, fontSize: 13),
             ),
           ],
           if (message != null) ...[
@@ -569,7 +521,9 @@ class _AuthPreviewButton extends StatelessWidget {
         foregroundColor: TrasiaColors.primary,
         minimumSize: const Size.fromHeight(48),
         side: const BorderSide(color: Color(0xFFDCEBFA)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(TrasiaRadii.control),
+        ),
         textStyle: const TextStyle(fontWeight: FontWeight.w900),
       ),
     );

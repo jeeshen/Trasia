@@ -917,15 +917,7 @@ class _PelancongPlanScreenState extends State<PelancongPlanScreen> {
   Widget build(BuildContext context) {
     _mapController = widget.mapController ?? _mapController;
     _publishMapView();
-    final planTheme = ThemeData(
-      brightness: Brightness.light,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: TrasiaColors.primary,
-        brightness: Brightness.light,
-      ),
-      useMaterial3: true,
-      snackBarTheme: _trasiaSnackBarTheme,
-    );
+    final planTheme = TrasiaTheme.light;
     if (_itinerary.isNotEmpty || _tripStatus == FeatureCTripStatus.completed) {
       return Theme(
         data: planTheme,

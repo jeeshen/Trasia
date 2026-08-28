@@ -456,6 +456,7 @@ class _LiveMapboxSurfaceState extends State<LiveMapboxSurface> {
             ),
             lineColor: routeModeColor(leg.mode).toARGB32(),
             lineWidth: 5.0,
+            lineJoin: mapbox.LineJoin.ROUND,
           ),
         );
         _routeAnnotations.add(annotation);

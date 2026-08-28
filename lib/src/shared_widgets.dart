@@ -48,8 +48,8 @@ class _TrasiaBottomNavigationBar extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: const Color(0xFFE0E7F0)),
+                    borderRadius: BorderRadius.circular(TrasiaRadii.card),
+                    border: Border.all(color: TrasiaColors.border),
                     boxShadow: const [
                       BoxShadow(
                         color: Color(0x1F071A30),
@@ -192,7 +192,7 @@ class _MapSearchWindow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
         boxShadow: const [
           BoxShadow(
             color: Color(0x2D001844),
@@ -211,7 +211,7 @@ class _MapSearchWindow extends StatelessWidget {
                   height: 48,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF2F6FB),
+                    color: TrasiaColors.surfaceSubtle,
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Row(
@@ -227,7 +227,7 @@ class _MapSearchWindow extends StatelessWidget {
                           fromController.text,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Color(0xFF172033),
+                            color: TrasiaColors.ink,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -247,7 +247,7 @@ class _MapSearchWindow extends StatelessWidget {
                 controller: toController,
                 onChanged: (_) => onTextChanged(),
                 onSubmitted: (_) => onSearch(),
-                style: const TextStyle(color: Color(0xFF172033)),
+                style: const TextStyle(color: TrasiaColors.ink),
                 decoration: InputDecoration(
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(
@@ -255,7 +255,7 @@ class _MapSearchWindow extends StatelessWidget {
                     vertical: 9,
                   ),
                   filled: true,
-                  fillColor: const Color(0xFFF2F6FB),
+                  fillColor: TrasiaColors.surfaceSubtle,
                   border: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(99)),
                     borderSide: BorderSide.none,
@@ -276,7 +276,7 @@ class _MapSearchWindow extends StatelessWidget {
                           onPressed: onClearDestination,
                           icon: const Icon(Icons.close_rounded),
                         ),
-                  hintText: 'Search and Navigate',
+                  hintText: 'Search and navigate',
                 ),
               );
             },
@@ -296,7 +296,7 @@ class _MapSearchWindow extends StatelessWidget {
                     const Text(
                       'Choose a destination',
                       style: TextStyle(
-                        color: Color(0xFF172033),
+                        color: TrasiaColors.ink,
                         fontSize: 17,
                         fontWeight: FontWeight.w900,
                       ),
@@ -335,7 +335,7 @@ class _MapSearchWindow extends StatelessWidget {
                           ? 'Navigation in progress'
                           : 'Choose a travel option',
                       style: const TextStyle(
-                        color: Color(0xFF172033),
+                        color: TrasiaColors.ink,
                         fontSize: 17,
                         fontWeight: FontWeight.w900,
                       ),
@@ -474,7 +474,7 @@ class _SheetNotice extends StatelessWidget {
               message,
               softWrap: true,
               style: const TextStyle(
-                color: Color(0xFF172033),
+                color: TrasiaColors.ink,
                 fontWeight: FontWeight.w700,
                 height: 1.25,
               ),
@@ -507,9 +507,9 @@ class _DestinationConfirmCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: selected ? const Color(0xFFEAF3FF) : const Color(0xFFF4F7FB),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
         border: Border.all(
-          color: selected ? TrasiaColors.primary : const Color(0xFFE0E7F0),
+          color: selected ? TrasiaColors.primary : TrasiaColors.border,
         ),
       ),
       child: Column(
@@ -532,7 +532,7 @@ class _DestinationConfirmCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF172033),
+                        color: TrasiaColors.ink,
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                       ),
@@ -541,7 +541,7 @@ class _DestinationConfirmCard extends StatelessWidget {
                       candidate.address,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Color(0xFF687386)),
+                      style: const TextStyle(color: TrasiaColors.mutedSoft),
                     ),
                   ],
                 ),
@@ -568,10 +568,7 @@ class _DestinationConfirmCard extends StatelessWidget {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onConfirm,
-                style: FilledButton.styleFrom(
-                  foregroundColor: Colors.black,
-                  disabledForegroundColor: Colors.black,
-                ),
+                style: FilledButton.styleFrom(foregroundColor: Colors.white),
                 icon: const Icon(Icons.alt_route_rounded),
                 label: Text(actionLabel!),
               ),
@@ -595,7 +592,7 @@ class _RouteChoiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(TrasiaRadii.card),
       onTap: onTap,
       child: Container(
         width: double.infinity,
@@ -604,9 +601,9 @@ class _RouteChoiceCard extends StatelessWidget {
           color: selected
               ? route.color.withValues(alpha: .14)
               : const Color(0xFFF4F7FB),
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(TrasiaRadii.card),
           border: Border.all(
-            color: selected ? route.color : const Color(0xFFE0E7F0),
+            color: selected ? route.color : TrasiaColors.border,
             width: selected ? 2 : 1,
           ),
         ),
@@ -630,7 +627,7 @@ class _RouteChoiceCard extends StatelessWidget {
                   child: Text(
                     route.label,
                     style: const TextStyle(
-                      color: Color(0xFF172033),
+                      color: TrasiaColors.ink,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -642,7 +639,7 @@ class _RouteChoiceCard extends StatelessWidget {
               _userFacingTransitText(route.chain),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFF687386)),
+              style: const TextStyle(color: TrasiaColors.mutedSoft),
             ),
             const SizedBox(height: 14),
             Row(
@@ -695,7 +692,7 @@ class _DarkMiniMetric extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                color: Color(0xFF172033),
+                color: TrasiaColors.ink,
                 fontWeight: FontWeight.w800,
                 fontSize: 12,
               ),
@@ -758,7 +755,7 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
         boxShadow: const [
           BoxShadow(
             color: Color(0x2D001844),
@@ -787,7 +784,7 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF172033),
+                        color: TrasiaColors.ink,
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
                       ),
@@ -799,7 +796,7 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
                       style: TextStyle(
                         color: route.time == 'Calculating'
                             ? Colors.black
-                            : const Color(0xFF687386),
+                            : TrasiaColors.mutedSoft,
                         fontWeight: route.time == 'Calculating'
                             ? FontWeight.w700
                             : FontWeight.normal,
@@ -824,7 +821,7 @@ class _TripDetailsDropdownState extends State<_TripDetailsDropdown> {
                   _expanded
                       ? Icons.keyboard_arrow_up_rounded
                       : Icons.keyboard_arrow_down_rounded,
-                  color: const Color(0xFF172033),
+                  color: TrasiaColors.ink,
                 ),
               ),
               IconButton.filledTonal(
@@ -889,7 +886,7 @@ class _NextLegCard extends StatelessWidget {
                   Text(
                     'Next: ${leg.toName}',
                     style: const TextStyle(
-                      color: Color(0xFF172033),
+                      color: TrasiaColors.ink,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -898,7 +895,7 @@ class _NextLegCard extends StatelessWidget {
                     style: TextStyle(
                       color: leg.time == 'Calculating'
                           ? Colors.black
-                          : const Color(0xFF687386),
+                          : TrasiaColors.mutedSoft,
                       fontWeight: leg.time == 'Calculating'
                           ? FontWeight.w700
                           : FontWeight.normal,
@@ -929,7 +926,7 @@ class _TripLegRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = routeModeColor(leg.mode);
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(TrasiaRadii.control),
       onTap: onTap,
       child: Padding(
         padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
@@ -960,8 +957,8 @@ class _TripLegRow extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: active
                       ? color.withValues(alpha: .11)
-                      : const Color(0xFFF7F9FC),
-                  borderRadius: BorderRadius.circular(14),
+                      : TrasiaColors.background,
+                  borderRadius: BorderRadius.circular(TrasiaRadii.control),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -969,7 +966,7 @@ class _TripLegRow extends StatelessWidget {
                     Text(
                       '${leg.fromName} to ${leg.toName}',
                       style: const TextStyle(
-                        color: Color(0xFF172033),
+                        color: TrasiaColors.ink,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -979,7 +976,7 @@ class _TripLegRow extends StatelessWidget {
                       style: TextStyle(
                         color: leg.time == 'Calculating'
                             ? Colors.black
-                            : const Color(0xFF687386),
+                            : TrasiaColors.mutedSoft,
                         fontWeight: leg.time == 'Calculating'
                             ? FontWeight.w700
                             : FontWeight.normal,
@@ -1023,7 +1020,7 @@ class _DriverCard extends StatelessWidget {
               Text(
                 driver.name,
                 style: const TextStyle(
-                  color: Color(0xFF172033),
+                  color: TrasiaColors.ink,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1073,7 +1070,7 @@ class _PlanSlider extends StatelessWidget {
                 child: Text(
                   label,
                   style: const TextStyle(
-                    color: Color(0xFF172033),
+                    color: TrasiaColors.ink,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1081,7 +1078,7 @@ class _PlanSlider extends StatelessWidget {
               Text(
                 valueLabel,
                 style: const TextStyle(
-                  color: Color(0xFF172033),
+                  color: TrasiaColors.ink,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1135,7 +1132,7 @@ class _PlanSectionTitle extends StatelessWidget {
             child: Text(
               title,
               style: const TextStyle(
-                color: Color(0xFF102033),
+                color: TrasiaColors.inkStrong,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
               ),
@@ -1144,7 +1141,7 @@ class _PlanSectionTitle extends StatelessWidget {
           Text(
             trailing,
             style: const TextStyle(
-              color: Color(0xFF68788C),
+              color: TrasiaColors.mutedSoft,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1200,7 +1197,7 @@ class _BlindBoxTravelModeSelector extends StatelessWidget {
                 child: Text(
                   'Travel mode',
                   style: TextStyle(
-                    color: Color(0xFF172033),
+                    color: TrasiaColors.ink,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1208,7 +1205,7 @@ class _BlindBoxTravelModeSelector extends StatelessWidget {
               Text(
                 value.label,
                 style: const TextStyle(
-                  color: Color(0xFF172033),
+                  color: TrasiaColors.ink,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1294,7 +1291,7 @@ class _FeatureCTripCompletedBanner extends StatelessWidget {
               const Text(
                 'Trip completed',
                 style: TextStyle(
-                  color: Color(0xFF172033),
+                  color: TrasiaColors.ink,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1406,7 +1403,7 @@ class _FeatureCResultsSheet extends StatelessWidget {
                         child: Text(
                           'Results',
                           style: TextStyle(
-                            color: Color(0xFF172033),
+                            color: TrasiaColors.ink,
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
                           ),
@@ -1452,7 +1449,9 @@ class _FeatureCResultsSheet extends StatelessWidget {
                             padding: const EdgeInsets.only(right: 18),
                             decoration: BoxDecoration(
                               color: TrasiaColors.primary,
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(
+                                TrasiaRadii.card,
+                              ),
                             ),
                             child: const Icon(
                               Icons.delete_rounded,
@@ -1528,6 +1527,7 @@ class _MapStopActionSheet extends StatelessWidget {
                       width: 76,
                       height: 76,
                       fit: BoxFit.cover,
+                      semanticLabel: stop.attraction.name,
                       placeholder: Container(
                         width: 76,
                         height: 76,
@@ -1545,7 +1545,7 @@ class _MapStopActionSheet extends StatelessWidget {
                         Text(
                           stop.attraction.name,
                           style: const TextStyle(
-                            color: Color(0xFF172033),
+                            color: TrasiaColors.ink,
                             fontSize: 19,
                             fontWeight: FontWeight.w900,
                           ),
@@ -1553,7 +1553,7 @@ class _MapStopActionSheet extends StatelessWidget {
                         const SizedBox(height: 5),
                         Text(
                           '${_formatClock(stop.startMinute)} - ${_formatClock(stop.endMinute)} / ${stop.attraction.hours}',
-                          style: const TextStyle(color: Color(0xFF687386)),
+                          style: const TextStyle(color: TrasiaColors.mutedSoft),
                         ),
                       ],
                     ),
@@ -1592,7 +1592,7 @@ class _MapStopActionSheet extends StatelessWidget {
                       ? () => Navigator.of(context).pop(_MapStopAction.proceed)
                       : null,
                   style: FilledButton.styleFrom(
-                    foregroundColor: Colors.black,
+                    foregroundColor: Colors.white,
                     disabledBackgroundColor: const Color(0xFFE9EEF5),
                     disabledForegroundColor: const Color(0xFF475467),
                   ),
@@ -1844,7 +1844,7 @@ class _CheckInScannerPageState extends State<_CheckInScannerPage> {
                 height: 230,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.white, width: 3),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(TrasiaRadii.card),
                 ),
               ),
             ),
@@ -1966,7 +1966,7 @@ class _FeatureCTripProgressPanel extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF172033),
+                          color: TrasiaColors.ink,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -2072,6 +2072,7 @@ class _ItineraryStopCard extends StatelessWidget {
                 width: 84,
                 height: 84,
                 fit: BoxFit.cover,
+                semanticLabel: stop.attraction.name,
                 placeholder: Container(
                   width: 84,
                   height: 84,
@@ -2093,7 +2094,7 @@ class _ItineraryStopCard extends StatelessWidget {
                         child: Text(
                           stop.attraction.name,
                           style: const TextStyle(
-                            color: Color(0xFF172033),
+                            color: TrasiaColors.ink,
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                           ),

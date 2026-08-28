@@ -36,7 +36,9 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(TrasiaRadii.card),
+        ),
       ),
       builder: (context) {
         return _WeekPickerSheet(currentWeekStart: _selectedWeekStart);
@@ -78,41 +80,44 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF1F2937),
+            color: TrasiaColors.ink,
           ),
         ),
         const SizedBox(height: 16),
         InkWell(
           onTap: _showWeekPickerBottomSheet,
-          borderRadius: BorderRadius.circular(99),
+          borderRadius: BorderRadius.circular(TrasiaRadii.control),
           child: Container(
+            width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              color: TrasiaColors.surface,
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
+              border: Border.all(color: TrasiaColors.border),
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(
                   Icons.calendar_month_rounded,
-                  color: Color(0xFF0057C8),
+                  color: TrasiaColors.primary,
                   size: 18,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '$startStr – $endStr',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
+                Expanded(
+                  child: Text(
+                    '$startStr – $endStr',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: TrasiaColors.ink,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 const Icon(
                   Icons.arrow_drop_down_rounded,
-                  color: Color(0xFF6B7280),
+                  color: TrasiaColors.muted,
                   size: 20,
                 ),
               ],
@@ -174,24 +179,17 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
   Widget _buildEmptyState() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: TrasiaColors.surface,
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
+        border: Border.all(color: TrasiaColors.borderSubtle),
       ),
       child: const Center(
         child: Text(
           'No analytics available.',
           style: TextStyle(
-            color: Color(0xFF6B7280),
+            color: TrasiaColors.muted,
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
@@ -209,18 +207,11 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
     return Container(
       width: double.infinity,
       height: height,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: TrasiaColors.surface,
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
+        border: Border.all(color: TrasiaColors.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,7 +224,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1F2937),
+                color: TrasiaColors.ink,
               ),
             ),
           const SizedBox(height: 24),
@@ -249,18 +240,11 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: TrasiaColors.surface,
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
+        border: Border.all(color: TrasiaColors.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -271,7 +255,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF6B7280),
+              color: TrasiaColors.muted,
             ),
           ),
           const SizedBox(height: 8),
@@ -297,22 +281,14 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
         width: double.infinity,
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          color: TrasiaColors.surfaceSubtle,
+          borderRadius: BorderRadius.circular(TrasiaRadii.control),
         ),
         child: const Center(
           child: Text(
             'No registrations in the selected week.',
             style: TextStyle(
-              color: Color(0xFF6B7280),
+              color: TrasiaColors.muted,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -347,7 +323,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           drawHorizontalLine: true,
           horizontalInterval: max(1, (maxY / 4).ceilToDouble()),
           getDrawingHorizontalLine: (value) =>
-              FlLine(color: const Color(0xFFF3F4F6), strokeWidth: 1),
+              FlLine(color: TrasiaColors.borderSubtle, strokeWidth: 1),
         ),
         titlesData: FlTitlesData(
           show: true,
@@ -373,7 +349,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
                     weekdays[dayOffset],
                     style: const TextStyle(
                       fontSize: 11,
-                      color: Color(0xFF6B7280),
+                      color: TrasiaColors.muted,
                     ),
                   ),
                 );
@@ -391,7 +367,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
                   value.toInt().toString(),
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF6B7280),
+                    color: TrasiaColors.muted,
                   ),
                 );
               },
@@ -458,7 +434,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           ),
         ),
       ),
-      duration: const Duration(milliseconds: 500),
+      duration: TrasiaMotion.responsive(context, TrasiaMotion.standard),
       curve: Curves.easeOutCubic,
     );
   }
@@ -471,31 +447,21 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           titleWidget: _buildWeekPickerTitle('User Registrations'),
           child: _buildLineChart(
             _usersDaily,
-            const Color(0xFF0057C8),
+            TrasiaColors.primary,
             'New Users',
           ),
         ),
         const SizedBox(height: 24),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'Total Users',
-                  value: _usersTotal.toString(),
-                  color: const Color(0xFF1F2937),
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'New This Week',
-                  value: '+$newThisWeek',
-                  color: const Color(0xFF0057C8),
-                ),
-              ),
-            ],
+        _buildSummaryPair(
+          _buildSummaryCard(
+            title: 'Total Users',
+            value: _usersTotal.toString(),
+            color: TrasiaColors.ink,
+          ),
+          _buildSummaryCard(
+            title: 'New This Week',
+            value: '+$newThisWeek',
+            color: TrasiaColors.primary,
           ),
         ),
       ],
@@ -515,26 +481,16 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           ),
         ),
         const SizedBox(height: 24),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'Total Drivers',
-                  value: _driversTotal.toString(),
-                  color: const Color(0xFF1F2937),
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'New This Week',
-                  value: '+$newThisWeek',
-                  color: const Color(0xFFF97316),
-                ),
-              ),
-            ],
+        _buildSummaryPair(
+          _buildSummaryCard(
+            title: 'Total Drivers',
+            value: _driversTotal.toString(),
+            color: TrasiaColors.ink,
+          ),
+          _buildSummaryCard(
+            title: 'New This Week',
+            value: '+$newThisWeek',
+            color: const Color(0xFFF97316),
           ),
         ),
       ],
@@ -557,29 +513,37 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
           ),
         ),
         const SizedBox(height: 24),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'Total Vouchers',
-                  value: _vouchersTotal.toString(),
-                  color: const Color(0xFF1F2937),
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'Created This Week',
-                  value: '+$newThisWeek',
-                  color: const Color(0xFF10B981),
-                ),
-              ),
-            ],
+        _buildSummaryPair(
+          _buildSummaryCard(
+            title: 'Total Vouchers',
+            value: _vouchersTotal.toString(),
+            color: TrasiaColors.ink,
+          ),
+          _buildSummaryCard(
+            title: 'Created This Week',
+            value: '+$newThisWeek',
+            color: const Color(0xFF10B981),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSummaryPair(Widget first, Widget second) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = constraints.maxWidth < 440
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 16) / 2;
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            SizedBox(width: cardWidth, child: first),
+            SizedBox(width: cardWidth, child: second),
+          ],
+        );
+      },
     );
   }
 
@@ -596,8 +560,8 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
                   Text(
                     'Analytics',
                     style: TextStyle(
-                      color: Color(0xFF102033),
-                      fontSize: 32,
+                      color: TrasiaColors.inkStrong,
+                      fontSize: 28,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -605,7 +569,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
                   Text(
                     'Real-time platform insights',
                     style: TextStyle(
-                      color: Color(0xFF68788C),
+                      color: TrasiaColors.mutedSoft,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
@@ -623,7 +587,7 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.refresh_rounded, size: 28),
-              color: const Color(0xFF0057C8),
+              color: TrasiaColors.primary,
             ),
           ],
         ),
@@ -643,11 +607,11 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: const Color(0xFFFEF2F2),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
             ),
             child: Row(
               children: [
-                const Icon(Icons.error_outline, color: Color(0xFFEF4444)),
+                const Icon(Icons.error_outline, color: TrasiaColors.danger),
                 const SizedBox(width: 12),
                 Text(_error!, style: const TextStyle(color: Color(0xFF991B1B))),
               ],
@@ -656,7 +620,12 @@ class _AdminAnalyticsViewState extends State<_AdminAnalyticsView> {
         else if (_loading && !_hasData)
           const Padding(
             padding: EdgeInsets.only(top: 100),
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(
+              child: TrasiaLoadingCompass(
+                size: 56,
+                semanticLabel: 'Loading analytics',
+              ),
+            ),
           )
         else ...[
           if (_section == 0) _buildUsersTab(),
@@ -699,12 +668,7 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (context, child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(primary: Color(0xFF0057C8)),
-          ),
-          child: child!,
-        );
+        return Theme(data: TrasiaTheme.light, child: child!);
       },
     );
     if (picked != null) {
@@ -745,7 +709,7 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1F2937),
+                color: TrasiaColors.ink,
               ),
             ),
           ),
@@ -774,14 +738,14 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
                       vertical: 0,
                     ),
                     color: isSelected
-                        ? const Color(0xFF0057C8).withValues(alpha: 0.1)
+                        ? TrasiaColors.primary.withValues(alpha: 0.1)
                         : Colors.transparent,
                     child: Row(
                       children: [
                         if (isSelected)
                           const Icon(
                             Icons.check_rounded,
-                            color: Color(0xFF0057C8),
+                            color: TrasiaColors.primary,
                             size: 20,
                           )
                         else
@@ -795,8 +759,8 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
                                 ? FontWeight.w700
                                 : FontWeight.w500,
                             color: isSelected
-                                ? const Color(0xFF0057C8)
-                                : const Color(0xFF1F2937),
+                                ? TrasiaColors.primary
+                                : TrasiaColors.ink,
                           ),
                         ),
                       ],
@@ -806,7 +770,7 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
               },
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          const Divider(height: 1, color: TrasiaColors.borderSubtle),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -814,7 +778,7 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
               onPressed: _jumpToDate,
               icon: const Icon(
                 Icons.calendar_today_rounded,
-                color: Color(0xFF0057C8),
+                color: TrasiaColors.primary,
                 size: 20,
               ),
               label: const Text(
@@ -822,13 +786,13 @@ class _WeekPickerSheetState extends State<_WeekPickerSheet> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF0057C8),
+                  color: TrasiaColors.primary,
                 ),
               ),
               style: TextButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(TrasiaRadii.control),
                 ),
               ),
             ),

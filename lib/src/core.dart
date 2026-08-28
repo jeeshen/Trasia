@@ -11,10 +11,255 @@ enum BlindBoxTravelMode { drive, transit }
 enum FeatureCTripStatus { notStarted, traveling, arrived, completed }
 
 class TrasiaColors {
-  static const background = Color(0xFF07131F);
-  static const primary = Color(0xFF0B7CFF);
-  static const primaryPressed = Color(0xFF006CFF);
-  static const darkIcon = Color(0xFF1F2937);
+  static const background = Color(0xFFF7F9FC);
+  static const surface = Colors.white;
+  static const surfaceSubtle = Color(0xFFF2F6FB);
+  static const surfaceSelected = Color(0xFFEAF3FF);
+  static const primary = Color(0xFF0057C8);
+  static const primaryPressed = Color(0xFF0049AA);
+  static const inkStrong = Color(0xFF102033);
+  static const ink = Color(0xFF172033);
+  static const muted = Color(0xFF536477);
+  static const mutedSoft = Color(0xFF68788C);
+  static const border = Color(0xFFD7E0EA);
+  static const borderSubtle = Color(0xFFE5EBF2);
+  static const success = Color(0xFF047857);
+  static const warning = Color(0xFFB45309);
+  static const danger = Color(0xFFC23B54);
+  static const info = primary;
+  static const darkIcon = ink;
+}
+
+class TrasiaRadii {
+  static const small = 8.0;
+  static const control = 12.0;
+  static const card = 16.0;
+  static const pill = 999.0;
+}
+
+class TrasiaSpacing {
+  static const xxs = 4.0;
+  static const xs = 8.0;
+  static const sm = 12.0;
+  static const md = 16.0;
+  static const lg = 24.0;
+  static const xl = 32.0;
+}
+
+class TrasiaMotion {
+  static const quick = Duration(milliseconds: 160);
+  static const standard = Duration(milliseconds: 200);
+
+  static Duration responsive(BuildContext context, Duration duration) {
+    return MediaQuery.disableAnimationsOf(context) ? Duration.zero : duration;
+  }
+}
+
+class TrasiaTheme {
+  static ThemeData get light {
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: TrasiaColors.primary,
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: TrasiaColors.primary,
+          onPrimary: Colors.white,
+          surface: TrasiaColors.surface,
+          onSurface: TrasiaColors.ink,
+          error: TrasiaColors.danger,
+          outline: TrasiaColors.border,
+          outlineVariant: TrasiaColors.borderSubtle,
+        );
+    final base = ThemeData(
+      brightness: Brightness.light,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: TrasiaColors.background,
+      useMaterial3: true,
+      fontFamily: 'Roboto',
+      visualDensity: VisualDensity.standard,
+    );
+    final textTheme = base.textTheme.copyWith(
+      headlineLarge: const TextStyle(
+        fontSize: 28,
+        height: 1.15,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
+        color: TrasiaColors.inkStrong,
+      ),
+      headlineMedium: const TextStyle(
+        fontSize: 24,
+        height: 1.2,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.35,
+        color: TrasiaColors.inkStrong,
+      ),
+      headlineSmall: const TextStyle(
+        fontSize: 20,
+        height: 1.25,
+        fontWeight: FontWeight.w700,
+        color: TrasiaColors.inkStrong,
+      ),
+      titleLarge: const TextStyle(
+        fontSize: 20,
+        height: 1.25,
+        fontWeight: FontWeight.w700,
+        color: TrasiaColors.inkStrong,
+      ),
+      titleMedium: const TextStyle(
+        fontSize: 16,
+        height: 1.35,
+        fontWeight: FontWeight.w700,
+        color: TrasiaColors.ink,
+      ),
+      bodyLarge: const TextStyle(
+        fontSize: 16,
+        height: 1.5,
+        fontWeight: FontWeight.w400,
+        color: TrasiaColors.ink,
+      ),
+      bodyMedium: const TextStyle(
+        fontSize: 14,
+        height: 1.45,
+        fontWeight: FontWeight.w400,
+        color: TrasiaColors.ink,
+      ),
+      bodySmall: const TextStyle(
+        fontSize: 12,
+        height: 1.4,
+        fontWeight: FontWeight.w500,
+        color: TrasiaColors.muted,
+      ),
+      labelLarge: const TextStyle(
+        fontSize: 14,
+        height: 1.2,
+        fontWeight: FontWeight.w700,
+        color: TrasiaColors.ink,
+      ),
+      labelMedium: const TextStyle(
+        fontSize: 12,
+        height: 1.2,
+        fontWeight: FontWeight.w600,
+        color: TrasiaColors.muted,
+      ),
+    );
+    final controlShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(TrasiaRadii.control),
+    );
+    OutlineInputBorder inputBorder(Color color, {double width = 1}) {
+      return OutlineInputBorder(
+        borderRadius: BorderRadius.circular(TrasiaRadii.control),
+        borderSide: BorderSide(color: color, width: width),
+      );
+    }
+
+    return base.copyWith(
+      textTheme: textTheme,
+      primaryTextTheme: textTheme,
+      snackBarTheme: _trasiaSnackBarTheme,
+      dividerColor: TrasiaColors.borderSubtle,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: TrasiaColors.background,
+        foregroundColor: TrasiaColors.inkStrong,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: TextStyle(
+          fontFamily: 'Roboto',
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: TrasiaColors.inkStrong,
+        ),
+        iconTheme: IconThemeData(color: TrasiaColors.ink),
+      ),
+      cardTheme: CardThemeData(
+        color: TrasiaColors.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(TrasiaRadii.card),
+          side: const BorderSide(color: TrasiaColors.borderSubtle),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: TrasiaColors.surfaceSubtle,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        labelStyle: const TextStyle(color: TrasiaColors.muted),
+        hintStyle: const TextStyle(color: TrasiaColors.muted),
+        border: inputBorder(TrasiaColors.border),
+        enabledBorder: inputBorder(TrasiaColors.border),
+        focusedBorder: inputBorder(TrasiaColors.primary, width: 2),
+        errorBorder: inputBorder(TrasiaColors.danger),
+        focusedErrorBorder: inputBorder(TrasiaColors.danger, width: 2),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          backgroundColor: TrasiaColors.primary,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: TrasiaColors.border,
+          disabledForegroundColor: TrasiaColors.muted,
+          shape: controlShape,
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          foregroundColor: TrasiaColors.primary,
+          side: const BorderSide(color: TrasiaColors.primary),
+          shape: controlShape,
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          foregroundColor: TrasiaColors.primary,
+          shape: controlShape,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(48),
+          foregroundColor: TrasiaColors.ink,
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: TrasiaColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(TrasiaRadii.card),
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: TrasiaColors.surface,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(TrasiaRadii.card),
+          ),
+        ),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: TrasiaColors.primary,
+        linearTrackColor: TrasiaColors.surfaceSelected,
+      ),
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: TrasiaColors.primary,
+        selectionColor: Color(0x44306FC4),
+        selectionHandleColor: TrasiaColors.primary,
+      ),
+    );
+  }
 }
 
 SnackBarThemeData get _trasiaSnackBarTheme => SnackBarThemeData(
@@ -23,11 +268,11 @@ SnackBarThemeData get _trasiaSnackBarTheme => SnackBarThemeData(
   elevation: 10,
   insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
   shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(22),
-    side: const BorderSide(color: Color(0xFFE0E7F0)),
+    borderRadius: BorderRadius.circular(TrasiaRadii.card),
+    side: const BorderSide(color: TrasiaColors.border),
   ),
   contentTextStyle: const TextStyle(
-    color: Color(0xFF172033),
+    color: TrasiaColors.ink,
     fontWeight: FontWeight.w700,
     fontSize: 13,
   ),

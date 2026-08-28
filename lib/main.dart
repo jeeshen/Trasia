@@ -117,10 +117,11 @@ class _TrasiaBootstrapState extends State<TrasiaBootstrap> {
         if (snapshot.connectionState == ConnectionState.done) {
           return const TrasiaApp();
         }
-        return const MaterialApp(
+        return MaterialApp(
           debugShowCheckedModeBanner: false,
-          home: Scaffold(
-            backgroundColor: Color(0xFFF1F3F4),
+          theme: TrasiaTheme.light,
+          home: const Scaffold(
+            backgroundColor: TrasiaColors.background,
             body: Center(
               child: TrasiaLoadingCompass(
                 key: Key('app-loading-compass'),
@@ -146,8 +147,9 @@ class _InitializationErrorScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: TrasiaTheme.light,
       home: Scaffold(
-        backgroundColor: const Color(0xFFF7F9FC),
+        backgroundColor: TrasiaColors.background,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

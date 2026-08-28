@@ -289,6 +289,16 @@ class _HubPoolScreenState extends State<HubPoolScreen>
       );
       return;
     }
+    if (TrasiaData.drivers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No drivers are available right now. Please try again later.',
+          ),
+        ),
+      );
+      return;
+    }
     _timer?.cancel();
     _stopRideLocationUpdates();
     _carController.reset();
@@ -320,6 +330,16 @@ class _HubPoolScreenState extends State<HubPoolScreen>
 
   Future<void> _confirmDriverMatch() async {
     if (!mounted || _stage != RideStage.matching) {
+      return;
+    }
+    if (TrasiaData.drivers.isEmpty) {
+      _timer?.cancel();
+      setState(() {
+        _stage = RideStage.idle;
+        _seconds = 0;
+        _destinationStatusMessage =
+            'No drivers are available right now. Please try again later.';
+      });
       return;
     }
     final index = DateTime.now().millisecond % TrasiaData.drivers.length;
@@ -1278,7 +1298,7 @@ class _HubPoolOverlay extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
         boxShadow: const [
           BoxShadow(
             color: Color(0x2D001844),
@@ -1313,7 +1333,7 @@ class _HubPoolOverlay extends StatelessWidget {
                       Text(
                         title,
                         style: const TextStyle(
-                          color: Color(0xFF172033),
+                          color: TrasiaColors.ink,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -1331,7 +1351,7 @@ class _HubPoolOverlay extends StatelessWidget {
                 Text(
                   wallet.toStringAsFixed(2),
                   style: const TextStyle(
-                    color: Color(0xFF172033),
+                    color: TrasiaColors.ink,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -1345,7 +1365,7 @@ class _HubPoolOverlay extends StatelessWidget {
               controller: controller,
               onChanged: (_) => onTextChanged(),
               onSubmitted: (_) => onSearch(),
-              style: const TextStyle(color: Color(0xFF172033)),
+              style: const TextStyle(color: TrasiaColors.ink),
               decoration: InputDecoration(
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
@@ -1353,7 +1373,7 @@ class _HubPoolOverlay extends StatelessWidget {
                   vertical: 9,
                 ),
                 hintText: 'Search destination',
-                hintStyle: const TextStyle(color: Color(0xFF98A2B3)),
+                hintStyle: const TextStyle(color: TrasiaColors.mutedSoft),
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: searchingDestination
                     ? const Padding(
@@ -1416,10 +1436,7 @@ class _HubPoolOverlay extends StatelessWidget {
                 child: FilledButton.icon(
                   key: const Key('book-ride'),
                   onPressed: onBook,
-                  style: FilledButton.styleFrom(
-                    foregroundColor: Colors.black,
-                    disabledForegroundColor: Colors.black,
-                  ),
+                  style: FilledButton.styleFrom(foregroundColor: Colors.white),
                   icon: const Icon(Icons.local_taxi_rounded),
                   label: const Text('Book Ride'),
                 ),
@@ -1488,7 +1505,7 @@ class _HubDestinationTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFE8F2FF) : const Color(0xFFF7F9FC),
+          color: selected ? const Color(0xFFE8F2FF) : TrasiaColors.background,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: selected ? TrasiaColors.primary : Colors.transparent,
@@ -1507,7 +1524,7 @@ class _HubDestinationTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Color(0xFF172033),
+                      color: TrasiaColors.ink,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1530,7 +1547,7 @@ class _HubDestinationTile extends StatelessWidget {
                 Text(
                   'RM ${fare.toStringAsFixed(2)}',
                   style: const TextStyle(
-                    color: Color(0xFF172033),
+                    color: TrasiaColors.ink,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),

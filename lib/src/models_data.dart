@@ -6,11 +6,7 @@ class TrasiaData {
   static List<DestinationCandidate> localSuggestions = [];
   static Future<void> load() async {
     final client = Supabase.instance.client;
-    final responses = await Future.wait<dynamic>([
-      client.from('drivers').select(),
-      client.from('local_suggestions').select(),
-      client.from('attractions').select(),
-    ]);
+    final responses = await _loadResponses(client);
     final driversData = responses[0] as List<dynamic>;
     drivers = driversData
         .map(
@@ -54,6 +50,30 @@ class TrasiaData {
           ),
         )
         .toList();
+  }
+
+  static Future<List<dynamic>> _loadResponses(SupabaseClient client) async {
+    Future<List<dynamic>> request() {
+      return Future.wait<dynamic>([
+        client.from('drivers').select(),
+        client.from('local_suggestions').select(),
+        client.from('attractions').select(),
+      ]);
+    }
+
+    try {
+      return await request();
+    } on PostgrestException catch (error) {
+      // Supabase v2 restores a persisted session before its background
+      // refresh completes. Recover once if PostgREST rejects that token as
+      // being issued in the future, then let the caller handle a real auth
+      // or network failure.
+      if (error.code != 'PGRST303' || client.auth.currentSession == null) {
+        rethrow;
+      }
+      await client.auth.refreshSession();
+      return request();
+    }
   }
 }
 
@@ -1277,7 +1297,7 @@ const governmentDataSources = [
     projectUse:
         'Used as a research reference for Malaysian transport context. Live route choices and geometry are requested from Google Maps.',
     icon: Icons.dataset_rounded,
-    color: Color(0xFF0B7CFF),
+    color: TrasiaColors.primary,
   ),
   GovernmentDataSource(
     name: 'OpenDOSM NextGen',

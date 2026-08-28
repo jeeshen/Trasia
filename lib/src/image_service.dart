@@ -62,7 +62,7 @@ class _AppImage extends StatelessWidget {
         const ColoredBox(
           color: Color(0xFFEAF0F7),
           child: Center(
-            child: Icon(Icons.image_outlined, color: Color(0xFF8A98AA)),
+            child: Icon(Icons.image_outlined, color: TrasiaColors.mutedSoft),
           ),
         );
     if (url.isEmpty) {

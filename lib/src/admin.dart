@@ -2,6 +2,150 @@ part of '../main.dart';
 
 enum _AdminView { dashboard, drivers, vouchers, users, analytics, settings }
 
+class _AdminPageFrame extends StatelessWidget {
+  const _AdminPageFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final horizontal = constraints.maxWidth < 380 ? 16.0 : 24.0;
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: 24),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AdminSearchActions extends StatelessWidget {
+  const _AdminSearchActions({
+    required this.hintText,
+    required this.onChanged,
+    this.onAdd,
+  });
+
+  final String hintText;
+  final ValueChanged<String> onChanged;
+  final VoidCallback? onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final searchField = SizedBox(
+      height: 48,
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: hintText,
+          prefixIcon: const Icon(Icons.search_rounded, size: 22),
+          fillColor: TrasiaColors.surface,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        onChanged: onChanged,
+      ),
+    );
+    final addButton = onAdd == null
+        ? null
+        : SizedBox(
+            height: 48,
+            child: FilledButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text('Add'),
+            ),
+          );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackActions = addButton != null && constraints.maxWidth < 430;
+        if (stackActions) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [searchField, const SizedBox(height: 12), addButton],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: searchField),
+            if (addButton != null) ...[const SizedBox(width: 12), addButton],
+          ],
+        );
+      },
+    );
+  }
+}
+
+enum _AdminRowAction { edit, delete }
+
+class _AdminRowActions extends StatelessWidget {
+  const _AdminRowActions({
+    required this.itemLabel,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final String itemLabel;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width < 380) {
+      return PopupMenuButton<_AdminRowAction>(
+        tooltip: '$itemLabel actions',
+        icon: const Icon(Icons.more_vert_rounded),
+        onSelected: (action) {
+          switch (action) {
+            case _AdminRowAction.edit:
+              onEdit();
+              break;
+            case _AdminRowAction.delete:
+              onDelete();
+              break;
+          }
+        },
+        itemBuilder: (context) => const [
+          PopupMenuItem(
+            value: _AdminRowAction.edit,
+            child: ListTile(
+              leading: Icon(Icons.edit_rounded),
+              title: Text('Edit'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          PopupMenuItem(
+            value: _AdminRowAction.delete,
+            child: ListTile(
+              leading: Icon(Icons.delete_rounded, color: TrasiaColors.danger),
+              title: Text('Delete'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Edit $itemLabel',
+          icon: const Icon(Icons.edit_rounded, color: TrasiaColors.muted),
+          onPressed: onEdit,
+        ),
+        IconButton(
+          tooltip: 'Delete $itemLabel',
+          icon: const Icon(Icons.delete_rounded, color: TrasiaColors.danger),
+          onPressed: onDelete,
+        ),
+      ],
+    );
+  }
+}
+
 class AdminPanel extends StatefulWidget {
   const AdminPanel({required this.profile, required this.onLogout, super.key});
   final AuthProfile profile;
@@ -36,30 +180,10 @@ class _AdminPanelState extends State<AdminPanel> {
         onProfileRefresh: _refreshProfile,
         onLogout: () => widget.onLogout(context),
       ),
-      const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: _AdminDriversView(),
-        ),
-      ),
-      const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: _AdminVouchersView(),
-        ),
-      ),
-      const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: _AdminUsersView(),
-        ),
-      ),
-      const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: _AdminAnalyticsView(),
-        ),
-      ),
+      const _AdminPageFrame(child: _AdminDriversView()),
+      const _AdminPageFrame(child: _AdminVouchersView()),
+      const _AdminPageFrame(child: _AdminUsersView()),
+      const _AdminPageFrame(child: _AdminAnalyticsView()),
       _AdminSettingsView(
         profile: _currentProfile,
         onProfileRefresh: _refreshProfile,
@@ -67,16 +191,7 @@ class _AdminPanelState extends State<AdminPanel> {
       ),
     ];
     return Theme(
-      data: ThemeData(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: TrasiaColors.primary,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF7F9FC),
-        useMaterial3: true,
-        snackBarTheme: _trasiaSnackBarTheme,
-      ),
+      data: TrasiaTheme.light,
       child: Scaffold(
         extendBody: true,
         body: Stack(
@@ -195,7 +310,10 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF0057C8)),
+        child: TrasiaLoadingCompass(
+          size: 56,
+          semanticLabel: 'Loading admin dashboard',
+        ),
       );
     }
     final statCards = [
@@ -231,7 +349,7 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
         labelText: _adminsCount == 1 ? 'Admin' : 'Admins',
         change: null,
         icon: Icons.admin_panel_settings_rounded,
-        color: const Color(0xFFEF4444),
+        color: TrasiaColors.danger,
       ),
     ];
     final actionCards = [
@@ -260,8 +378,14 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
         onTap: () => widget.onNavigate(_AdminView.analytics),
       ),
     ];
+    final horizontal = MediaQuery.sizeOf(context).width < 380 ? 16.0 : 24.0;
     return ListView(
-      padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 120),
+      padding: EdgeInsets.only(
+        left: horizontal,
+        right: horizontal,
+        top: 24,
+        bottom: 120,
+      ),
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 24),
@@ -271,8 +395,8 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0057C8),
-                  borderRadius: BorderRadius.circular(14),
+                  color: TrasiaColors.primary,
+                  borderRadius: BorderRadius.circular(TrasiaRadii.control),
                 ),
                 alignment: Alignment.center,
                 child: const Text(
@@ -294,7 +418,7 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1F2937),
+                        color: TrasiaColors.ink,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -305,34 +429,28 @@ class _AdminDashboardViewState extends State<_AdminDashboardView> {
           ),
         ),
         const SizedBox(height: 24),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: statCards[0]),
-              const SizedBox(width: 24),
-              Expanded(child: statCards[1]),
-            ],
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final cardWidth = constraints.maxWidth < 440
+                ? constraints.maxWidth
+                : (constraints.maxWidth - 16) / 2;
+            return Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                for (final card in statCards)
+                  SizedBox(width: cardWidth, child: card),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: 24),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: statCards[2]),
-              const SizedBox(width: 24),
-              Expanded(child: statCards[3]),
-            ],
-          ),
-        ),
-        const SizedBox(height: 48),
+        const SizedBox(height: 32),
         const Text(
           'Quick Actions',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF1F2937),
+            color: TrasiaColors.ink,
           ),
         ),
         const SizedBox(height: 16),
@@ -364,18 +482,11 @@ class _SaasStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: TrasiaColors.surface,
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
+        border: Border.all(color: TrasiaColors.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,7 +510,7 @@ class _SaasStatCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF1F2937),
+                    color: TrasiaColors.ink,
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -408,7 +519,7 @@ class _SaasStatCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF4B5563),
+                    color: TrasiaColors.muted,
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -453,44 +564,35 @@ class _SaasActionCardState extends State<_SaasActionCard> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        transform: Matrix4.translationValues(0, _isHovered ? -4 : 0, 0),
+        duration: TrasiaMotion.responsive(context, TrasiaMotion.standard),
+        transform: Matrix4.translationValues(0, _isHovered ? -2 : 0, 0),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          color: TrasiaColors.surface,
+          borderRadius: BorderRadius.circular(TrasiaRadii.card),
           border: Border.all(
             color: _isHovered
-                ? const Color(0xFF0057C8).withValues(alpha: .3)
-                : const Color(0xFFE5E7EB),
+                ? TrasiaColors.primary
+                : TrasiaColors.borderSubtle,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: _isHovered
-                  ? const Color(0xFF0057C8).withValues(alpha: .1)
-                  : Colors.black.withValues(alpha: .03),
-              blurRadius: _isHovered ? 16 : 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(TrasiaRadii.card),
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(widget.icon, size: 32, color: const Color(0xFF0057C8)),
+                  Icon(widget.icon, size: 28, color: TrasiaColors.primary),
                   const SizedBox(height: 20),
                   Text(
                     widget.title,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF1F2937),
+                      color: TrasiaColors.ink,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -498,7 +600,7 @@ class _SaasActionCardState extends State<_SaasActionCard> {
                     widget.description,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF6B7280),
+                      color: TrasiaColors.muted,
                       height: 1.4,
                     ),
                   ),
@@ -507,11 +609,14 @@ class _SaasActionCardState extends State<_SaasActionCard> {
                     children: [
                       const Spacer(),
                       AnimatedPadding(
-                        duration: const Duration(milliseconds: 200),
+                        duration: TrasiaMotion.responsive(
+                          context,
+                          TrasiaMotion.standard,
+                        ),
                         padding: EdgeInsets.only(right: _isHovered ? 0.0 : 4.0),
                         child: const Icon(
                           Icons.chevron_right_rounded,
-                          color: Color(0xFF0057C8),
+                          color: TrasiaColors.primary,
                           size: 24,
                         ),
                       ),
@@ -555,7 +660,7 @@ class _DriverFormDialogState extends State<_DriverFormDialog>
     vehicleCtrl = TextEditingController(text: widget.driver?['vehicle']);
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: TrasiaMotion.standard,
     );
     _scaleAnimation = CurvedAnimation(
       parent: _animController,
@@ -645,34 +750,37 @@ class _DriverFormDialogState extends State<_DriverFormDialog>
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF1A1A1A),
+            color: TrasiaColors.ink,
           ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
-          style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 16),
+          style: const TextStyle(color: TrasiaColors.ink, fontSize: 16),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Color(0xFF6B7280), fontSize: 16),
-            prefixIcon: Icon(icon, color: const Color(0xFF6B7280), size: 22),
+            hintStyle: const TextStyle(color: TrasiaColors.muted, fontSize: 16),
+            prefixIcon: Icon(icon, color: TrasiaColors.muted, size: 22),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
+              borderSide: const BorderSide(color: TrasiaColors.borderSubtle),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
+              borderSide: const BorderSide(color: TrasiaColors.borderSubtle),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFF0057C8), width: 2),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
+              borderSide: const BorderSide(
+                color: TrasiaColors.primary,
+                width: 2,
+              ),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
               borderSide: BorderSide(
                 color: Theme.of(context).colorScheme.error,
               ),
@@ -695,22 +803,19 @@ class _DriverFormDialogState extends State<_DriverFormDialog>
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: ScaleTransition(
-        scale: _scaleAnimation,
+        scale: MediaQuery.disableAnimationsOf(context)
+            ? const AlwaysStoppedAnimation<double>(1)
+            : _scaleAnimation,
         child: Container(
-          width: 440,
+          width: double.infinity,
           decoration: BoxDecoration(
-            color: const Color(0xFFF7F9FC),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .12),
-                blurRadius: 32,
-                offset: const Offset(0, 12),
-              ),
-            ],
+            color: TrasiaColors.background,
+            borderRadius: BorderRadius.circular(TrasiaRadii.card),
           ),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32),
+            padding: EdgeInsets.all(
+              MediaQuery.sizeOf(context).width < 380 ? 20 : 28,
+            ),
             child: Form(
               key: formKey,
               child: Column(
@@ -722,7 +827,7 @@ class _DriverFormDialogState extends State<_DriverFormDialog>
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A1A1A),
+                      color: TrasiaColors.ink,
                       letterSpacing: -0.5,
                     ),
                   ),
@@ -733,7 +838,7 @@ class _DriverFormDialogState extends State<_DriverFormDialog>
                         : 'Create a new driver profile.',
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF6B7280),
+                      color: TrasiaColors.muted,
                       height: 1.4,
                     ),
                   ),
@@ -768,10 +873,14 @@ class _DriverFormDialogState extends State<_DriverFormDialog>
                                 ? null
                                 : () => Navigator.of(context).pop(false),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF1A1A1A),
-                              side: const BorderSide(color: Color(0xFFE5E7EB)),
+                              foregroundColor: TrasiaColors.ink,
+                              side: const BorderSide(
+                                color: TrasiaColors.borderSubtle,
+                              ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(
+                                  TrasiaRadii.control,
+                                ),
                               ),
                             ),
                             child: const Text(
@@ -791,10 +900,12 @@ class _DriverFormDialogState extends State<_DriverFormDialog>
                           child: FilledButton(
                             onPressed: saving ? null : _save,
                             style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF0057C8),
+                              backgroundColor: TrasiaColors.primary,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(
+                                  TrasiaRadii.control,
+                                ),
                               ),
                               elevation: 0,
                             ),
@@ -932,92 +1043,41 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
         const Text(
           'Drivers',
           style: TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF102033),
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: TrasiaColors.inkStrong,
             letterSpacing: -0.5,
           ),
         ),
         const SizedBox(height: 6),
         const Text(
           'Manage all registered drivers.',
-          style: TextStyle(fontSize: 15, color: Color(0xFF68788C)),
+          style: TextStyle(fontSize: 15, color: TrasiaColors.mutedSoft),
         ),
         const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(99),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search drivers by name or vehicle...',
-                    hintStyle: const TextStyle(
-                      color: Color(0xFF9CA3AF),
-                      fontSize: 15,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: Color(0xFF9CA3AF),
-                      size: 22,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 14,
-                    ),
-                  ),
-                  style: const TextStyle(color: Color(0xFF1F2937)),
-                  onChanged: (val) {
-                    setState(() => _searchQuery = val);
-                    _searchDebounce?.cancel();
-                    _searchDebounce = Timer(
-                      const Duration(milliseconds: 350),
-                      _fetchDrivers,
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
-              height: 48,
-              child: FilledButton.icon(
-                onPressed: () => _showDriverForm(),
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text(
-                  'Add',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF0057C8),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                ),
-              ),
-            ),
-          ],
+        _AdminSearchActions(
+          hintText: 'Search drivers by name or vehicle',
+          onAdd: () => _showDriverForm(),
+          onChanged: (value) {
+            setState(() => _searchQuery = value);
+            _searchDebounce?.cancel();
+            _searchDebounce = Timer(
+              const Duration(milliseconds: 350),
+              _fetchDrivers,
+            );
+          },
         ),
         const SizedBox(height: 24),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _fetchDrivers,
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: TrasiaLoadingCompass(
+                      size: 52,
+                      semanticLabel: 'Loading drivers',
+                    ),
+                  )
                 : filtered.isEmpty
                 ? ListView(
                     children: const [
@@ -1026,7 +1086,7 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
                           padding: EdgeInsets.all(32.0),
                           child: Text(
                             'No drivers found.',
-                            style: TextStyle(color: Color(0xFF6B7280)),
+                            style: TextStyle(color: TrasiaColors.muted),
                           ),
                         ),
                       ),
@@ -1041,15 +1101,9 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: .03),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                          color: TrasiaColors.surface,
+                          borderRadius: BorderRadius.circular(TrasiaRadii.card),
+                          border: Border.all(color: TrasiaColors.borderSubtle),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
@@ -1058,12 +1112,12 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF7F9FC),
+                                color: TrasiaColors.background,
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
                                 Icons.local_taxi_rounded,
-                                color: Color(0xFF0057C8),
+                                color: TrasiaColors.primary,
                                 size: 24,
                               ),
                             ),
@@ -1075,7 +1129,7 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
                                   Text(
                                     d['name'] ?? 'Unknown',
                                     style: const TextStyle(
-                                      color: Color(0xFF1F2937),
+                                      color: TrasiaColors.ink,
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -1084,7 +1138,7 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
                                   Text(
                                     d['vehicle'] ?? 'Unknown',
                                     style: const TextStyle(
-                                      color: Color(0xFF6B7280),
+                                      color: TrasiaColors.muted,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -1092,19 +1146,10 @@ class _AdminDriversViewState extends State<_AdminDriversView> {
                               ),
                             ),
                             const SizedBox(width: 16),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.edit_rounded,
-                                color: Color(0xFF9CA3AF),
-                              ),
-                              onPressed: () => _showDriverForm(d),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_rounded,
-                                color: Color(0xFFF43F5E),
-                              ),
-                              onPressed: () => _deleteDriver(d['id']),
+                            _AdminRowActions(
+                              itemLabel: 'driver',
+                              onEdit: () => _showDriverForm(d),
+                              onDelete: () => _deleteDriver(d['id']),
                             ),
                           ],
                         ),
@@ -1245,7 +1290,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(TrasiaRadii.control),
               ),
               title: const Text(
                 'Edit User Role',
@@ -1259,7 +1304,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                     const Text(
                       'Username',
                       style: TextStyle(
-                        color: Color(0xFF68788C),
+                        color: TrasiaColors.mutedSoft,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1268,7 +1313,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                     Text(
                       user['username'] ?? 'Unknown',
                       style: const TextStyle(
-                        color: Color(0xFF102033),
+                        color: TrasiaColors.inkStrong,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1277,7 +1322,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                     const Text(
                       'Email Address',
                       style: TextStyle(
-                        color: Color(0xFF68788C),
+                        color: TrasiaColors.mutedSoft,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1286,7 +1331,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                     Text(
                       user['email'] ?? 'Unknown',
                       style: const TextStyle(
-                        color: Color(0xFF102033),
+                        color: TrasiaColors.inkStrong,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1295,7 +1340,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                     const Text(
                       'Account Role',
                       style: TextStyle(
-                        color: Color(0xFF68788C),
+                        color: TrasiaColors.mutedSoft,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1312,11 +1357,13 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                       },
                       style: SegmentedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        selectedBackgroundColor: const Color(0xFFF2F6FB),
+                        selectedBackgroundColor: TrasiaColors.surfaceSubtle,
                         selectedForegroundColor: TrasiaColors.primary,
                         side: const BorderSide(color: Color(0xFFE1EAF5)),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(
+                            TrasiaRadii.control,
+                          ),
                         ),
                       ),
                     ),
@@ -1327,7 +1374,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                 TextButton(
                   onPressed: saving ? null : () => Navigator.of(context).pop(),
                   style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF68788C),
+                    foregroundColor: TrasiaColors.mutedSoft,
                   ),
                   child: const Text('Cancel'),
                 ),
@@ -1384,7 +1431,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                     backgroundColor: TrasiaColors.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(99),
+                      borderRadius: BorderRadius.circular(TrasiaRadii.control),
                     ),
                   ),
                   child: saving
@@ -1418,72 +1465,40 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
         const Text(
           'Users',
           style: TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF102033),
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: TrasiaColors.inkStrong,
             letterSpacing: -0.5,
           ),
         ),
         const SizedBox(height: 6),
         const Text(
           'Manage registered users and admins.',
-          style: TextStyle(fontSize: 15, color: Color(0xFF68788C)),
+          style: TextStyle(fontSize: 15, color: TrasiaColors.mutedSoft),
         ),
         const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(99),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search users by username or email...',
-                    hintStyle: const TextStyle(
-                      color: Color(0xFF9CA3AF),
-                      fontSize: 15,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: Color(0xFF9CA3AF),
-                      size: 22,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 14,
-                    ),
-                  ),
-                  style: const TextStyle(color: Color(0xFF1F2937)),
-                  onChanged: (val) {
-                    setState(() => _searchQuery = val);
-                    _searchDebounce?.cancel();
-                    _searchDebounce = Timer(
-                      const Duration(milliseconds: 350),
-                      () => _fetchUsers(refresh: true),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
+        _AdminSearchActions(
+          hintText: 'Search users by username or email',
+          onChanged: (value) {
+            setState(() => _searchQuery = value);
+            _searchDebounce?.cancel();
+            _searchDebounce = Timer(
+              const Duration(milliseconds: 350),
+              () => _fetchUsers(refresh: true),
+            );
+          },
         ),
         const SizedBox(height: 24),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => _fetchUsers(refresh: true),
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: TrasiaLoadingCompass(
+                      size: 52,
+                      semanticLabel: 'Loading users',
+                    ),
+                  )
                 : filtered.isEmpty
                 ? ListView(
                     children: const [
@@ -1492,7 +1507,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                           padding: EdgeInsets.all(32.0),
                           child: Text(
                             'No users found.',
-                            style: TextStyle(color: Color(0xFF6B7280)),
+                            style: TextStyle(color: TrasiaColors.muted),
                           ),
                         ),
                       ),
@@ -1520,15 +1535,9 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: .03),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                          color: TrasiaColors.surface,
+                          borderRadius: BorderRadius.circular(TrasiaRadii.card),
+                          border: Border.all(color: TrasiaColors.borderSubtle),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
@@ -1537,14 +1546,14 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF7F9FC),
+                                color: TrasiaColors.background,
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 isAdmin
                                     ? Icons.admin_panel_settings_rounded
                                     : Icons.person_rounded,
-                                color: const Color(0xFF0057C8),
+                                color: TrasiaColors.primary,
                                 size: 24,
                               ),
                             ),
@@ -1564,7 +1573,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                                               ? p['username']
                                               : 'No Username'),
                                     style: const TextStyle(
-                                      color: Color(0xFF1F2937),
+                                      color: TrasiaColors.ink,
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -1573,7 +1582,7 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                                   Text(
                                     p['email'] ?? 'Unknown',
                                     style: const TextStyle(
-                                      color: Color(0xFF6B7280),
+                                      color: TrasiaColors.muted,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -1581,19 +1590,10 @@ class _AdminUsersViewState extends State<_AdminUsersView> {
                               ),
                             ),
                             const SizedBox(width: 16),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.edit_rounded,
-                                color: Color(0xFF9CA3AF),
-                              ),
-                              onPressed: () => _showUserForm(p),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_rounded,
-                                color: Color(0xFFF43F5E),
-                              ),
-                              onPressed: () => _deleteUser(p['id']),
+                            _AdminRowActions(
+                              itemLabel: 'user',
+                              onEdit: () => _showUserForm(p),
+                              onDelete: () => _deleteUser(p['id']),
                             ),
                           ],
                         ),
@@ -1645,7 +1645,7 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
     _kind = widget.voucher?['kind'] ?? 'hubPool';
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: TrasiaMotion.standard,
     );
     _scaleAnimation = CurvedAnimation(
       parent: _animController,
@@ -1699,34 +1699,37 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF1A1A1A),
+            color: TrasiaColors.ink,
           ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
-          style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 16),
+          style: const TextStyle(color: TrasiaColors.ink, fontSize: 16),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Color(0xFF6B7280), fontSize: 16),
-            prefixIcon: Icon(icon, color: const Color(0xFF6B7280), size: 22),
+            hintStyle: const TextStyle(color: TrasiaColors.muted, fontSize: 16),
+            prefixIcon: Icon(icon, color: TrasiaColors.muted, size: 22),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
+              borderSide: const BorderSide(color: TrasiaColors.borderSubtle),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
+              borderSide: const BorderSide(color: TrasiaColors.borderSubtle),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFF0057C8), width: 2),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
+              borderSide: const BorderSide(
+                color: TrasiaColors.primary,
+                width: 2,
+              ),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
               borderSide: BorderSide(
                 color: Theme.of(context).colorScheme.error,
               ),
@@ -1745,7 +1748,7 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
   PopupMenuItem<String> _buildPopupMenuItem(
     String value,
     String title,
-    String emoji,
+    IconData icon,
   ) {
     final isSelected = _kind == value;
     return PopupMenuItem<String>(
@@ -1756,21 +1759,23 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF0057C8).withValues(alpha: .1)
+              ? TrasiaColors.primary.withValues(alpha: .1)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(TrasiaRadii.control),
         ),
         child: Row(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 18)),
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? TrasiaColors.primary : TrasiaColors.muted,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 title,
                 style: TextStyle(
-                  color: isSelected
-                      ? const Color(0xFF0057C8)
-                      : const Color(0xFF1A1A1A),
+                  color: isSelected ? TrasiaColors.primary : TrasiaColors.ink,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   fontSize: 16,
                 ),
@@ -1779,7 +1784,7 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
             if (isSelected)
               const Icon(
                 Icons.check_rounded,
-                color: Color(0xFF0057C8),
+                color: TrasiaColors.primary,
                 size: 20,
               ),
           ],
@@ -1797,14 +1802,14 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF1A1A1A),
+            color: TrasiaColors.ink,
           ),
         ),
         const SizedBox(height: 8),
         PopupMenuButton<String>(
           initialValue: _kind,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(TrasiaRadii.control),
           ),
           color: Colors.white,
           elevation: 8,
@@ -1815,37 +1820,49 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
             });
           },
           itemBuilder: (BuildContext context) => [
-            _buildPopupMenuItem('hubPool', 'HubPool', '🚖'),
-            _buildPopupMenuItem('kfc', 'KFC', '🍗'),
+            _buildPopupMenuItem(
+              'hubPool',
+              'Hub-Pool',
+              Icons.local_taxi_rounded,
+            ),
+            _buildPopupMenuItem('kfc', 'KFC', Icons.restaurant_rounded),
           ],
           child: Container(
             height: 56,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              borderRadius: BorderRadius.circular(TrasiaRadii.control),
+              border: Border.all(color: TrasiaColors.borderSubtle),
             ),
             child: Row(
               children: [
                 const Icon(
                   Icons.local_offer_outlined,
-                  color: Color(0xFF6B7280),
+                  color: TrasiaColors.muted,
                   size: 22,
                 ),
                 const SizedBox(width: 12),
+                Icon(
+                  _kind == 'hubPool'
+                      ? Icons.local_taxi_rounded
+                      : Icons.restaurant_rounded,
+                  size: 20,
+                  color: TrasiaColors.ink,
+                ),
+                const SizedBox(width: 8),
                 Text(
-                  _kind == 'hubPool' ? '🚖 HubPool' : '🍗 KFC',
+                  _kind == 'hubPool' ? 'Hub-Pool' : 'KFC',
                   style: const TextStyle(
                     fontSize: 16,
-                    color: Color(0xFF1A1A1A),
+                    color: TrasiaColors.ink,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const Spacer(),
                 const Icon(
                   Icons.keyboard_arrow_down_rounded,
-                  color: Color(0xFF6B7280),
+                  color: TrasiaColors.muted,
                 ),
               ],
             ),
@@ -1862,22 +1879,19 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: ScaleTransition(
-        scale: _scaleAnimation,
+        scale: MediaQuery.disableAnimationsOf(context)
+            ? const AlwaysStoppedAnimation<double>(1)
+            : _scaleAnimation,
         child: Container(
-          width: 440,
+          width: double.infinity,
           decoration: BoxDecoration(
-            color: const Color(0xFFF7F9FC),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .12),
-                blurRadius: 32,
-                offset: const Offset(0, 12),
-              ),
-            ],
+            color: TrasiaColors.background,
+            borderRadius: BorderRadius.circular(TrasiaRadii.card),
           ),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32),
+            padding: EdgeInsets.all(
+              MediaQuery.sizeOf(context).width < 380 ? 20 : 28,
+            ),
             child: Form(
               key: formKey,
               child: Column(
@@ -1889,7 +1903,7 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A1A1A),
+                      color: TrasiaColors.ink,
                       letterSpacing: -0.5,
                     ),
                   ),
@@ -1900,7 +1914,7 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
                         : 'Create a new reward voucher for users.',
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF6B7280),
+                      color: TrasiaColors.muted,
                       height: 1.4,
                     ),
                   ),
@@ -1961,10 +1975,14 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
                                 ? null
                                 : () => Navigator.of(context).pop(null),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF1A1A1A),
-                              side: const BorderSide(color: Color(0xFFE5E7EB)),
+                              foregroundColor: TrasiaColors.ink,
+                              side: const BorderSide(
+                                color: TrasiaColors.borderSubtle,
+                              ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(
+                                  TrasiaRadii.control,
+                                ),
                               ),
                             ),
                             child: const Text(
@@ -1984,10 +2002,12 @@ class _VoucherFormDialogState extends State<_VoucherFormDialog>
                           child: FilledButton(
                             onPressed: saving ? null : _save,
                             style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF0057C8),
+                              backgroundColor: TrasiaColors.primary,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(
+                                  TrasiaRadii.control,
+                                ),
                               ),
                               elevation: 0,
                             ),
@@ -2178,92 +2198,41 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
         const Text(
           'Vouchers',
           style: TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF102033),
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: TrasiaColors.inkStrong,
             letterSpacing: -0.5,
           ),
         ),
         const SizedBox(height: 6),
         const Text(
           'Create and manage reward vouchers.',
-          style: TextStyle(fontSize: 15, color: Color(0xFF68788C)),
+          style: TextStyle(fontSize: 15, color: TrasiaColors.mutedSoft),
         ),
         const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(99),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search vouchers by title...',
-                    hintStyle: const TextStyle(
-                      color: Color(0xFF9CA3AF),
-                      fontSize: 15,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: Color(0xFF9CA3AF),
-                      size: 22,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 14,
-                    ),
-                  ),
-                  style: const TextStyle(color: Color(0xFF1F2937)),
-                  onChanged: (val) {
-                    setState(() => _searchQuery = val);
-                    _searchDebounce?.cancel();
-                    _searchDebounce = Timer(
-                      const Duration(milliseconds: 350),
-                      _fetchVouchers,
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
-              height: 48,
-              child: FilledButton.icon(
-                onPressed: () => _showVoucherForm(),
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text(
-                  'Add',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF0057C8),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                ),
-              ),
-            ),
-          ],
+        _AdminSearchActions(
+          hintText: 'Search vouchers by title',
+          onAdd: () => _showVoucherForm(),
+          onChanged: (value) {
+            setState(() => _searchQuery = value);
+            _searchDebounce?.cancel();
+            _searchDebounce = Timer(
+              const Duration(milliseconds: 350),
+              _fetchVouchers,
+            );
+          },
         ),
         const SizedBox(height: 24),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _fetchVouchers,
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: TrasiaLoadingCompass(
+                      size: 52,
+                      semanticLabel: 'Loading vouchers',
+                    ),
+                  )
                 : filtered.isEmpty
                 ? ListView(
                     children: const [
@@ -2272,7 +2241,7 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
                           padding: EdgeInsets.all(32.0),
                           child: Text(
                             'No vouchers found.',
-                            style: TextStyle(color: Color(0xFF6B7280)),
+                            style: TextStyle(color: TrasiaColors.muted),
                           ),
                         ),
                       ),
@@ -2287,15 +2256,9 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: .03),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                          color: TrasiaColors.surface,
+                          borderRadius: BorderRadius.circular(TrasiaRadii.card),
+                          border: Border.all(color: TrasiaColors.borderSubtle),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
@@ -2304,7 +2267,7 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF7F9FC),
+                                color: TrasiaColors.background,
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -2321,7 +2284,7 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
                                   Text(
                                     v['title'] ?? 'Unknown',
                                     style: const TextStyle(
-                                      color: Color(0xFF1F2937),
+                                      color: TrasiaColors.ink,
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -2330,26 +2293,17 @@ class _AdminVouchersViewState extends State<_AdminVouchersView> {
                                   Text(
                                     '${v['point_cost']} Points • RM ${v['hub_pool_credit']}',
                                     style: const TextStyle(
-                                      color: Color(0xFF6B7280),
+                                      color: TrasiaColors.muted,
                                       fontSize: 14,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.edit_rounded,
-                                color: Color(0xFF9CA3AF),
-                              ),
-                              onPressed: () => _showVoucherForm(v),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_rounded,
-                                color: Color(0xFFF43F5E),
-                              ),
-                              onPressed: () => _deleteVoucher(v['id']),
+                            _AdminRowActions(
+                              itemLabel: 'voucher',
+                              onEdit: () => _showVoucherForm(v),
+                              onDelete: () => _deleteVoucher(v['id']),
                             ),
                           ],
                         ),
@@ -2376,16 +2330,9 @@ class _AdminSettingsView extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: TrasiaColors.surface,
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
+        border: Border.all(color: TrasiaColors.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2402,7 +2349,7 @@ class _AdminSettingsView extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1F2937),
+                color: TrasiaColors.ink,
               ),
             ),
           ),
@@ -2433,15 +2380,15 @@ class _AdminSettingsView extends StatelessWidget {
                 height: 40,
                 decoration: BoxDecoration(
                   color: isDestructive
-                      ? const Color(0xFFF43F5E).withValues(alpha: 0.1)
-                      : const Color(0xFFF7F9FC),
-                  borderRadius: BorderRadius.circular(12),
+                      ? TrasiaColors.danger.withValues(alpha: 0.1)
+                      : TrasiaColors.background,
+                  borderRadius: BorderRadius.circular(TrasiaRadii.control),
                 ),
                 child: Icon(
                   icon,
                   color: isDestructive
-                      ? const Color(0xFFF43F5E)
-                      : const Color(0xFF0057C8),
+                      ? TrasiaColors.danger
+                      : TrasiaColors.primary,
                   size: 20,
                 ),
               ),
@@ -2456,8 +2403,8 @@ class _AdminSettingsView extends StatelessWidget {
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: isDestructive
-                            ? const Color(0xFFF43F5E)
-                            : const Color(0xFF1F2937),
+                            ? TrasiaColors.danger
+                            : TrasiaColors.ink,
                       ),
                     ),
                     if (subtitle.isNotEmpty) ...[
@@ -2466,7 +2413,7 @@ class _AdminSettingsView extends StatelessWidget {
                         subtitle,
                         style: const TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF6B7280),
+                          color: TrasiaColors.muted,
                         ),
                       ),
                     ],
@@ -2476,7 +2423,7 @@ class _AdminSettingsView extends StatelessWidget {
               if (onTap != null && !isDestructive)
                 const Icon(
                   Icons.chevron_right_rounded,
-                  color: Color(0xFFD1D5DB),
+                  color: TrasiaColors.border,
                 ),
             ],
           ),
@@ -2488,105 +2435,116 @@ class _AdminSettingsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: 120),
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final horizontal = constraints.maxWidth < 380 ? 16.0 : 24.0;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(horizontal, 24, horizontal, 0),
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 120),
               children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Settings',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF102033),
-                        ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Settings',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              color: TrasiaColors.inkStrong,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Manage your admin account and system preferences.',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: TrasiaColors.mutedSoft,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 6),
-                      Text(
-                        'Manage your admin account and system preferences.',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF68788C),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 24),
+                _buildSettingsGroup('Profile', [
+                  _buildSettingsTile(
+                    Icons.person_outline_rounded,
+                    'Username',
+                    profile.username ?? 'Not set',
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => EditUsernamePage(
+                            currentUsername: profile.username,
+                          ),
+                        ),
+                      );
+                      onProfileRefresh();
+                    },
+                  ),
+                  const Divider(
+                    height: 1,
+                    color: TrasiaColors.borderSubtle,
+                    indent: 80,
+                    endIndent: 24,
+                  ),
+                  _buildSettingsTile(
+                    Icons.email_outlined,
+                    'Email Address',
+                    Supabase.instance.client.auth.currentUser?.email ??
+                        'Unknown',
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => EditEmailPage(
+                            currentEmail: Supabase
+                                .instance
+                                .client
+                                .auth
+                                .currentUser
+                                ?.email,
+                          ),
+                        ),
+                      );
+                      onProfileRefresh();
+                    },
+                  ),
+                ]),
+                _buildSettingsGroup('Security', [
+                  _buildSettingsTile(
+                    Icons.lock_outline_rounded,
+                    'Password',
+                    'Change your password',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => const EditPasswordPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ]),
+                _buildSettingsGroup('Account', [
+                  _buildSettingsTile(
+                    Icons.logout_rounded,
+                    'Log out',
+                    'Sign out of admin panel',
+                    onTap: onLogout,
+                    isDestructive: true,
+                  ),
+                ]),
               ],
             ),
-            const SizedBox(height: 24),
-            _buildSettingsGroup('Profile', [
-              _buildSettingsTile(
-                Icons.person_outline_rounded,
-                'Username',
-                profile.username ?? 'Not set',
-                onTap: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) =>
-                          EditUsernamePage(currentUsername: profile.username),
-                    ),
-                  );
-                  onProfileRefresh();
-                },
-              ),
-              const Divider(
-                height: 1,
-                color: Color(0xFFF3F4F6),
-                indent: 80,
-                endIndent: 24,
-              ),
-              _buildSettingsTile(
-                Icons.email_outlined,
-                'Email Address',
-                Supabase.instance.client.auth.currentUser?.email ?? 'Unknown',
-                onTap: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => EditEmailPage(
-                        currentEmail:
-                            Supabase.instance.client.auth.currentUser?.email,
-                      ),
-                    ),
-                  );
-                  onProfileRefresh();
-                },
-              ),
-            ]),
-            _buildSettingsGroup('Security', [
-              _buildSettingsTile(
-                Icons.lock_outline_rounded,
-                'Password',
-                'Change your password',
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => const EditPasswordPage(),
-                    ),
-                  );
-                },
-              ),
-            ]),
-            _buildSettingsGroup('Account', [
-              _buildSettingsTile(
-                Icons.logout_rounded,
-                'Log Out',
-                'Sign out of admin panel',
-                onTap: onLogout,
-                isDestructive: true,
-              ),
-            ]),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

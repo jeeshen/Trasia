@@ -134,7 +134,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
             Text(
               'RM ${widget.wallet.toStringAsFixed(2)}',
               style: const TextStyle(
-                color: Color(0xFF102033),
+                color: TrasiaColors.inkStrong,
                 fontSize: 34,
                 fontWeight: FontWeight.w900,
               ),
@@ -270,7 +270,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
           'local laws. Route times, fares, and availability are estimates and may '
           'change based on live service conditions.',
           style: TextStyle(
-            color: Color(0xFF536477),
+            color: TrasiaColors.muted,
             fontSize: 15,
             height: 1.55,
           ),
@@ -281,19 +281,10 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const ink = Color(0xFF102033);
-    const muted = Color(0xFF68788C);
+    const ink = TrasiaColors.inkStrong;
+    const muted = TrasiaColors.mutedSoft;
     return Theme(
-      data: ThemeData(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: TrasiaColors.primary,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        useMaterial3: true,
-        snackBarTheme: _trasiaSnackBarTheme,
-      ),
+      data: TrasiaTheme.light.copyWith(scaffoldBackgroundColor: Colors.white),
       child: ColoredBox(
         color: Colors.white,
         child: ListView(
@@ -486,7 +477,7 @@ class _AccountConsoleScreenState extends State<AccountConsoleScreen> {
             ),
             _ProfileSettingRow(
               icon: Icons.logout_rounded,
-              title: 'Logout',
+              title: 'Log out',
               destructive: true,
               showDivider: false,
               onTap: widget.onLogout,
@@ -534,7 +525,7 @@ class _RevisitConfirmDialog extends StatelessWidget {
                   'Go again?',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF102033),
+                    color: TrasiaColors.inkStrong,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
@@ -544,7 +535,7 @@ class _RevisitConfirmDialog extends StatelessWidget {
                   'Do you want to go to $placeName again?',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: Color(0xFF536477),
+                    color: TrasiaColors.muted,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -582,7 +573,11 @@ class _RevisitConfirmDialog extends StatelessWidget {
             top: 12,
             right: 12,
             child: IconButton(
-              icon: const Icon(Icons.close_rounded, color: Color(0xFF8A98AA)),
+              tooltip: 'Close',
+              icon: const Icon(
+                Icons.close_rounded,
+                color: TrasiaColors.mutedSoft,
+              ),
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
@@ -617,7 +612,7 @@ class _HistorySheet extends StatelessWidget {
                 child: Text(
                   'History',
                   style: TextStyle(
-                    color: Color(0xFF102033),
+                    color: TrasiaColors.inkStrong,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
@@ -631,7 +626,7 @@ class _HistorySheet extends StatelessWidget {
                 ? 'Completed trips will appear here.'
                 : '${entries.length} completed places',
             style: const TextStyle(
-              color: Color(0xFF536477),
+              color: TrasiaColors.muted,
               fontSize: 14,
               height: 1.45,
             ),
@@ -669,7 +664,7 @@ class _HistoryEmptyState extends StatelessWidget {
             'No completed places yet',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Color(0xFF102033),
+              color: TrasiaColors.inkStrong,
               fontSize: 16,
               fontWeight: FontWeight.w900,
             ),
@@ -678,7 +673,7 @@ class _HistoryEmptyState extends StatelessWidget {
           Text(
             'Start a Transit, Ride, or Plan trip and tap the arrival button.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF68788C), height: 1.35),
+            style: TextStyle(color: TrasiaColors.mutedSoft, height: 1.35),
           ),
         ],
       ),
@@ -696,7 +691,7 @@ class _HistoryEntryCard extends StatelessWidget {
       'Transit' => TrasiaColors.primary,
       'Ride' => const Color(0xFF00A86B),
       'Plan' => const Color(0xFFFFA800),
-      _ => const Color(0xFF68788C),
+      _ => TrasiaColors.mutedSoft,
     };
     final icon = switch (entry.category) {
       'Transit' => Icons.directions_transit_rounded,
@@ -737,7 +732,7 @@ class _HistoryEntryCard extends StatelessWidget {
                         child: Text(
                           entry.placeName,
                           style: const TextStyle(
-                            color: Color(0xFF102033),
+                            color: TrasiaColors.inkStrong,
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                           ),
@@ -750,7 +745,7 @@ class _HistoryEntryCard extends StatelessWidget {
                   Text(
                     _historyTimestamp(entry.completedAt),
                     style: const TextStyle(
-                      color: Color(0xFF8A98AA),
+                      color: TrasiaColors.mutedSoft,
                       fontSize: 12,
                     ),
                   ),
@@ -761,13 +756,13 @@ class _HistoryEntryCard extends StatelessWidget {
                         const Icon(
                           Icons.payments_outlined,
                           size: 15,
-                          color: Color(0xFF536477),
+                          color: TrasiaColors.muted,
                         ),
                         const SizedBox(width: 5),
                         Text(
                           'Paid RM ${entry.amountPaid!.toStringAsFixed(2)}',
                           style: const TextStyle(
-                            color: Color(0xFF536477),
+                            color: TrasiaColors.muted,
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                           ),
@@ -879,7 +874,7 @@ class _FavoritesSheetState extends State<_FavoritesSheet> {
                 child: Text(
                   'Favorites',
                   style: TextStyle(
-                    color: Color(0xFF102033),
+                    color: TrasiaColors.inkStrong,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
@@ -893,7 +888,7 @@ class _FavoritesSheetState extends State<_FavoritesSheet> {
                 ? 'Places you save in Trasia will appear here.'
                 : '${_places.length} saved places',
             style: const TextStyle(
-              color: Color(0xFF536477),
+              color: TrasiaColors.muted,
               fontSize: 14,
               height: 1.45,
             ),
@@ -939,7 +934,7 @@ class _FavoritesEmptyState extends StatelessWidget {
             'No favorite places yet',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Color(0xFF102033),
+              color: TrasiaColors.inkStrong,
               fontSize: 16,
               fontWeight: FontWeight.w900,
             ),
@@ -948,7 +943,7 @@ class _FavoritesEmptyState extends StatelessWidget {
           Text(
             'Tap the heart on any destination or Blind Box place.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF68788C), height: 1.35),
+            style: TextStyle(color: TrasiaColors.mutedSoft, height: 1.35),
           ),
         ],
       ),
@@ -996,6 +991,7 @@ class _FavoritePlaceCard extends StatelessWidget {
                         width: 72,
                         height: 72,
                         fit: BoxFit.cover,
+                        semanticLabel: place.name,
                         placeholder: Container(
                           width: 72,
                           height: 72,
@@ -1013,7 +1009,7 @@ class _FavoritePlaceCard extends StatelessWidget {
                     Text(
                       place.name,
                       style: const TextStyle(
-                        color: Color(0xFF102033),
+                        color: TrasiaColors.inkStrong,
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
                       ),
@@ -1073,7 +1069,10 @@ class _FavoritePlaceMeta extends StatelessWidget {
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFF68788C), fontSize: 12),
+              style: const TextStyle(
+                color: TrasiaColors.mutedSoft,
+                fontSize: 12,
+              ),
             ),
           ),
         ],
@@ -1101,7 +1100,7 @@ class _GovernmentDataSheet extends StatelessWidget {
                 child: Text(
                   'Government Data',
                   style: TextStyle(
-                    color: Color(0xFF102033),
+                    color: TrasiaColors.inkStrong,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1113,7 +1112,7 @@ class _GovernmentDataSheet extends StatelessWidget {
           const Text(
             'Key Initiatives & Portals used to support Trasia route planning, tourism discovery, and assignment data justification.',
             style: TextStyle(
-              color: Color(0xFF536477),
+              color: TrasiaColors.muted,
               fontSize: 14,
               height: 1.45,
             ),
@@ -1151,7 +1150,7 @@ class _GovernmentDataSummary extends StatelessWidget {
             child: Text(
               'Assignment angle: Trasia is a data-driven Malaysian mobility planner built around official open data, public transport standards, and national statistics.',
               style: TextStyle(
-                color: Color(0xFF102033),
+                color: TrasiaColors.inkStrong,
                 fontWeight: FontWeight.w700,
                 height: 1.38,
               ),
@@ -1198,7 +1197,7 @@ class _GovernmentDataCard extends StatelessWidget {
                     Text(
                       source.name,
                       style: const TextStyle(
-                        color: Color(0xFF102033),
+                        color: TrasiaColors.inkStrong,
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
                       ),
@@ -1207,7 +1206,7 @@ class _GovernmentDataCard extends StatelessWidget {
                     Text(
                       source.portal,
                       style: const TextStyle(
-                        color: Color(0xFF68788C),
+                        color: TrasiaColors.mutedSoft,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1251,7 +1250,7 @@ class _DataDetailBlock extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            color: Color(0xFF102033),
+            color: TrasiaColors.inkStrong,
             fontSize: 12,
             fontWeight: FontWeight.w900,
           ),
@@ -1260,7 +1259,7 @@ class _DataDetailBlock extends StatelessWidget {
         Text(
           text,
           style: const TextStyle(
-            color: Color(0xFF536477),
+            color: TrasiaColors.muted,
             fontSize: 13,
             height: 1.38,
           ),
@@ -1290,7 +1289,7 @@ class _ProfileSettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = destructive
         ? const Color(0xFFD63C3C)
-        : const Color(0xFF102033);
+        : TrasiaColors.inkStrong;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -1339,7 +1338,7 @@ class _ProfileSettingRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF718095),
+                        color: TrasiaColors.muted,
                         fontSize: 12,
                       ),
                     ),
@@ -1351,7 +1350,7 @@ class _ProfileSettingRow extends StatelessWidget {
               Icons.chevron_right_rounded,
               color: destructive
                   ? const Color(0xFFD63C3C)
-                  : const Color(0xFF93A1B2),
+                  : TrasiaColors.mutedSoft,
             ),
           ],
         ),
@@ -1391,7 +1390,7 @@ class _ProfileSheet extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    color: Color(0xFF102033),
+                    color: TrasiaColors.inkStrong,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1434,7 +1433,7 @@ class _SettingsPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: TrasiaColors.borderSubtle),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -1458,7 +1457,7 @@ class _SettingsPage extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1F2937),
+                color: TrasiaColors.ink,
               ),
             ),
           ),
@@ -1489,15 +1488,15 @@ class _SettingsPage extends StatelessWidget {
                 height: 40,
                 decoration: BoxDecoration(
                   color: isDestructive
-                      ? const Color(0xFFF43F5E).withValues(alpha: 0.1)
-                      : const Color(0xFFF7F9FC),
+                      ? TrasiaColors.danger.withValues(alpha: 0.1)
+                      : TrasiaColors.background,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
                   color: isDestructive
-                      ? const Color(0xFFF43F5E)
-                      : const Color(0xFF0057C8),
+                      ? TrasiaColors.danger
+                      : TrasiaColors.primary,
                   size: 20,
                 ),
               ),
@@ -1512,8 +1511,8 @@ class _SettingsPage extends StatelessWidget {
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: isDestructive
-                            ? const Color(0xFFF43F5E)
-                            : const Color(0xFF1F2937),
+                            ? TrasiaColors.danger
+                            : TrasiaColors.ink,
                       ),
                     ),
                     if (subtitle.isNotEmpty) ...[
@@ -1522,7 +1521,7 @@ class _SettingsPage extends StatelessWidget {
                         subtitle,
                         style: const TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF6B7280),
+                          color: TrasiaColors.muted,
                         ),
                       ),
                     ],
@@ -1532,7 +1531,7 @@ class _SettingsPage extends StatelessWidget {
               if (onTap != null && !isDestructive)
                 const Icon(
                   Icons.chevron_right_rounded,
-                  color: Color(0xFFD1D5DB),
+                  color: TrasiaColors.border,
                 ),
             ],
           ),
@@ -1552,22 +1551,13 @@ class _SettingsPage extends StatelessWidget {
             profile?.email ??
             '';
         return Theme(
-          data: ThemeData(
-            brightness: Brightness.light,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: TrasiaColors.primary,
-              brightness: Brightness.light,
-            ),
-            scaffoldBackgroundColor: const Color(0xFFF7F9FC),
-            useMaterial3: true,
-            snackBarTheme: _trasiaSnackBarTheme,
-          ),
+          data: TrasiaTheme.light,
           child: Scaffold(
             appBar: AppBar(
-              backgroundColor: const Color(0xFFF7F9FC),
+              backgroundColor: TrasiaColors.background,
               elevation: 0,
               scrolledUnderElevation: 0,
-              iconTheme: const IconThemeData(color: Color(0xFF1F2937)),
+              iconTheme: const IconThemeData(color: TrasiaColors.ink),
             ),
             body: ListView(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
@@ -1585,7 +1575,7 @@ class _SettingsPage extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.w900,
-                              color: Color(0xFF102033),
+                              color: TrasiaColors.inkStrong,
                             ),
                           ),
                           SizedBox(height: 6),
@@ -1594,7 +1584,7 @@ class _SettingsPage extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF68788C),
+                              color: TrasiaColors.mutedSoft,
                             ),
                           ),
                         ],
@@ -1621,7 +1611,7 @@ class _SettingsPage extends StatelessWidget {
                   ),
                   const Divider(
                     height: 1,
-                    color: Color(0xFFF3F4F6),
+                    color: TrasiaColors.borderSubtle,
                     indent: 80,
                     endIndent: 24,
                   ),
@@ -1791,29 +1781,20 @@ class _EditEmailPageState extends State<EditEmailPage> {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: ThemeData(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: TrasiaColors.primary,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        useMaterial3: true,
-        snackBarTheme: _trasiaSnackBarTheme,
-      ),
+      data: TrasiaTheme.light.copyWith(scaffoldBackgroundColor: Colors.white),
       child: Scaffold(
         appBar: AppBar(
           title: const Text(
             'Edit Email',
             style: TextStyle(
               fontWeight: FontWeight.w900,
-              color: Color(0xFF102033),
+              color: TrasiaColors.inkStrong,
               fontSize: 18,
             ),
           ),
           backgroundColor: Colors.white,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Color(0xFF93A1B2)),
+          iconTheme: const IconThemeData(color: TrasiaColors.mutedSoft),
         ),
         body: SafeArea(
           child: ListView(
@@ -1821,7 +1802,7 @@ class _EditEmailPageState extends State<EditEmailPage> {
             children: [
               const Text(
                 'Enter a new email address. This will be used for your account.',
-                style: TextStyle(color: Color(0xFF68788C), fontSize: 14),
+                style: TextStyle(color: TrasiaColors.mutedSoft, fontSize: 14),
               ),
               const SizedBox(height: 24),
               TextField(
@@ -1831,7 +1812,7 @@ class _EditEmailPageState extends State<EditEmailPage> {
                   labelText: 'New Email',
                   hintText: 'user@example.com',
                   filled: true,
-                  fillColor: const Color(0xFFF2F6FB),
+                  fillColor: TrasiaColors.surfaceSubtle,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -2008,29 +1989,20 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: ThemeData(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: TrasiaColors.primary,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        useMaterial3: true,
-        snackBarTheme: _trasiaSnackBarTheme,
-      ),
+      data: TrasiaTheme.light.copyWith(scaffoldBackgroundColor: Colors.white),
       child: Scaffold(
         appBar: AppBar(
           title: const Text(
             'Edit Password',
             style: TextStyle(
               fontWeight: FontWeight.w900,
-              color: Color(0xFF102033),
+              color: TrasiaColors.inkStrong,
               fontSize: 18,
             ),
           ),
           backgroundColor: Colors.white,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Color(0xFF93A1B2)),
+          iconTheme: const IconThemeData(color: TrasiaColors.mutedSoft),
         ),
         body: SafeArea(
           child: ListView(
@@ -2042,7 +2014,7 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
                 decoration: InputDecoration(
                   labelText: 'Current Password',
                   filled: true,
-                  fillColor: const Color(0xFFF2F6FB),
+                  fillColor: TrasiaColors.surfaceSubtle,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -2056,7 +2028,7 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
                 decoration: InputDecoration(
                   labelText: 'New Password',
                   filled: true,
-                  fillColor: const Color(0xFFF2F6FB),
+                  fillColor: TrasiaColors.surfaceSubtle,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -2074,7 +2046,7 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',
                   filled: true,
-                  fillColor: const Color(0xFFF2F6FB),
+                  fillColor: TrasiaColors.surfaceSubtle,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -2297,29 +2269,20 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: ThemeData(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: TrasiaColors.primary,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        useMaterial3: true,
-        snackBarTheme: _trasiaSnackBarTheme,
-      ),
+      data: TrasiaTheme.light.copyWith(scaffoldBackgroundColor: Colors.white),
       child: Scaffold(
         appBar: AppBar(
           title: const Text(
             'Edit Username',
             style: TextStyle(
               fontWeight: FontWeight.w900,
-              color: Color(0xFF102033),
+              color: TrasiaColors.inkStrong,
               fontSize: 18,
             ),
           ),
           backgroundColor: Colors.white,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Color(0xFF93A1B2)),
+          iconTheme: const IconThemeData(color: TrasiaColors.mutedSoft),
         ),
         body: SafeArea(
           child: ListView(
@@ -2332,7 +2295,7 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
                   labelText: 'Username',
                   hintText: 'Enter a unique username',
                   filled: true,
-                  fillColor: const Color(0xFFF2F6FB),
+                  fillColor: TrasiaColors.surfaceSubtle,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -2399,7 +2362,7 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
                 const Text(
                   'Suggestions',
                   style: TextStyle(
-                    color: Color(0xFF102033),
+                    color: TrasiaColors.inkStrong,
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
                   ),
@@ -2413,7 +2376,9 @@ class _EditUsernamePageState extends State<EditUsernamePage> {
                         (s) => ActionChip(
                           label: Text(
                             s,
-                            style: const TextStyle(color: Color(0xFF102033)),
+                            style: const TextStyle(
+                              color: TrasiaColors.inkStrong,
+                            ),
                           ),
                           onPressed: () {
                             _controller.text = s;

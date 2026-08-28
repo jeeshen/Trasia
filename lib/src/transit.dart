@@ -551,7 +551,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
       addBest(
         fastest,
         label: 'Fastest Transit',
-        color: const Color(0xFF0B7CFF),
+        color: TrasiaColors.primary,
         crowd: .70,
       );
       addBest(
@@ -802,7 +802,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
     final variants = [
       _TransitRouteVariant(
         label: 'Fastest Transit',
-        color: const Color(0xFF0B7CFF),
+        color: TrasiaColors.primary,
         crowdBias: .70,
         costFor: (edge) =>
             edge.minutes.toDouble() +
@@ -1175,7 +1175,7 @@ class _TransitRouterScreenState extends State<TransitRouterScreen> {
         extraMinutes: 0,
         fareFactor: 1,
         transfers: distanceKm > 7 ? '2 transfers' : '1 transfer',
-        color: const Color(0xFF0B7CFF),
+        color: TrasiaColors.primary,
       ),
       estimatedTransit(
         label: 'Less Walking',

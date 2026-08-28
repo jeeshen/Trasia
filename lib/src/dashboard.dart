@@ -578,7 +578,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (!mounted || location == null) {
         return;
       }
-      _setSharedSelfLocation(location, 0);
+      // Keep the map's initial target in sync with the recenter action. This
+      // matters on the Hub-Pool matching screen, whose selected destination
+      // otherwise gets reapplied when the shared map view rebuilds.
+      _setSharedSelfLocation(location, 0, centerMap: true);
       await controller.setCameraPosition(
         CameraPosition(target: location, zoom: 17, tilt: 0, bearing: 0),
       );
@@ -1007,7 +1010,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 children: [
                   const Icon(
                     Icons.notifications_none_rounded,
-                    color: Color(0xFF102033),
+                    color: TrasiaColors.inkStrong,
                   ),
                   if (unreadCount > 0)
                     Positioned(
@@ -1079,7 +1082,7 @@ class _NotificationsSheet extends StatelessWidget {
                     title: Text(
                       notification.title,
                       style: const TextStyle(
-                        color: Color(0xFF172033),
+                        color: TrasiaColors.ink,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1274,16 +1277,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: ThemeData(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: TrasiaColors.primary,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        useMaterial3: true,
-        snackBarTheme: _trasiaSnackBarTheme,
-      ),
+      data: TrasiaTheme.light.copyWith(scaffoldBackgroundColor: Colors.white),
       child: ColoredBox(
         color: Colors.white,
         child: SafeArea(
@@ -1299,7 +1293,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
                         Text(
                           'Government Data',
                           style: TextStyle(
-                            color: Color(0xFF102033),
+                            color: TrasiaColors.inkStrong,
                             fontSize: 24,
                             fontWeight: FontWeight.w900,
                           ),
@@ -1308,7 +1302,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
                         Text(
                           'Live insights from data.gov.my',
                           style: TextStyle(
-                            color: Color(0xFF68788C),
+                            color: TrasiaColors.mutedSoft,
                             fontSize: 13,
                           ),
                         ),
@@ -1495,7 +1489,7 @@ class _DashboardOverviewPageState extends State<_DashboardOverviewPage> {
         ),
         const SizedBox(height: 14),
         for (final metric in const [
-          ('overall', 'All public transport', Color(0xFF0B7CFF)),
+          ('overall', 'All public transport', TrasiaColors.primary),
           ('rail', 'Rail', Color(0xFF005BD8)),
           ('bus', 'Bus', Color(0xFF6BB8FF)),
         ]) ...[
@@ -1682,7 +1676,7 @@ class _GovernmentLoading extends StatelessWidget {
           SizedBox(height: 14),
           Text(
             'Loading official government data...',
-            style: TextStyle(color: Color(0xFF68788C)),
+            style: TextStyle(color: TrasiaColors.mutedSoft),
           ),
         ],
       ),
@@ -1703,7 +1697,7 @@ class _GovernmentError extends StatelessWidget {
           const Icon(
             Icons.cloud_off_rounded,
             size: 42,
-            color: Color(0xFF68788C),
+            color: TrasiaColors.mutedSoft,
           ),
           const SizedBox(height: 12),
           Text(message, textAlign: TextAlign.center),
@@ -1728,7 +1722,7 @@ class _GovernmentEmpty extends StatelessWidget {
       child: Text(
         'No official data is available for this selection.',
         textAlign: TextAlign.center,
-        style: TextStyle(color: Color(0xFF68788C)),
+        style: TextStyle(color: TrasiaColors.mutedSoft),
       ),
     );
   }
@@ -1749,7 +1743,7 @@ class _GovernmentSelectionPrompt extends StatelessWidget {
       child: const Text(
         'Choose an origin and destination to compare official ridership.',
         textAlign: TextAlign.center,
-        style: TextStyle(color: Color(0xFF68788C), height: 1.35),
+        style: TextStyle(color: TrasiaColors.mutedSoft, height: 1.35),
       ),
     );
   }
@@ -1787,7 +1781,7 @@ class _GovernmentSectionHeader extends StatelessWidget {
               child: Text(
                 title,
                 style: const TextStyle(
-                  color: Color(0xFF102033),
+                  color: TrasiaColors.inkStrong,
                   fontSize: 19,
                   fontWeight: FontWeight.w900,
                 ),
@@ -1799,7 +1793,7 @@ class _GovernmentSectionHeader extends StatelessWidget {
         Text(
           description,
           style: const TextStyle(
-            color: Color(0xFF536477),
+            color: TrasiaColors.muted,
             fontSize: 13,
             height: 1.4,
           ),
@@ -1809,7 +1803,7 @@ class _GovernmentSectionHeader extends StatelessWidget {
           Text(
             'Data as of ${updated!}',
             style: const TextStyle(
-              color: Color(0xFF8A98AA),
+              color: TrasiaColors.mutedSoft,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -1856,7 +1850,7 @@ class _FuelPriceGrid extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFF68788C),
+                    color: TrasiaColors.mutedSoft,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1867,7 +1861,7 @@ class _FuelPriceGrid extends StatelessWidget {
                       ? 'RM ${(price.$2 as num).toStringAsFixed(2)}/L'
                       : 'Unavailable',
                   style: const TextStyle(
-                    color: Color(0xFF102033),
+                    color: TrasiaColors.inkStrong,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1900,33 +1894,33 @@ class _GovernmentDropdown extends StatelessWidget {
       isExpanded: true,
       icon: const Icon(
         Icons.keyboard_arrow_down_rounded,
-        color: Color(0xFF68788C),
+        color: TrasiaColors.mutedSoft,
       ),
       dropdownColor: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(TrasiaRadii.control),
       style: const TextStyle(
-        color: Color(0xFF102033),
+        color: TrasiaColors.inkStrong,
         fontSize: 15,
         fontWeight: FontWeight.w700,
       ),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(
-          color: Color(0xFF68788C),
+          color: TrasiaColors.mutedSoft,
           fontWeight: FontWeight.w600,
         ),
         filled: true,
         fillColor: const Color(0xFFF1F5F9),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(TrasiaRadii.control),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(TrasiaRadii.control),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(TrasiaRadii.control),
           borderSide: const BorderSide(color: TrasiaColors.primary, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -1980,7 +1974,7 @@ class _RidershipComparison extends StatelessWidget {
           const Text(
             'Ridership comparison',
             style: TextStyle(
-              color: Color(0xFF102033),
+              color: TrasiaColors.inkStrong,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -1989,7 +1983,7 @@ class _RidershipComparison extends StatelessWidget {
             label: '$origin to $destination',
             value: forwardDaily,
             maxValue: max(forwardDaily, reverseDaily),
-            color: const Color(0xFF0B7CFF),
+            color: TrasiaColors.primary,
             suffix: 'daily',
           ),
           const SizedBox(height: 13),
@@ -2053,7 +2047,7 @@ class _ComparisonBar extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: Color(0xFF536477),
+                  color: TrasiaColors.muted,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -2062,7 +2056,7 @@ class _ComparisonBar extends StatelessWidget {
             Text(
               '${_formatDashboardNumber(value)} $suffix',
               style: const TextStyle(
-                color: Color(0xFF102033),
+                color: TrasiaColors.inkStrong,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
               ),
@@ -2095,13 +2089,13 @@ class _MonthlyRidership extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(color: Color(0xFF68788C), fontSize: 11),
+          style: const TextStyle(color: TrasiaColors.mutedSoft, fontSize: 11),
         ),
         const SizedBox(height: 4),
         Text(
           _formatDashboardNumber(value),
           style: const TextStyle(
-            color: Color(0xFF102033),
+            color: TrasiaColors.inkStrong,
             fontSize: 17,
             fontWeight: FontWeight.w900,
           ),
@@ -2147,7 +2141,7 @@ class _PublicTransportMetric extends StatelessWidget {
                 Text(
                   label,
                   style: const TextStyle(
-                    color: Color(0xFF536477),
+                    color: TrasiaColors.muted,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -2156,7 +2150,7 @@ class _PublicTransportMetric extends StatelessWidget {
                 Text(
                   '${_formatDashboardNumber(daily)} daily riders',
                   style: const TextStyle(
-                    color: Color(0xFF102033),
+                    color: TrasiaColors.inkStrong,
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
                   ),
@@ -2206,7 +2200,7 @@ class _GovernmentSourceNote extends StatelessWidget {
               'Official source: $url'
               '${updated == null ? '' : '\nLast updated: $updated'}',
               style: const TextStyle(
-                color: Color(0xFF536477),
+                color: TrasiaColors.muted,
                 fontSize: 11,
                 height: 1.35,
               ),
@@ -2250,12 +2244,12 @@ class _AnimatedSegmentedBar extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: const Color(0xFFF0F6FF),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
       ),
       child: Stack(
         children: [
           AnimatedAlign(
-            duration: const Duration(milliseconds: 300),
+            duration: TrasiaMotion.responsive(context, TrasiaMotion.standard),
             curve: Curves.easeOutCubic,
             alignment: Alignment(
               -1.0 +
@@ -2268,15 +2262,8 @@ class _AnimatedSegmentedBar extends StatelessWidget {
               heightFactor: 1.0,
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0B7CFF),
+                  color: TrasiaColors.primary,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0B7CFF).withValues(alpha: 0.25),
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
                 ),
               ),
             ),
@@ -2290,7 +2277,10 @@ class _AnimatedSegmentedBar extends StatelessWidget {
                   onTap: () => onChanged(index),
                   child: Center(
                     child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 300),
+                      duration: TrasiaMotion.responsive(
+                        context,
+                        TrasiaMotion.standard,
+                      ),
                       curve: Curves.easeOutCubic,
                       style: TextStyle(
                         fontFamily: 'Roboto',
@@ -2298,9 +2288,7 @@ class _AnimatedSegmentedBar extends StatelessWidget {
                         fontWeight: isSelected
                             ? FontWeight.w700
                             : FontWeight.w600,
-                        color: isSelected
-                            ? Colors.white
-                            : const Color(0xFF0B7CFF),
+                        color: isSelected ? Colors.white : TrasiaColors.primary,
                       ),
                       child: Text(tabs[index]),
                     ),

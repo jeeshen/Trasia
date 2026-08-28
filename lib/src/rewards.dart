@@ -133,27 +133,16 @@ class _RewardsEntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(TrasiaRadii.card),
       child: Ink(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF064D9F), Color(0xFF0B7CFF)],
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x260B7CFF),
-              blurRadius: 18,
-              offset: Offset(0, 8),
-            ),
-          ],
+          color: TrasiaColors.primary,
+          borderRadius: BorderRadius.circular(TrasiaRadii.card),
         ),
         child: InkWell(
           key: const Key('blind-box-rewards'),
           onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(TrasiaRadii.card),
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Row(
@@ -220,17 +209,17 @@ class _CheckInMemoriesEntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(TrasiaRadii.card),
       child: Ink(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(TrasiaRadii.card),
           border: Border.all(color: const Color(0xFFDDE7F3)),
         ),
         child: InkWell(
           key: const Key('blind-box-check-in-memories'),
           onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(TrasiaRadii.card),
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Row(
@@ -256,7 +245,7 @@ class _CheckInMemoriesEntryCard extends StatelessWidget {
                       const Text(
                         'Check-in Memories',
                         style: TextStyle(
-                          color: Color(0xFF172033),
+                          color: TrasiaColors.ink,
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                         ),
@@ -265,7 +254,7 @@ class _CheckInMemoriesEntryCard extends StatelessWidget {
                       Text(
                         '$checkedInCount places checked in',
                         style: const TextStyle(
-                          color: Color(0xFF687386),
+                          color: TrasiaColors.mutedSoft,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -274,7 +263,7 @@ class _CheckInMemoriesEntryCard extends StatelessWidget {
                 ),
                 const Icon(
                   Icons.arrow_forward_ios_rounded,
-                  color: Color(0xFF98A2B3),
+                  color: TrasiaColors.mutedSoft,
                   size: 18,
                 ),
               ],
@@ -351,26 +340,9 @@ class _CheckInMemoriesHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF051EA8),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF00179D), Color(0xFF0B7CFF)],
-        ),
-      ),
+      decoration: const BoxDecoration(color: TrasiaColors.primary),
       child: Stack(
         children: [
-          Positioned(
-            right: 28,
-            top: 72,
-            child: _MemoryBubble(size: 68, opacity: .22),
-          ),
-          Positioned(
-            left: 76,
-            bottom: 20,
-            child: _MemoryBubble(size: 92, opacity: .16),
-          ),
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
@@ -405,23 +377,6 @@ class _CheckInMemoriesHeader extends StatelessWidget {
   }
 }
 
-class _MemoryBubble extends StatelessWidget {
-  const _MemoryBubble({required this.size, required this.opacity});
-  final double size;
-  final double opacity;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: opacity),
-        shape: BoxShape.circle,
-      ),
-    );
-  }
-}
-
 class _EmptyCheckInMemories extends StatelessWidget {
   const _EmptyCheckInMemories();
   @override
@@ -441,7 +396,7 @@ class _EmptyCheckInMemories extends StatelessWidget {
             Text(
               'No check-ins yet',
               style: TextStyle(
-                color: Color(0xFF172033),
+                color: TrasiaColors.ink,
                 fontSize: 21,
                 fontWeight: FontWeight.w900,
               ),
@@ -450,7 +405,7 @@ class _EmptyCheckInMemories extends StatelessWidget {
             Text(
               'Places you check in from KL Blind Box will appear here as memories.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF687386), height: 1.4),
+              style: TextStyle(color: TrasiaColors.mutedSoft, height: 1.4),
             ),
           ],
         ),
@@ -482,13 +437,6 @@ class _CheckInMemoryTicket extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFDDE7F3)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14001844),
-            blurRadius: 14,
-            offset: Offset(0, 7),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -531,6 +479,7 @@ class _CheckInMemoryTicket extends StatelessWidget {
                             width: 62,
                             height: 62,
                             fit: BoxFit.cover,
+                            semanticLabel: place?.name ?? memory.placeKey,
                           ),
                   ),
                   const SizedBox(width: 14),
@@ -543,7 +492,7 @@ class _CheckInMemoryTicket extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Color(0xFF172033),
+                            color: TrasiaColors.ink,
                             fontSize: 15,
                             fontWeight: FontWeight.w900,
                           ),
@@ -552,7 +501,7 @@ class _CheckInMemoryTicket extends StatelessWidget {
                         Text(
                           'Checked in on $date',
                           style: const TextStyle(
-                            color: Color(0xFF687386),
+                            color: TrasiaColors.mutedSoft,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
@@ -561,7 +510,7 @@ class _CheckInMemoryTicket extends StatelessWidget {
                         Text(
                           'Time: $time',
                           style: const TextStyle(
-                            color: Color(0xFF8A98AA),
+                            color: TrasiaColors.mutedSoft,
                             fontSize: 12,
                           ),
                         ),
@@ -659,7 +608,7 @@ class _RewardsPageState extends State<RewardsPage> {
         ),
         title: const Text('Reward redeemed!'),
         content: Text(
-          'RM${voucher.hubPoolCredit.toStringAsFixed(0)} has been added to your HubPool credit.',
+          'RM${voucher.hubPoolCredit.toStringAsFixed(0)} has been added to your Hub-Pool credit.',
           textAlign: TextAlign.center,
         ),
         actionsAlignment: MainAxisAlignment.center,
@@ -678,17 +627,15 @@ class _RewardsPageState extends State<RewardsPage> {
       context: context,
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.all(24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(TrasiaRadii.card),
+        ),
         child: Container(
           key: const Key('reward-voucher-saved'),
           padding: const EdgeInsets.all(26),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF086EDB), Color(0xFF0B7CFF)],
-            ),
+            color: TrasiaColors.primary,
+            borderRadius: BorderRadius.circular(TrasiaRadii.card),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -770,7 +717,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 const Text(
                   'Redeem vouchers',
                   style: TextStyle(
-                    color: Color(0xFF172033),
+                    color: TrasiaColors.ink,
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
                   ),
@@ -778,7 +725,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 const SizedBox(height: 6),
                 const Text(
                   'Use your KL Blind Box points for Trasia credit and partner rewards.',
-                  style: TextStyle(color: Color(0xFF687386), height: 1.4),
+                  style: TextStyle(color: TrasiaColors.mutedSoft, height: 1.4),
                 ),
                 const SizedBox(height: 16),
                 for (final voucher in _RewardsData.vouchers) ...[
@@ -866,10 +813,10 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
         appBar: AppBar(
           title: const Text('My Vouchers'),
           backgroundColor: Colors.white,
-          foregroundColor: const Color(0xFF172033),
+          foregroundColor: TrasiaColors.ink,
           bottom: TabBar(
             labelColor: TrasiaColors.primary,
-            unselectedLabelColor: const Color(0xFF687386),
+            unselectedLabelColor: TrasiaColors.mutedSoft,
             indicatorColor: TrasiaColors.primary,
             tabs: [
               Tab(text: 'Available (${available.length})'),
@@ -942,7 +889,7 @@ class _VoucherList extends StatelessWidget {
             Text(
               emptyTitle,
               style: const TextStyle(
-                color: Color(0xFF172033),
+                color: TrasiaColors.ink,
                 fontSize: 21,
                 fontWeight: FontWeight.w900,
               ),
@@ -951,7 +898,10 @@ class _VoucherList extends StatelessWidget {
             Text(
               emptyMessage,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF687386), height: 1.4),
+              style: const TextStyle(
+                color: TrasiaColors.mutedSoft,
+                height: 1.4,
+              ),
             ),
           ],
         ),
@@ -974,12 +924,12 @@ class _RedeemedVoucherCard extends StatelessWidget {
     return Material(
       key: Key('saved-voucher-${voucher.id}'),
       color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(TrasiaRadii.card),
       elevation: 2,
       shadowColor: const Color(0x14001844),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -996,7 +946,7 @@ class _RedeemedVoucherCard extends StatelessWidget {
                     Text(
                       voucher.title,
                       style: const TextStyle(
-                        color: Color(0xFF172033),
+                        color: TrasiaColors.ink,
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
                       ),
@@ -1007,7 +957,7 @@ class _RedeemedVoucherCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF687386),
+                        color: TrasiaColors.mutedSoft,
                         fontSize: 12,
                       ),
                     ),
@@ -1017,7 +967,7 @@ class _RedeemedVoucherCard extends StatelessWidget {
                           ? 'Used ${_voucherDate(voucher.usedAt!)}'
                           : 'Redeemed ${_voucherDate(voucher.redeemedAt)}',
                       style: const TextStyle(
-                        color: Color(0xFF8A98AA),
+                        color: TrasiaColors.mutedSoft,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1069,7 +1019,7 @@ class _RedeemedVoucherDetailsSheet extends StatelessWidget {
                 voucher.title,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: Color(0xFF172033),
+                  color: TrasiaColors.ink,
                   fontSize: 23,
                   fontWeight: FontWeight.w900,
                 ),
@@ -1080,7 +1030,10 @@ class _RedeemedVoucherDetailsSheet extends StatelessWidget {
               child: Text(
                 voucher.description,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF687386), height: 1.4),
+                style: const TextStyle(
+                  color: TrasiaColors.mutedSoft,
+                  height: 1.4,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -1089,15 +1042,15 @@ class _RedeemedVoucherDetailsSheet extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F6FB),
-                borderRadius: BorderRadius.circular(14),
+                color: TrasiaColors.surfaceSubtle,
+                borderRadius: BorderRadius.circular(TrasiaRadii.control),
                 border: Border.all(color: const Color(0xFFDDE7F3)),
               ),
               child: Text(
                 voucher.code,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: Color(0xFF172033),
+                  color: TrasiaColors.ink,
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1,
@@ -1110,7 +1063,10 @@ class _RedeemedVoucherDetailsSheet extends StatelessWidget {
                 history
                     ? 'Used ${_voucherDate(voucher.usedAt!)} - Demo voucher'
                     : 'Redeemed ${_voucherDate(voucher.redeemedAt)} - Demo voucher',
-                style: const TextStyle(color: Color(0xFF8A98AA), fontSize: 12),
+                style: const TextStyle(
+                  color: TrasiaColors.mutedSoft,
+                  fontSize: 12,
+                ),
               ),
             ),
             if (!history) ...[
@@ -1206,13 +1162,7 @@ class _RewardPointsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF064D9F), Color(0xFF0B7CFF), Color(0xFF31A8FF)],
-        ),
-      ),
+      decoration: const BoxDecoration(color: TrasiaColors.primary),
       padding: const EdgeInsets.fromLTRB(24, 88, 24, 24),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
@@ -1276,13 +1226,13 @@ class _RewardVoucherCard extends StatelessWidget {
     final canRedeem = availablePoints >= voucher.pointCost;
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(TrasiaRadii.card),
       elevation: 2,
       shadowColor: const Color(0x18001844),
       child: InkWell(
         key: Key('reward-${voucher.id}'),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(TrasiaRadii.card),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -1305,7 +1255,7 @@ class _RewardVoucherCard extends StatelessWidget {
                     Text(
                       voucher.title,
                       style: const TextStyle(
-                        color: Color(0xFF172033),
+                        color: TrasiaColors.ink,
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
                       ),
@@ -1314,7 +1264,7 @@ class _RewardVoucherCard extends StatelessWidget {
                     Text(
                       voucher.description,
                       style: const TextStyle(
-                        color: Color(0xFF687386),
+                        color: TrasiaColors.mutedSoft,
                         fontSize: 12,
                       ),
                     ),
@@ -1341,7 +1291,7 @@ class _RewardVoucherCard extends StatelessWidget {
                       size: 16,
                       color: canRedeem
                           ? TrasiaColors.primary
-                          : const Color(0xFF98A2B3),
+                          : TrasiaColors.mutedSoft,
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -1398,7 +1348,7 @@ class _RewardDetailsSheet extends StatelessWidget {
               voucher.title,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: Color(0xFF172033),
+                color: TrasiaColors.ink,
                 fontSize: 23,
                 fontWeight: FontWeight.w900,
               ),
@@ -1407,7 +1357,10 @@ class _RewardDetailsSheet extends StatelessWidget {
             Text(
               voucher.description,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF687386), height: 1.4),
+              style: const TextStyle(
+                color: TrasiaColors.mutedSoft,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 20),
             Container(
